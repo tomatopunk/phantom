@@ -7,12 +7,13 @@ GO           := go
 PROTO_DIR    := pkg/api/proto
 PROTO_SRC    := $(PROTO_DIR)/debugger.proto
 BPF_INCLUDE  := $(CURDIR)/bpf/include
+BPF_SYSINC   := /usr/include/$(shell uname -m)-linux-gnu
 BPF_KPROBE   := bpf/probes/kernel/minikprobe
 BPF_UPROBE   := bpf/probes/user/uprobe
 BPF_OUT      := $(BPF_KPROBE).o
 BPF_UPROBE_OUT := $(BPF_UPROBE).o
 CLANG        ?= clang
-CLANG_FLAGS  := -target bpf -O2 -I $(BPF_INCLUDE) -c
+CLANG_FLAGS  := -target bpf -O2 -I $(BPF_INCLUDE) -I $(BPF_SYSINC) -c
 
 all: fmt vet proto build test
 

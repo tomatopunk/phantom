@@ -12,23 +12,23 @@ import (
 
 // executeHookAdd compiles C snippet (from --code or from --sec) and attaches at the given point.
 func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
-	point, code, sec, err := parseHookAddArgs(args)
+	point, code, sec, limit, err := parseHookAddArgs(args)
 	if err != nil {
 		return errResponse("hook add: " + err.Error()), nil
 	}
-	plan, err := e.planner.PlanHook(point, code, sec)
+	plan, err := e.planner.PlanHook(point, code, sec, limit)
 	if err != nil {
 		return errResponse("hook add: " + err.Error()), nil
-	}
-	if e.hookIncludeDir == "" {
-		return errResponse("hook add: no bpf include dir configured"), nil
 	}
 	snippet := plan.Code
 	if plan.Sec != "" {
-		snippet, err = hook.SecToSnippet(plan.Sec)
+		snippet, err = hook.SecToSnippet(plan.Sec, plan.AttachPoint)
 		if err != nil {
 			return errResponse("hook add: " + err.Error()), nil
 		}
+	}
+	if e.hookIncludeDir == "" {
+		return errResponse("hook add: no bpf include dir configured"), nil
 	}
 	cr, err := hook.Compile(ctx, snippet, plan.AttachPoint, e.hookIncludeDir)
 	if err != nil {
@@ -41,7 +41,7 @@ func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Sess
 		}
 		return errResponse("hook add: " + err.Error()), nil
 	}
-	id := sess.AddHook(plan.AttachPoint, detach, hookReader)
+	id := sess.AddHook(plan.AttachPoint, detach, hookReader, plan.Limit)
 	return &proto.ExecuteResponse{
 		Ok:     true,
 		Output: "hook set at " + plan.AttachPoint + " (" + id + ")",
@@ -51,48 +51,59 @@ func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Sess
 	}, nil
 }
 
-// parseHookAddArgs returns point, code, sec. Exactly one of code or sec must be set (mutually exclusive).
-func parseHookAddArgs(args []string) (point, code, sec string, err error) {
+// parseHookAddArgs returns point, code, sec, limit. Exactly one of code or sec must be set (mutually exclusive).
+// limit is 0 when --limit is not set (no auto-stop).
+func parseHookAddArgs(args []string) (point, code, sec string, limit int, err error) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--point", "-p":
 			if i+1 >= len(args) {
-				return "", "", "", fmt.Errorf("--point requires value")
+				return "", "", "", 0, fmt.Errorf("--point requires value")
 			}
 			point = args[i+1]
 			i++
 		case "--lang", "-l":
 			if i+1 >= len(args) {
-				return "", "", "", fmt.Errorf("--lang requires value")
+				return "", "", "", 0, fmt.Errorf("--lang requires value")
 			}
 			if !strings.EqualFold(args[i+1], "c") {
-				return "", "", "", fmt.Errorf("only --lang c supported")
+				return "", "", "", 0, fmt.Errorf("only --lang c supported")
 			}
 			i++
 		case "--code", "-c":
 			if i+1 >= len(args) {
-				return "", "", "", fmt.Errorf("--code requires value")
+				return "", "", "", 0, fmt.Errorf("--code requires value")
 			}
 			code = args[i+1]
 			i++
 		case "--sec", "-s":
 			if i+1 >= len(args) {
-				return "", "", "", fmt.Errorf("--sec requires value")
+				return "", "", "", 0, fmt.Errorf("--sec requires value")
 			}
 			sec = args[i+1]
+			i++
+		case "--limit":
+			if i+1 >= len(args) {
+				return "", "", "", 0, fmt.Errorf("--limit requires value")
+			}
+			var n int
+			if _, err := fmt.Sscanf(args[i+1], "%d", &n); err != nil || n < 0 {
+				return "", "", "", 0, fmt.Errorf("--limit must be a non-negative integer")
+			}
+			limit = n
 			i++
 		}
 	}
 	if point == "" {
-		return "", "", "", fmt.Errorf("missing --point (e.g. kprobe:do_sys_open)")
+		return "", "", "", 0, fmt.Errorf("missing --point (e.g. kprobe:do_sys_open)")
 	}
 	if code != "" && sec != "" {
-		return "", "", "", fmt.Errorf("cannot use both --code and --sec (use one)")
+		return "", "", "", 0, fmt.Errorf("cannot use both --code and --sec (use one)")
 	}
 	if code == "" && sec == "" {
-		return "", "", "", fmt.Errorf("missing --code or --sec")
+		return "", "", "", 0, fmt.Errorf("missing --code or --sec")
 	}
-	return point, code, sec, nil
+	return point, code, sec, limit, nil
 }
 
 // executeHookList returns all hooks.

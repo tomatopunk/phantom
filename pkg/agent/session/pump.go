@@ -87,3 +87,38 @@ func runEventPump(ctx context.Context, sess *Session, reader *ringbuf.Reader) {
 		sess.BroadcastEvent(&evCopy)
 	}
 }
+
+// runHookEventPump is like runEventPump but for a single hook's reader; when the hook has a limit,
+// it auto-removes the hook after that many events.
+func runHookEventPump(ctx context.Context, sess *Session, reader *ringbuf.Reader, hookID string) {
+	defer reader.Close()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		record, err := reader.Read()
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			continue
+		}
+		ev, err := runtime.DecodeEvent(record.RawSample)
+		if err != nil {
+			continue
+		}
+		evCopy := ev
+		sess.SetLastEvent(&evCopy)
+		sess.BroadcastEvent(&evCopy)
+		// Auto-remove when limit reached
+		if hookID != "" {
+			count, limit, ok := sess.IncrementHookHitCount(hookID)
+			if ok && limit > 0 && count >= limit {
+				sess.RemoveHook(hookID)
+				return
+			}
+		}
+	}
+}

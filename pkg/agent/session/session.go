@@ -266,14 +266,28 @@ func (s *Session) ListTraces() []*TraceState {
 
 // AddHook stores a hook, starts an event pump reading from the hook's ringbuf, and returns its id.
 // When the hook is removed or the session stops, the pump is cancelled and detach is called.
-func (s *Session) AddHook(attachPoint string, detach func(), reader *ringbuf.Reader) string {
+// limit is 0 for no limit; when > 0 the hook auto-detaches after that many events.
+func (s *Session) AddHook(attachPoint string, detach func(), reader *ringbuf.Reader, limit int) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := s.nextHookIDLocked()
 	ctx, cancel := context.WithCancel(context.Background())
-	s.hooks[id] = &HookState{ID: id, AttachPoint: attachPoint, Detach: detach, Cancel: cancel}
-	go runEventPump(ctx, s, reader)
+	s.hooks[id] = &HookState{ID: id, AttachPoint: attachPoint, Detach: detach, Cancel: cancel, Limit: limit}
+	go runHookEventPump(ctx, s, reader, id)
 	return id
+}
+
+// IncrementHookHitCount increments the hook's hit count and returns the new count and its limit.
+// Returns ok=false if the hook was not found (e.g. already removed).
+func (s *Session) IncrementHookHitCount(hookID string) (newCount, limit int, ok bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	h, ok := s.hooks[hookID]
+	if !ok {
+		return 0, 0, false
+	}
+	h.HitCount++
+	return h.HitCount, h.Limit, true
 }
 
 func (s *Session) nextHookIDLocked() string {

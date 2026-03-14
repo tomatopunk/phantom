@@ -26,16 +26,16 @@ func TestPlanHook(t *testing.T) {
 	p := NewPlanner()
 
 	// --code only
-	plan, err := p.PlanHook("kprobe:do_sys_open", "int x = 0;", "")
+	plan, err := p.PlanHook("kprobe:do_sys_open", "int x = 0;", "", 0)
 	if err != nil {
 		t.Fatalf("PlanHook(code): %v", err)
 	}
-	if plan.AttachPoint != "kprobe:do_sys_open" || plan.Code != "int x = 0;" || plan.Sec != "" {
-		t.Errorf("PlanHook(code): got AttachPoint=%q Code=%q Sec=%q", plan.AttachPoint, plan.Code, plan.Sec)
+	if plan.AttachPoint != "kprobe:do_sys_open" || plan.Code != "int x = 0;" || plan.Sec != "" || plan.Limit != 0 {
+		t.Errorf("PlanHook(code): got AttachPoint=%q Code=%q Sec=%q Limit=%d", plan.AttachPoint, plan.Code, plan.Sec, plan.Limit)
 	}
 
 	// --sec only
-	plan, err = p.PlanHook("kprobe:do_sys_open", "", "pid==123")
+	plan, err = p.PlanHook("kprobe:do_sys_open", "", "pid==123", 0)
 	if err != nil {
 		t.Fatalf("PlanHook(sec): %v", err)
 	}
@@ -43,8 +43,17 @@ func TestPlanHook(t *testing.T) {
 		t.Errorf("PlanHook(sec): got AttachPoint=%q Code=%q Sec=%q", plan.AttachPoint, plan.Code, plan.Sec)
 	}
 
+	// with limit
+	plan, err = p.PlanHook("kprobe:tcp_sendmsg", "", "sport==22", 2)
+	if err != nil {
+		t.Fatalf("PlanHook(limit): %v", err)
+	}
+	if plan.Limit != 2 {
+		t.Errorf("PlanHook(limit): got Limit=%d want 2", plan.Limit)
+	}
+
 	// both code and sec -> error
-	_, err = p.PlanHook("kprobe:do_sys_open", "code", "pid==1")
+	_, err = p.PlanHook("kprobe:do_sys_open", "code", "pid==1", 0)
 	if err == nil {
 		t.Error("PlanHook(both): want error")
 	}
@@ -53,7 +62,7 @@ func TestPlanHook(t *testing.T) {
 	}
 
 	// neither -> error
-	_, err = p.PlanHook("kprobe:do_sys_open", "", "")
+	_, err = p.PlanHook("kprobe:do_sys_open", "", "", 0)
 	if err == nil {
 		t.Error("PlanHook(neither): want error")
 	}
@@ -61,14 +70,20 @@ func TestPlanHook(t *testing.T) {
 		t.Errorf("PlanHook(neither): want 'missing --code or --sec', got %q", err.Error())
 	}
 
+	// negative limit -> error
+	_, err = p.PlanHook("kprobe:do_sys_open", "code", "", -1)
+	if err == nil {
+		t.Error("PlanHook(negative limit): want error")
+	}
+
 	// empty point
-	_, err = p.PlanHook("", "code", "")
+	_, err = p.PlanHook("", "code", "", 0)
 	if err == nil || err.Error() == "" {
 		t.Error("PlanHook empty point: want error")
 	}
 
 	// invalid attach point
-	_, err = p.PlanHook("invalid", "code", "")
+	_, err = p.PlanHook("invalid", "code", "", 0)
 	if err == nil {
 		t.Error("PlanHook invalid attach point: want error")
 	}

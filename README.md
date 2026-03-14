@@ -123,6 +123,13 @@ phantom> info break
 
 **Event fields (L3/L4 metadata):** Event type `EVENT_TYPE_BREAK_HIT`, plus `pid`, `tgid`, `cpu`, `probe_id`, `timestamp_ns`, for log-style “who hit which probe when” observation.
 
+**Filtering by port with `hook add --sec`:** On `kprobe:tcp_sendmsg` and `kprobe:tcp_recvmsg` you can use socket fields `sport`, `dport`, `saddr`, `daddr` in `--sec`, and optional `--limit N` to auto-detach after N events. Example (port 22, stop after 2 hits):
+
+```
+phantom> hook add --point kprobe:tcp_sendmsg --lang c --sec "sport==22 or dport==22" --limit 2
+phantom> hook add --point kprobe:tcp_recvmsg --lang c --sec "sport==22 or dport==22" --limit 2
+```
+
 **Go e2e (Linux + env var required):**
 
 ```bash

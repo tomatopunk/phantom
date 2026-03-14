@@ -20,14 +20,18 @@ Commands are sent as a single line via `Execute(session_id, command_line)`. The 
 | `bt` | — | — | Backtrace; returns "not supported" if unavailable. |
 | `watch <expr>` | — | expression | Watchpoint (emit when value changes). |
 | `help [cmd]` | — | optional command | Short help for command or global. |
-| `hook add ...` | — | see below | Inject C hook: `--point kprobe:SYM`, `--lang c`, and either `--code '...'` (custom C) or `--sec <expr>` (simple condition). Hook events are merged into the session event stream. Uprobe not yet supported. |
+| `hook add ...` | — | see below | Inject C hook: `--point kprobe:SYM`, `--lang c`, and either `--code '...'` (custom C) or `--sec <expr>` (condition expression). Optional `--limit N` auto-detaches after N events. Hook events are merged into the session event stream. Uprobe not yet supported. |
 | `quit` / `exit` / `q` | — | — | Exit REPL. |
 
 ## hook add (details)
 
 - **Required:** `--point` / `-p` — attach point (e.g. `kprobe:do_sys_open`).
-- **Required (exactly one):** `--code` / `-c` (custom C snippet) or `--sec` / `-s` (simple condition: `field==value` or `field!=value`). Fields for `--sec`: `pid`, `tgid`, `cpu`, `arg0`…`arg5`, `ret`; value must be a decimal integer. Example: `hook add --point kprobe:do_sys_open --lang c --sec pid==1234`.
-- Do not pass both `--code` and `--sec`. Hook events are merged into the session event stream.
+- **Required (exactly one):** `--code` / `-c` (custom C snippet) or `--sec` / `-s` (condition expression). Do not pass both.
+- **Optional:** `--limit N` — non-negative integer; the hook auto-detaches after N events (default: no limit).
+- **`--sec` expression:** Supports comparisons `==`, `!=`, `<`, `<=`, `>`, `>=`, and logic `and`, `or`, `not`, with parentheses. Values are decimal integers. Example: `hook add --point kprobe:do_sys_open --lang c --sec "pid==1234"`.
+- **Fields for `--sec` (all attach points):** `pid`, `tgid`, `cpu`, `arg0`…`arg5`, `ret`.
+- **Socket fields (only for `kprobe:tcp_sendmsg` and `kprobe:tcp_recvmsg`):** `sport`, `dport`, `saddr`, `daddr`. Using these on any other attach point returns an error. Example: `hook add --point kprobe:tcp_sendmsg --lang c --sec "sport==22 or dport==22" --limit 2`.
+- Hook events are merged into the session event stream.
 
 ## Expressions (print / trace)
 

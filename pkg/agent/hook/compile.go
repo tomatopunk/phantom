@@ -45,6 +45,25 @@ func Compile(ctx context.Context, snippet, attachPoint, includeDir string) (Comp
 	if len(snippet) > maxSnippetLen {
 		return CompileResult{}, fmt.Errorf("snippet too long")
 	}
+	// Optional prologue for tcp_sendmsg/tcp_recvmsg: read sport, dport, saddr, daddr from sock (arg0).
+	const socketPrologue = `
+	/* sock_common offsets (typical 5.x); sport/dport/saddr/daddr for --sec only on tcp_sendmsg/tcp_recvmsg */
+	void *sk = (void *)arg0;
+	__u16 sport_be = 0, dport_be = 0;
+	__u32 saddr_be = 0, daddr_be = 0;
+	bpf_probe_read_kernel(&sport_be, 2, sk + 14);
+	bpf_probe_read_kernel(&dport_be, 2, sk + 16);
+	bpf_probe_read_kernel(&daddr_be, 4, sk + 20);
+	bpf_probe_read_kernel(&saddr_be, 4, sk + 24);
+	__u16 sport = __builtin_bswap16(sport_be);
+	__u16 dport = __builtin_bswap16(dport_be);
+	__u32 saddr = __builtin_bswap32(saddr_be);
+	__u32 daddr = __builtin_bswap32(daddr_be);
+`
+	prologue := ""
+	if symbol == "tcp_sendmsg" || symbol == "tcp_recvmsg" {
+		prologue = socketPrologue
+	}
 	// Build minimal kprobe C: user snippet runs with ctx and ev; we submit ev to ringbuf.
 	tpl := `
 #define __BPF_TRACING__
@@ -73,7 +92,8 @@ int hook_handler(struct pt_regs *ctx) {
 	long arg5 = PT_REGS_PARM6(ctx);
 	long ret = 0;
 	(void)arg0; (void)arg1; (void)arg2; (void)arg3; (void)arg4; (void)arg5; (void)ret;
-	/* user snippet can use ctx, ev, arg0..arg5, ret */
+` + prologue + `
+	/* user snippet can use ctx, ev, arg0..arg5, ret; on tcp_sendmsg/tcp_recvmsg also sport,dport,saddr,daddr */
 ` + snippet + `
 	bpf_ringbuf_output(&events, &ev, sizeof(ev), 0);
 	return 0;

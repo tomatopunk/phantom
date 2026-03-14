@@ -214,4 +214,28 @@ func TestExecuteHookAdd(t *testing.T) {
 	if !strings.Contains(resp.GetErrorMessage(), "no bpf include dir") {
 		t.Errorf("hook add --sec: want 'no bpf include dir', got %q", resp.GetErrorMessage())
 	}
+
+	// --sec with --limit: parsing succeeds, still fails without bpf include dir
+	resp, err = exec.execute(ctx, sess, "hook add --point kprobe:do_sys_open --lang c --sec pid==1 --limit 2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() {
+		t.Error("hook add --sec --limit: want ok false (no bpf include dir in test)")
+	}
+	if !strings.Contains(resp.GetErrorMessage(), "no bpf include dir") {
+		t.Errorf("hook add --sec --limit: want 'no bpf include dir', got %q", resp.GetErrorMessage())
+	}
+
+	// socket field (sport) on non-tcp point: must fail with allowed-field error
+	resp, err = exec.execute(ctx, sess, "hook add --point kprobe:do_sys_open --lang c --sec sport==22")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() {
+		t.Error("hook add --sec sport==22 on do_sys_open: want ok false")
+	}
+	if !strings.Contains(resp.GetErrorMessage(), "allowed") && !strings.Contains(resp.GetErrorMessage(), "sport") {
+		t.Errorf("hook add sport on do_sys_open: want 'allowed' or 'sport' in error, got %q", resp.GetErrorMessage())
+	}
 }

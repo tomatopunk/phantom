@@ -1,0 +1,275 @@
+// Package e2e: Execute command matrix (in-process server, no kprobe required).
+package e2e
+
+import (
+	"context"
+	"net"
+	"strings"
+	"testing"
+
+	"github.com/tomatopunk/phantom/pkg/agent/server"
+	"github.com/tomatopunk/phantom/pkg/agent/session"
+	"github.com/tomatopunk/phantom/pkg/api/proto"
+	"github.com/tomatopunk/phantom/pkg/cli/client"
+	"google.golang.org/grpc"
+)
+
+func startInProcessServer(t *testing.T) (addr string, cleanup func()) {
+	t.Helper()
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	addr = lis.Addr().String()
+	mgr := session.NewManager("")
+	srv := grpc.NewServer()
+	proto.RegisterDebuggerServiceServer(srv, server.NewDebuggerServer(mgr))
+	go func() { _ = srv.Serve(lis) }()
+	cleanup = func() { srv.GracefulStop(); _ = lis.Close() }
+	return addr, cleanup
+}
+
+func connectClient(t *testing.T, addr string) (*client.Client, func()) {
+	t.Helper()
+	ctx := context.Background()
+	c, err := client.New(ctx, addr, "")
+	if err != nil {
+		t.Fatalf("client: %v", err)
+	}
+	return c, func() { _ = c.Close() }
+}
+
+// TestExecuteCommandMatrix runs all supported Execute commands against an in-process server (no kprobe).
+func TestExecuteCommandMatrix(t *testing.T) {
+	addr, stop := startInProcessServer(t)
+	defer stop()
+	ctx := context.Background()
+	c, closeClient := connectClient(t, addr)
+	defer closeClient()
+	if _, err := c.Connect(ctx, ""); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+
+	t.Run("break_b", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "break do_sys_open")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// No kprobe path: expect error or ok with breakpoint result
+		if resp.GetOk() {
+			if resp.GetBreakpoint() == nil || resp.GetBreakpoint().GetSymbol() != "do_sys_open" {
+				t.Errorf("break: want breakpoint symbol do_sys_open, got %v", resp.GetBreakpoint())
+			}
+		} else {
+			if !strings.Contains(resp.GetErrorMessage(), "kprobe") && !strings.Contains(resp.GetErrorMessage(), "no kprobe") {
+				t.Logf("break (no kprobe): %s", resp.GetErrorMessage())
+			}
+		}
+	})
+	t.Run("tbreak", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "tbreak do_sys_open")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.GetOk() && resp.GetBreakpoint() != nil && !strings.Contains(resp.GetOutput(), "temporary") {
+			t.Errorf("tbreak: output should mention temporary, got %q", resp.GetOutput())
+		}
+	})
+	t.Run("print_p", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "print pid")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("print: %s", resp.GetErrorMessage())
+		}
+		if resp.GetPrint() == nil {
+			t.Error("print: want Print result")
+		}
+	})
+	t.Run("trace_t", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "trace pid tgid")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("trace: %s", resp.GetErrorMessage())
+		}
+		if resp.GetTrace() == nil {
+			t.Error("trace: want Trace result")
+		}
+	})
+	t.Run("continue_c", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "continue")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("continue: %s", resp.GetErrorMessage())
+		}
+	})
+	t.Run("help", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "help")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("help: %s", resp.GetErrorMessage())
+		}
+		if !strings.Contains(resp.GetOutput(), "break") {
+			t.Errorf("help: output should list commands, got %q", resp.GetOutput())
+		}
+	})
+	t.Run("help_break", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "help break")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("help break: %s", resp.GetErrorMessage())
+		}
+	})
+	t.Run("info_break", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "info break")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("info break: %s", resp.GetErrorMessage())
+		}
+		if !strings.Contains(resp.GetOutput(), "breakpoints") {
+			t.Errorf("info break: output should contain breakpoints, got %q", resp.GetOutput())
+		}
+	})
+	t.Run("info_trace", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "info trace")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("info trace: %s", resp.GetErrorMessage())
+		}
+	})
+	t.Run("info_watch", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "info watch")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("info watch: %s", resp.GetErrorMessage())
+		}
+	})
+	t.Run("info_session", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "info session")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("info session: %s", resp.GetErrorMessage())
+		}
+		if !strings.Contains(resp.GetOutput(), "session") {
+			t.Errorf("info session: output should contain session, got %q", resp.GetOutput())
+		}
+	})
+	t.Run("info_hooks", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "info hooks")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("info hooks: %s", resp.GetErrorMessage())
+		}
+	})
+	t.Run("list", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "list")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("list: %s", resp.GetErrorMessage())
+		}
+		if !strings.Contains(resp.GetOutput(), "symbol") {
+			t.Logf("list: %s", resp.GetOutput())
+		}
+	})
+	t.Run("list_symbol", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "list do_sys_open")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("list do_sys_open: %s", resp.GetErrorMessage())
+		}
+	})
+	t.Run("bt", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "bt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("bt: %s", resp.GetErrorMessage())
+		}
+	})
+	t.Run("watch", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "watch pid")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("watch: %s", resp.GetErrorMessage())
+		}
+		if !strings.Contains(resp.GetOutput(), "watch") {
+			t.Errorf("watch: output should contain watch, got %q", resp.GetOutput())
+		}
+	})
+	t.Run("delete_watch", func(t *testing.T) {
+		// We added one watch in previous test; get its id from info watch or use known id watch-1
+		resp, err := c.Execute(ctx, "info watch")
+		if err != nil || !resp.GetOk() {
+			t.Skip("need info watch to get id")
+		}
+		if !strings.Contains(resp.GetOutput(), "watch-") {
+			t.Skip("no watch id in output")
+		}
+		resp, err = c.Execute(ctx, "delete watch-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("delete watch-1: %s", resp.GetErrorMessage())
+		}
+	})
+	t.Run("hook_list", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "hook list")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !resp.GetOk() {
+			t.Fatalf("hook list: %s", resp.GetErrorMessage())
+		}
+		if !strings.Contains(resp.GetOutput(), "hooks") {
+			t.Errorf("hook list: output should contain hooks, got %q", resp.GetOutput())
+		}
+	})
+	t.Run("hook_delete_missing", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "hook delete hook-999")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.GetOk() {
+			t.Error("hook delete hook-999: want ok false")
+		}
+	})
+	t.Run("unknown_command", func(t *testing.T) {
+		resp, err := c.Execute(ctx, "unknown_cmd")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.GetOk() {
+			t.Error("unknown_cmd: want ok false")
+		}
+		if !strings.Contains(resp.GetErrorMessage(), "unknown") {
+			t.Errorf("unknown_cmd: want error message containing unknown, got %q", resp.GetErrorMessage())
+		}
+	})
+}

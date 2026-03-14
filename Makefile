@@ -1,5 +1,5 @@
 # Phantom — build and CI
-.PHONY: all build proto test fmt vet lint clean agent cli build-bpf test-e2e-http10-generic
+.PHONY: all build proto test fmt vet lint clean agent cli build-bpf test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-all
 
 BINARY_AGENT := phantom-agent
 BINARY_CLI   := phantom-cli
@@ -43,6 +43,17 @@ test:
 # Requires: agent, cli, bpf/probes/kernel/minikprobe.o
 test-e2e-http10-generic:
 	./scripts/e2e_http10_generic.sh
+
+# E2E test: tcpdump-style CLI (break/trace/info/delete + L3/L4 metadata). Linux + CAP_BPF.
+test-e2e-tcpdump-style-cli:
+	./scripts/e2e_tcpdump_style_cli.sh
+
+# E2E Go tests for network scenarios (HTTP/1.0, HTTP/1.1, raw TCP). Requires Linux, agent, kprobe.
+test-e2e-network:
+	E2E_NETWORK=1 $(GO) test -v ./test/e2e/ -run 'TestTcpdumpStyle'
+
+# Run all e2e: CLI script + HTTP/1.0 script + Go e2e (network tests skip on non-Linux).
+test-e2e-all: test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network
 
 fmt:
 	$(GO) fmt ./...

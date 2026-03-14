@@ -53,7 +53,7 @@ func parseHookAddArgs(args []string) (point, code string, err error) {
 			if i+1 >= len(args) {
 				return "", "", fmt.Errorf("--lang requires value")
 			}
-			if strings.ToLower(args[i+1]) != "c" {
+			if !strings.EqualFold(args[i+1], "c") {
 				return "", "", fmt.Errorf("only --lang c supported")
 			}
 			i++
@@ -75,7 +75,7 @@ func parseHookAddArgs(args []string) (point, code string, err error) {
 }
 
 // executeHookList returns all hooks.
-func (e *commandExecutor) executeHookList(ctx context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeHookList(_ context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
 	list := sess.ListHooks()
 	var lines []string
 	for _, h := range list {
@@ -109,7 +109,7 @@ func (e *commandExecutor) executeHook(ctx context.Context, sess *session.Session
 }
 
 // executeHookDelete removes a hook by id.
-func (e *commandExecutor) executeHookDelete(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeHookDelete(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
 		return errResponse("hook delete: missing hook id"), nil
 	}

@@ -2,16 +2,15 @@ package runtime
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
 )
 
 const (
-	mapNameEvents    = "events"
-	progNameKprobe   = "kprobe_handler"
-	progNameUprobe   = "uprobe_handler"
+	mapNameEvents  = "events"
+	progNameKprobe = "kprobe_handler"
+	progNameUprobe = "uprobe_handler"
 )
 
 // LoadFromFile loads the eBPF collection from a compiled .o file (Linux, built with clang).
@@ -119,16 +118,4 @@ func (r *Runtime) Close() error {
 		r.collection = nil
 	}
 	return nil
-}
-
-// loadObjectFromFile is a helper for tests that need to load from bytes or path.
-func loadObjectFromFile(path string) (*ebpf.Collection, error) {
-	if _, err := os.Stat(path); err != nil {
-		return nil, err
-	}
-	spec, err := ebpf.LoadCollectionSpec(path)
-	if err != nil {
-		return nil, err
-	}
-	return ebpf.NewCollection(spec)
 }

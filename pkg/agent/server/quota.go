@@ -4,11 +4,11 @@ import "sync"
 
 // SessionQuota limits resources per session (breakpoints, traces, hooks).
 type SessionQuota struct {
-	mu         sync.Mutex
-	bySess     map[string]*quotaState
-	MaxBreak   int
-	MaxTrace   int
-	MaxHooks   int
+	mu       sync.Mutex
+	bySess   map[string]*quotaState
+	MaxBreak int
+	MaxTrace int
+	MaxHooks int
 }
 
 type quotaState struct {

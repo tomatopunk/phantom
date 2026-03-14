@@ -6,6 +6,6 @@ import "errors"
 
 var errListNotSupported = errors.New("source not available for kernel symbol on this platform")
 
-func listSymbolKernel(symbol string) (string, error) {
+func listSymbolKernel(_ string) (string, error) {
 	return "", errListNotSupported
 }

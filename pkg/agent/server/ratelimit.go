@@ -39,7 +39,7 @@ func (r *RateLimiter) Allow(sessionID string) bool {
 	return lim.Allow()
 }
 
-// Wait blocks until the session is within rate limit or ctx is cancelled.
+// Wait blocks until the session is within rate limit or ctx is canceled.
 func (r *RateLimiter) Wait(ctx context.Context, sessionID string) error {
 	r.mu.Lock()
 	lim, ok := r.bySess[sessionID]

@@ -22,7 +22,7 @@ type Client struct {
 }
 
 // New builds a client for the given agent address and optional token.
-func New(ctx context.Context, agentAddr, token string) (*Client, error) {
+func New(_ context.Context, agentAddr, token string) (*Client, error) {
 	conn, err := grpc.NewClient(agentAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)

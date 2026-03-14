@@ -14,7 +14,7 @@ const metadataKeyAuth = "authorization"
 
 // authUnaryInterceptor validates Bearer token from incoming metadata when token is set.
 func authUnaryInterceptor(token string) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if token == "" {
 			return handler(ctx, req)
 		}
@@ -27,7 +27,7 @@ func authUnaryInterceptor(token string) grpc.UnaryServerInterceptor {
 
 // authStreamInterceptor validates Bearer token for streaming RPCs when token is set.
 func authStreamInterceptor(token string) grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if token == "" {
 			return handler(srv, ss)
 		}

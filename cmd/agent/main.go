@@ -37,17 +37,18 @@ func main() {
 
 	if *enableMCP {
 		mgr := session.NewManager(cfg.KprobeObjectPath)
-		serverCfg := server.BuildServerConfig(cfg)
+		serverCfg := server.BuildServerConfig(&cfg)
 		dbg := server.NewDebuggerServerWithConfig(mgr, serverCfg)
 		backend := server.NewMCPServerBackend(dbg)
 		mcpSrv := mcp.NewServer(backend)
 		if err := mcpSrv.Run(ctx); err != nil && ctx.Err() == nil {
-			log.Fatalf("mcp: %v", err)
+			stop()
+			log.Fatalf("mcp: %v", err) //nolint:gocritic // exitAfterDefer: stop() called explicitly before exit
 		}
 		return
 	}
 
-	if err := server.Run(ctx, cfg); err != nil && ctx.Err() == nil {
+	if err := server.Run(ctx, &cfg); err != nil && ctx.Err() == nil {
 		log.Fatalf("agent: %v", err)
 	}
 }

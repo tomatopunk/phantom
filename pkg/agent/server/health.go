@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// ServeHealth listens on addr and responds 200 OK to GET /health until ctx is cancelled.
+// ServeHealth listens on addr and responds 200 OK to GET /health until ctx is canceled.
 func ServeHealth(ctx context.Context, addr string) error {
 	if addr == "" {
 		return nil
@@ -17,21 +18,22 @@ func ServeHealth(ctx context.Context, addr string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, _ = w.Write([]byte("ok"))
 	})
-	srv := &http.Server{Handler: mux}
-	lis, err := net.Listen("tcp", addr)
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return fmt.Errorf("health listen %s: %w", addr, err)
 	}
 	go func() {
 		<-ctx.Done()
-		srv.Shutdown(context.Background())
+		_ = srv.Shutdown(ctx)
 	}()
 	return srv.Serve(lis)
 }
 
-// ServeMetrics listens on addr and serves Prometheus metrics at GET /metrics until ctx is cancelled.
+// ServeMetrics listens on addr and serves Prometheus metrics at GET /metrics until ctx is canceled.
 func ServeMetrics(ctx context.Context, addr string) error {
 	if addr == "" {
 		return nil
@@ -39,14 +41,15 @@ func ServeMetrics(ctx context.Context, addr string) error {
 	registerMetrics()
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
-	srv := &http.Server{Handler: mux}
-	lis, err := net.Listen("tcp", addr)
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return fmt.Errorf("metrics listen %s: %w", addr, err)
 	}
 	go func() {
 		<-ctx.Done()
-		srv.Shutdown(context.Background())
+		_ = srv.Shutdown(ctx)
 	}()
 	return srv.Serve(lis)
 }

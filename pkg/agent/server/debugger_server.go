@@ -20,10 +20,10 @@ type debuggerServer struct {
 
 // serverConfig holds optional rate limit, quota, audit, and hook include path (injected by Run).
 type serverConfig struct {
-	rateLimiter    *RateLimiter
-	quota          *SessionQuota
-	audit          AuditLogger
-	bpfIncludeDir  string
+	rateLimiter   *RateLimiter
+	quota         *SessionQuota
+	audit         AuditLogger
+	bpfIncludeDir string
 }
 
 // AuditLogger is implemented by AuditLog and NopAuditLog.
@@ -35,8 +35,8 @@ type AuditLogger interface {
 func NewDebuggerServer(sessions *session.Manager) *debuggerServer {
 	return &debuggerServer{
 		sessions: sessions,
-		exec:    newCommandExecutor(""),
-		cfg:     nil,
+		exec:     newCommandExecutor(""),
+		cfg:      nil,
 	}
 }
 
@@ -48,8 +48,8 @@ func NewDebuggerServerWithConfig(sessions *session.Manager, cfg *serverConfig) *
 	}
 	return &debuggerServer{
 		sessions: sessions,
-		exec:    newCommandExecutor(includeDir),
-		cfg:     cfg,
+		exec:     newCommandExecutor(includeDir),
+		cfg:      cfg,
 	}
 }
 
@@ -108,7 +108,8 @@ func (s *debuggerServer) StreamEvents(req *proto.StreamEventsRequest, stream pro
 	if sess == nil {
 		return nil
 	}
-	evCh := make(chan *runtime.Event, 64)
+	const eventChanCap = 64
+	evCh := make(chan *runtime.Event, eventChanCap)
 	sess.SubscribeEvents(evCh)
 	defer sess.UnsubscribeEvents(evCh)
 	sess.EnsureEventPump()
@@ -130,9 +131,9 @@ func (s *debuggerServer) StreamEvents(req *proto.StreamEventsRequest, stream pro
 
 func runtimeEventToProto(sessionID string, ev *runtime.Event) *proto.DebugEvent {
 	return &proto.DebugEvent{
-		TimestampNs: int64(ev.TimestampNs),
+		TimestampNs: int64(ev.TimestampNs), //nolint:gosec // G115: proto uses int64 for wire format
 		SessionId:   sessionID,
-		EventType:   proto.EventType(ev.EventType),
+		EventType:   proto.EventType(ev.EventType), //nolint:gosec // G115: proto enum matches runtime
 		Pid:         ev.PID,
 		Tgid:        ev.Tgid,
 		Cpu:         ev.CPU,
@@ -142,13 +143,13 @@ func runtimeEventToProto(sessionID string, ev *runtime.Event) *proto.DebugEvent 
 }
 
 // ListSessions returns all active session ids.
-func (s *debuggerServer) ListSessions(ctx context.Context, _ *proto.ListSessionsRequest) (*proto.ListSessionsResponse, error) {
+func (s *debuggerServer) ListSessions(_ context.Context, _ *proto.ListSessionsRequest) (*proto.ListSessionsResponse, error) {
 	ids := s.sessions.List()
 	return &proto.ListSessionsResponse{SessionIds: ids}, nil
 }
 
 // CloseSession removes the session and releases resources.
-func (s *debuggerServer) CloseSession(ctx context.Context, req *proto.CloseSessionRequest) (*proto.CloseSessionResponse, error) {
+func (s *debuggerServer) CloseSession(_ context.Context, req *proto.CloseSessionRequest) (*proto.CloseSessionResponse, error) {
 	sid := req.GetSessionId()
 	s.sessions.Close(sid)
 	SetSessionsActive(len(s.sessions.List()))
@@ -185,12 +186,12 @@ func (s *debuggerServer) ExecuteCommand(ctx context.Context, sessionID, commandL
 }
 
 // ListSessionsBackend returns session ids; for MCP backend.
-func (s *debuggerServer) ListSessionsBackend(ctx context.Context) []string {
+func (s *debuggerServer) ListSessionsBackend(_ context.Context) []string {
 	return s.sessions.List()
 }
 
 // ListBreakpointsBackend returns formatted breakpoints for the session; for MCP backend.
-func (s *debuggerServer) ListBreakpointsBackend(ctx context.Context, sessionID string) (string, error) {
+func (s *debuggerServer) ListBreakpointsBackend(_ context.Context, sessionID string) (string, error) {
 	sess := s.sessions.Get(sessionID)
 	if sess == nil {
 		return "", nil
@@ -204,7 +205,7 @@ func (s *debuggerServer) ListBreakpointsBackend(ctx context.Context, sessionID s
 }
 
 // ListHooksBackend returns formatted hooks for the session; for MCP backend.
-func (s *debuggerServer) ListHooksBackend(ctx context.Context, sessionID string) (string, error) {
+func (s *debuggerServer) ListHooksBackend(_ context.Context, sessionID string) (string, error) {
 	sess := s.sessions.Get(sessionID)
 	if sess == nil {
 		return "", nil

@@ -7,8 +7,8 @@ import (
 
 // Flags holds parsed CLI flags for the REPL.
 type Flags struct {
-	AgentAddr string
-	Token     string
+	AgentAddr  string
+	Token      string
 	ScriptPath string
 }
 

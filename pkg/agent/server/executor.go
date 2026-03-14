@@ -19,6 +19,7 @@ func newCommandExecutor(hookIncludeDir string) *commandExecutor {
 	return &commandExecutor{hookIncludeDir: hookIncludeDir}
 }
 
+//nolint:gocyclo // dispatch switch is inherently high cyclomatic complexity
 func (e *commandExecutor) execute(ctx context.Context, sess *session.Session, line string) (*proto.ExecuteResponse, error) {
 	if line == "" {
 		return &proto.ExecuteResponse{Ok: true, Output: ""}, nil
@@ -61,27 +62,43 @@ func (e *commandExecutor) execute(ctx context.Context, sess *session.Session, li
 	}
 }
 
-func (e *commandExecutor) executeBreak(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeBreak(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+	return executeBreakOrTbreak(ctx, sess, args, "break", false)
+}
+
+func (*commandExecutor) executeTbreak(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+	return executeBreakOrTbreak(ctx, sess, args, "tbreak", true)
+}
+
+// executeBreakOrTbreak is shared logic for break and tbreak (dupl).
+func executeBreakOrTbreak(
+	ctx context.Context, sess *session.Session, args []string, cmdPrefix string, isTemp bool,
+) (*proto.ExecuteResponse, error) {
+	_ = ctx
 	if len(args) < 1 {
-		return errResponse("break: missing symbol"), nil
+		return errResponse(cmdPrefix + ": missing symbol"), nil
 	}
 	symbol := args[0]
 	rt, err := sess.EnsureRuntime()
 	if err != nil {
-		return errResponse("break: " + err.Error()), nil
+		return errResponse(cmdPrefix + ": " + err.Error()), nil
 	}
 	if rt == nil {
-		return errResponse("break: no kprobe object path configured"), nil
+		return errResponse(cmdPrefix + ": no kprobe object path configured"), nil
 	}
 	detach, err := rt.AttachKprobe(symbol)
 	if err != nil {
-		return errResponse("break: " + err.Error()), nil
+		return errResponse(cmdPrefix + ": " + err.Error()), nil
 	}
-	id := sess.AddBreakpoint(symbol, detach, false)
+	id := sess.AddBreakpoint(symbol, detach, isTemp)
 	sess.EnsureEventPump()
+	msg := "breakpoint set at "
+	if isTemp {
+		msg = "temporary breakpoint set at "
+	}
 	return &proto.ExecuteResponse{
 		Ok:     true,
-		Output: "breakpoint set at " + symbol + " (" + id + ")",
+		Output: msg + symbol + " (" + id + ")",
 		Result: &proto.ExecuteResponse_Breakpoint{
 			Breakpoint: &proto.BreakpointResult{
 				BreakpointId: id,
@@ -92,7 +109,7 @@ func (e *commandExecutor) executeBreak(ctx context.Context, sess *session.Sessio
 	}, nil
 }
 
-func (e *commandExecutor) executePrint(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executePrint(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
 		return errResponse("print: missing expression"), nil
 	}
@@ -108,7 +125,7 @@ func (e *commandExecutor) executePrint(ctx context.Context, sess *session.Sessio
 	}, nil
 }
 
-func (e *commandExecutor) executeTrace(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeTrace(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
 		return errResponse("trace: missing expression(s)"), nil
 	}
@@ -126,18 +143,14 @@ func (e *commandExecutor) executeTrace(ctx context.Context, sess *session.Sessio
 	}, nil
 }
 
-func (e *commandExecutor) executeContinue(ctx context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeContinue(ctx context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
 	_ = ctx
 	_ = sess
 	return &proto.ExecuteResponse{Ok: true, Output: "continue"}, nil
 }
 
 func splitCommandLine(line string) []string {
-	var parts []string
-	for _, s := range strings.Fields(line) {
-		parts = append(parts, s)
-	}
-	return parts
+	return strings.Fields(line)
 }
 
 func errResponse(msg string) *proto.ExecuteResponse {

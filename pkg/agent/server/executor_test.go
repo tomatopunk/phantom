@@ -96,6 +96,7 @@ func TestExecuteBt(t *testing.T) {
 	}
 }
 
+//nolint:gocyclo // table-driven style test with many cases
 func TestExecuteWatchAndDeleteAndInfoWatch(t *testing.T) {
 	exec := newCommandExecutor("")
 	mgr := session.NewManager("")

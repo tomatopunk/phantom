@@ -9,36 +9,19 @@ import (
 	"github.com/tomatopunk/phantom/pkg/api/proto"
 )
 
-// executeTbreak sets a one-shot breakpoint (same as break but IsTemp true).
-func (e *commandExecutor) executeTbreak(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
-	if len(args) < 1 {
-		return errResponse("tbreak: missing symbol"), nil
-	}
-	symbol := args[0]
-	rt, err := sess.EnsureRuntime()
-	if err != nil {
-		return errResponse("tbreak: " + err.Error()), nil
-	}
-	if rt == nil {
-		return errResponse("tbreak: no kprobe object path configured"), nil
-	}
-	detach, err := rt.AttachKprobe(symbol)
-	if err != nil {
-		return errResponse("tbreak: " + err.Error()), nil
-	}
-	id := sess.AddBreakpoint(symbol, detach, true)
-	sess.EnsureEventPump()
-	return &proto.ExecuteResponse{
-		Ok:     true,
-		Output: "temporary breakpoint set at " + symbol + " (" + id + ")",
-		Result: &proto.ExecuteResponse_Breakpoint{
-			Breakpoint: &proto.BreakpointResult{BreakpointId: id, Symbol: symbol, Enabled: true},
-		},
-	}, nil
-}
+const (
+	infoSubBreak   = "break"
+	infoSubTrace   = "trace"
+	infoSubWatch   = "watch"
+	infoSubHook    = "hook"
+	infoSubSession = "session"
+	infoNoneLine   = "  (none)\n"
+	cmdDelete      = "delete"
+	cmdList        = "list"
+)
 
 // executeDelete removes a breakpoint, trace, or watch by id.
-func (e *commandExecutor) executeDelete(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeDelete(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
 		return errResponse("delete: missing breakpoint, trace, or watch id"), nil
 	}
@@ -56,7 +39,7 @@ func (e *commandExecutor) executeDelete(ctx context.Context, sess *session.Sessi
 }
 
 // executeDisable disables a breakpoint (detaches).
-func (e *commandExecutor) executeDisable(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeDisable(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
 		return errResponse("disable: missing breakpoint id"), nil
 	}
@@ -68,7 +51,7 @@ func (e *commandExecutor) executeDisable(ctx context.Context, sess *session.Sess
 }
 
 // executeEnable re-enables a breakpoint (Phase 2: we only flip Enabled; re-attach in later iteration).
-func (e *commandExecutor) executeEnable(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeEnable(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
 		return errResponse("enable: missing breakpoint id"), nil
 	}
@@ -80,7 +63,7 @@ func (e *commandExecutor) executeEnable(ctx context.Context, sess *session.Sessi
 }
 
 // executeCondition sets a condition on a breakpoint.
-func (e *commandExecutor) executeCondition(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeCondition(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 2 {
 		return errResponse("condition: usage condition <bp_id> <expr>"), nil
 	}
@@ -98,15 +81,15 @@ func (e *commandExecutor) executeInfo(ctx context.Context, sess *session.Session
 	}
 	sub := strings.ToLower(args[0])
 	switch sub {
-	case "break", "breakpoints", "b":
+	case infoSubBreak, "breakpoints", "b":
 		return e.executeInfoBreak(ctx, sess)
-	case "trace", "traces", "t":
+	case infoSubTrace, "traces", "t":
 		return e.executeInfoTrace(ctx, sess)
-	case "watch", "watches", "w":
+	case infoSubWatch, "watches", "w":
 		return e.executeInfoWatch(ctx, sess)
-	case "session", "sess":
+	case infoSubSession, "sess":
 		return e.executeInfoSession(ctx, sess)
-	case "hook", "hooks":
+	case infoSubHook, "hooks":
 		return e.executeInfoHook(ctx, sess)
 	default:
 		return errResponse("info: unknown " + sub), nil
@@ -119,7 +102,7 @@ func (e *commandExecutor) executeInfoHook(ctx context.Context, sess *session.Ses
 }
 
 // executeInfoBreak returns a listing of all breakpoints.
-func (e *commandExecutor) executeInfoBreak(ctx context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeInfoBreak(_ context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
 	list := sess.ListBreakpoints()
 	var lines []string
 	for _, bp := range list {
@@ -139,7 +122,7 @@ func (e *commandExecutor) executeInfoBreak(ctx context.Context, sess *session.Se
 	}
 	output := "breakpoints:\n"
 	if len(lines) == 0 {
-		output += "  (none)\n"
+		output += infoNoneLine
 	} else {
 		output += strings.Join(lines, "\n") + "\n"
 	}
@@ -147,7 +130,7 @@ func (e *commandExecutor) executeInfoBreak(ctx context.Context, sess *session.Se
 }
 
 // executeInfoTrace returns a listing of all traces.
-func (e *commandExecutor) executeInfoTrace(ctx context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeInfoTrace(_ context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
 	list := sess.ListTraces()
 	var lines []string
 	for _, tr := range list {
@@ -155,7 +138,7 @@ func (e *commandExecutor) executeInfoTrace(ctx context.Context, sess *session.Se
 	}
 	output := "traces:\n"
 	if len(lines) == 0 {
-		output += "  (none)\n"
+		output += infoNoneLine
 	} else {
 		output += strings.Join(lines, "\n") + "\n"
 	}
@@ -163,7 +146,7 @@ func (e *commandExecutor) executeInfoTrace(ctx context.Context, sess *session.Se
 }
 
 // executeInfoWatch returns a listing of all watches and their last value.
-func (e *commandExecutor) executeInfoWatch(ctx context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeInfoWatch(_ context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
 	list := sess.ListWatches()
 	var lines []string
 	for _, w := range list {
@@ -175,7 +158,7 @@ func (e *commandExecutor) executeInfoWatch(ctx context.Context, sess *session.Se
 	}
 	output := "watches:\n"
 	if len(lines) == 0 {
-		output += "  (none)\n"
+		output += infoNoneLine
 	} else {
 		output += strings.Join(lines, "\n") + "\n"
 	}
@@ -183,7 +166,7 @@ func (e *commandExecutor) executeInfoWatch(ctx context.Context, sess *session.Se
 }
 
 // executeInfoSession returns session id and basic stats.
-func (e *commandExecutor) executeInfoSession(ctx context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeInfoSession(_ context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
 	bps := sess.ListBreakpoints()
 	trs := sess.ListTraces()
 	wchs := sess.ListWatches()
@@ -192,7 +175,7 @@ func (e *commandExecutor) executeInfoSession(ctx context.Context, sess *session.
 }
 
 // executeList returns symbol info from kernel symbol table (best-effort); source/disasm not available.
-func (e *commandExecutor) executeList(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeList(_ context.Context, _ *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	sym := ""
 	if len(args) >= 1 {
 		sym = args[0]
@@ -211,14 +194,14 @@ func (e *commandExecutor) executeList(ctx context.Context, sess *session.Session
 }
 
 // executeBt returns kernel stack for the thread from the last event (best-effort).
-func (e *commandExecutor) executeBt(ctx context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeBt(_ context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
 	ev := sess.GetLastEvent()
 	output := readKernelStack(ev)
 	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
 }
 
 // executeWatch registers a watch expression and returns its id; value changes are reported via STATE_CHANGE events.
-func (e *commandExecutor) executeWatch(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeWatch(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
 		return errResponse("watch: missing expression"), nil
 	}
@@ -231,19 +214,19 @@ func (e *commandExecutor) executeWatch(ctx context.Context, sess *session.Sessio
 }
 
 // executeHelp returns short help for a command or all.
-func (e *commandExecutor) executeHelp(ctx context.Context, args []string) (*proto.ExecuteResponse, error) {
+func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) >= 1 {
 		cmd := strings.ToLower(args[0])
 		switch cmd {
-		case "break", "b":
+		case infoSubBreak, "b":
 			return &proto.ExecuteResponse{Ok: true, Output: "break <symbol>  set breakpoint at symbol"}, nil
 		case "tbreak":
 			return &proto.ExecuteResponse{Ok: true, Output: "tbreak <symbol>  temporary breakpoint"}, nil
 		case "print", "p":
 			return &proto.ExecuteResponse{Ok: true, Output: "print <expr>  print pid,tgid,cpu,event_type,timestamp_ns,probe_id"}, nil
-		case "trace", "t":
+		case infoSubTrace, "t":
 			return &proto.ExecuteResponse{Ok: true, Output: "trace <expr...>  trace expressions"}, nil
-		case "delete":
+		case cmdDelete:
 			return &proto.ExecuteResponse{Ok: true, Output: "delete <id>  delete breakpoint, trace, or watch"}, nil
 		case "enable", "disable":
 			return &proto.ExecuteResponse{Ok: true, Output: cmd + " <bp_id>  enable or disable breakpoint"}, nil
@@ -251,7 +234,7 @@ func (e *commandExecutor) executeHelp(ctx context.Context, args []string) (*prot
 			return &proto.ExecuteResponse{Ok: true, Output: "condition <bp_id> <expr>  set breakpoint condition"}, nil
 		case "info":
 			return &proto.ExecuteResponse{Ok: true, Output: "info break|trace|watch|session  list state"}, nil
-		case "list":
+		case cmdList:
 			return &proto.ExecuteResponse{Ok: true, Output: "list [symbol]  list kernel symbol(s) from /proc/kallsyms"}, nil
 		case "bt":
 			return &proto.ExecuteResponse{Ok: true, Output: "bt  backtrace (kernel stack of last event thread)"}, nil

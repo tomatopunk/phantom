@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -31,12 +32,12 @@ func (s *Server) Run(ctx context.Context) error {
 			return ctx.Err()
 		default:
 		}
-		line, err := reader.ReadBytes('\n')
-		if err != nil {
-			if err == io.EOF {
+		line, readErr := reader.ReadBytes('\n')
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
 				return nil
 			}
-			return err
+			return readErr
 		}
 		var req jsonRPCRequest
 		if err := json.Unmarshal(line, &req); err != nil {
@@ -50,16 +51,16 @@ func (s *Server) Run(ctx context.Context) error {
 
 type jsonRPCRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
-	ID      interface{}     `json:"id"`
+	ID      any             `json:"id"`
 	Method  string          `json:"method"`
 	Params  json.RawMessage `json:"params"`
 }
 
 type jsonRPCResponse struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      interface{} `json:"id"`
-	Result  interface{} `json:"result,omitempty"`
-	Error   *rpcError   `json:"error,omitempty"`
+	JSONRPC string    `json:"jsonrpc"`
+	ID      any       `json:"id"`
+	Result  any       `json:"result,omitempty"`
+	Error   *rpcError `json:"error,omitempty"`
 }
 
 type rpcError struct {
@@ -67,7 +68,7 @@ type rpcError struct {
 	Message string `json:"message"`
 }
 
-func (s *Server) writeResponse(mu *sync.Mutex, id interface{}, err error, result interface{}) {
+func (*Server) writeResponse(mu *sync.Mutex, id any, err error, result any) {
 	mu.Lock()
 	defer mu.Unlock()
 	resp := jsonRPCResponse{JSONRPC: "2.0", ID: id}
@@ -78,11 +79,13 @@ func (s *Server) writeResponse(mu *sync.Mutex, id interface{}, err error, result
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetEscapeHTML(false)
-	enc.Encode(resp)
-	os.Stdout.Sync()
+	if err := enc.Encode(resp); err != nil {
+		_ = err // stdout write failure; best-effort
+	}
+	_ = os.Stdout.Sync()
 }
 
-func (s *Server) handleRequest(ctx context.Context, req *jsonRPCRequest) (interface{}, error) {
+func (s *Server) handleRequest(ctx context.Context, req *jsonRPCRequest) (any, error) {
 	switch req.Method {
 	case "tools/call":
 		return s.handleToolsCall(ctx, req.Params)
@@ -92,8 +95,8 @@ func (s *Server) handleRequest(ctx context.Context, req *jsonRPCRequest) (interf
 }
 
 type toolsCallParams struct {
-	Name      string                 `json:"name"`
-	Arguments map[string]interface{} `json:"arguments,omitempty"`
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments,omitempty"`
 }
 
 type toolsCallResult struct {
@@ -105,14 +108,14 @@ type contentItem struct {
 	Text string `json:"text"`
 }
 
-func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (interface{}, error) {
+func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (any, error) {
 	var p toolsCallParams
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, err
 	}
 	args := p.Arguments
 	if args == nil {
-		args = make(map[string]interface{})
+		args = make(map[string]any)
 	}
 	text, err := s.runTool(ctx, p.Name, args)
 	if err != nil {
@@ -121,7 +124,8 @@ func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (i
 	return toolsCallResult{Content: []contentItem{{Type: "text", Text: text}}}, nil
 }
 
-func (s *Server) runTool(ctx context.Context, name string, args map[string]interface{}) (string, error) {
+//nolint:gocyclo,funlen // tool name switch with many cases and per-case logic
+func (s *Server) runTool(ctx context.Context, name string, args map[string]any) (string, error) {
 	str := func(k string) string {
 		if v, ok := args[k]; ok {
 			if s, ok := v.(string); ok {

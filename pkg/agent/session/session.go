@@ -46,12 +46,12 @@ type Session struct {
 }
 
 // NewSession creates a session with the given id and optional kprobe object path.
-func NewSession(id string, kprobePath string) *Session {
+func NewSession(id, kprobePath string) *Session {
 	ctx, stop := context.WithCancel(context.Background())
 	s := &Session{
-		ID:           id,
-		stop:         stop,
-		kprobePath:   kprobePath,
+		ID:          id,
+		stop:        stop,
+		kprobePath:  kprobePath,
 		breakpoints: make(map[string]*BreakpointState),
 		traces:      make(map[string]*TraceState),
 		hooks:       make(map[string]*HookState),

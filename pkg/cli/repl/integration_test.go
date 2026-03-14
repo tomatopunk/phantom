@@ -14,8 +14,12 @@ import (
 )
 
 // TestBreakPrintTraceE2E starts an in-process server and client and verifies break/print/trace commands.
+//
+//nolint:gocyclo // E2E test with multiple steps
 func TestBreakPrintTraceE2E(t *testing.T) {
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	ctx := context.Background()
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -25,18 +29,17 @@ func TestBreakPrintTraceE2E(t *testing.T) {
 	srv := grpc.NewServer()
 	mgr := session.NewManager("") // no kprobe path in test; break will fail, print/trace still work
 	proto.RegisterDebuggerServiceServer(srv, server.NewDebuggerServer(mgr))
-	go srv.Serve(lis)
+	go func() { _ = srv.Serve(lis) }()
 	defer srv.GracefulStop()
 
-	ctx := context.Background()
 	c, err := client.New(ctx, addr, "")
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}
 	defer c.Close()
 
-	if _, err := c.Connect(ctx, ""); err != nil {
-		t.Fatalf("connect: %v", err)
+	if _, connErr := c.Connect(ctx, ""); connErr != nil {
+		t.Fatalf("connect: %v", connErr)
 	}
 
 	// break do_sys_open (without kprobe path returns error; with path would attach)

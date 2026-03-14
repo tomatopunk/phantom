@@ -35,13 +35,14 @@ func ParseAttachPoint(attachPoint string) (typ, symbol string, err error) {
 }
 
 // Compile compiles the C snippet into an eBPF .o file with a timeout and size limit.
-func Compile(ctx context.Context, snippet string, attachPoint string, includeDir string) (CompileResult, error) {
+func Compile(ctx context.Context, snippet, attachPoint, includeDir string) (CompileResult, error) {
 	_, symbol, err := ParseAttachPoint(attachPoint)
 	if err != nil {
 		return CompileResult{}, err
 	}
 	// Sandbox: limit snippet size (e.g. 8KB).
-	if len(snippet) > 8192 {
+	const maxSnippetLen = 8192
+	if len(snippet) > maxSnippetLen {
 		return CompileResult{}, fmt.Errorf("snippet too long")
 	}
 	// Build minimal kprobe C: user snippet runs with ctx and ev; we submit ev to ringbuf.
@@ -77,7 +78,8 @@ char _license[] SEC("license") = "GPL";
 		return CompileResult{}, err
 	}
 	srcPath := filepath.Join(dir, "hook.c")
-	if err := os.WriteFile(srcPath, []byte(tpl), 0600); err != nil {
+	const srcMode = 0o600
+	if err := os.WriteFile(srcPath, []byte(tpl), srcMode); err != nil {
 		os.RemoveAll(dir)
 		return CompileResult{}, err
 	}
@@ -86,7 +88,8 @@ char _license[] SEC("license") = "GPL";
 	if includeDir != "" {
 		args = append(args, "-I", includeDir)
 	}
-	compileCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	const compileTimeout = 30 * time.Second
+	compileCtx, cancel := context.WithTimeout(ctx, compileTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(compileCtx, "clang", args...)
 	if out, err := cmd.CombinedOutput(); err != nil {

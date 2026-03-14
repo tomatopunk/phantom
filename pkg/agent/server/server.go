@@ -10,9 +10,13 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Run starts the gRPC debugger server and blocks until ctx is cancelled.
-func Run(ctx context.Context, cfg Config) error {
-	listener, err := net.Listen("tcp", cfg.ListenAddr)
+// Run starts the gRPC debugger server and blocks until ctx is canceled.
+func Run(ctx context.Context, cfg *Config) error {
+	if cfg == nil {
+		cfg = &Config{}
+	}
+	lc := net.ListenConfig{}
+	listener, err := lc.Listen(ctx, "tcp", cfg.ListenAddr)
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", cfg.ListenAddr, err)
 	}
@@ -28,10 +32,10 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 
 	if cfg.HealthAddr != "" {
-		go ServeHealth(ctx, cfg.HealthAddr)
+		go func() { _ = ServeHealth(ctx, cfg.HealthAddr) }()
 	}
 	if cfg.MetricsAddr != "" {
-		go ServeMetrics(ctx, cfg.MetricsAddr)
+		go func() { _ = ServeMetrics(ctx, cfg.MetricsAddr) }()
 	}
 
 	srv := grpc.NewServer(
@@ -52,7 +56,10 @@ func Run(ctx context.Context, cfg Config) error {
 }
 
 // BuildServerConfig builds serverConfig from Config (exported for MCP-only mode).
-func BuildServerConfig(cfg Config) *serverConfig {
+func BuildServerConfig(cfg *Config) *serverConfig {
+	if cfg == nil {
+		return nil
+	}
 	if cfg.RateLimit <= 0 && cfg.MaxBreak == 0 && cfg.MaxTrace == 0 && cfg.MaxHooks == 0 && cfg.Audit == nil && cfg.BpfIncludeDir == "" {
 		return nil
 	}

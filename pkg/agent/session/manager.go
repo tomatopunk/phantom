@@ -7,9 +7,9 @@ import (
 
 // Manager coordinates debug sessions and command execution.
 type Manager struct {
-	mu           sync.RWMutex
-	byID         map[string]*Session
-	kprobePath   string
+	mu         sync.RWMutex
+	byID       map[string]*Session
+	kprobePath string
 }
 
 // NewManager returns a session manager; kprobePath is used when creating new sessions for real eBPF load.
@@ -18,7 +18,7 @@ func NewManager(kprobePath string) *Manager {
 }
 
 // GetOrCreate returns an existing session by id or creates a new one.
-func (m *Manager) GetOrCreate(ctx context.Context, id string) (*Session, error) {
+func (m *Manager) GetOrCreate(_ context.Context, id string) (*Session, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if s, ok := m.byID[id]; ok {

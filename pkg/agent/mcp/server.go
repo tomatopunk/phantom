@@ -198,10 +198,23 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 		}
 		point := str("attach_point")
 		code := str("code")
-		if point == "" || code == "" {
-			return "", fmt.Errorf("attach_point and code required")
+		sec := str("sec")
+		if point == "" {
+			return "", fmt.Errorf("attach_point required")
 		}
-		resp, err := s.backend.Execute(ctx, sid, "hook add --point "+point+" --lang c --code "+quoteCode(code))
+		if code != "" && sec != "" {
+			return "", fmt.Errorf("cannot use both code and sec (use one)")
+		}
+		if code == "" && sec == "" {
+			return "", fmt.Errorf("code or sec required")
+		}
+		var cmd string
+		if code != "" {
+			cmd = "hook add --point " + point + " --lang c --code " + quoteCode(code)
+		} else {
+			cmd = "hook add --point " + point + " --lang c --sec " + sec
+		}
+		resp, err := s.backend.Execute(ctx, sid, cmd)
 		if err != nil {
 			return "", err
 		}

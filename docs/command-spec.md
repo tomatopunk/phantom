@@ -20,8 +20,14 @@ Commands are sent as a single line via `Execute(session_id, command_line)`. The 
 | `bt` | — | — | Backtrace; returns "not supported" if unavailable. |
 | `watch <expr>` | — | expression | Watchpoint (emit when value changes). |
 | `help [cmd]` | — | optional command | Short help for command or global. |
-| `hook add ...` | — | see below | Inject C hook: `--point kprobe:SYM`, `--lang c`, `--code '...'`. Uprobe attach point not yet supported. |
+| `hook add ...` | — | see below | Inject C hook: `--point kprobe:SYM`, `--lang c`, and either `--code '...'` (custom C) or `--sec <expr>` (simple condition). Hook events are merged into the session event stream. Uprobe not yet supported. |
 | `quit` / `exit` / `q` | — | — | Exit REPL. |
+
+## hook add (details)
+
+- **Required:** `--point` / `-p` — attach point (e.g. `kprobe:do_sys_open`).
+- **Required (exactly one):** `--code` / `-c` (custom C snippet) or `--sec` / `-s` (simple condition: `field==value` or `field!=value`). Fields for `--sec`: `pid`, `tgid`, `cpu`, `arg0`…`arg5`, `ret`; value must be a decimal integer. Example: `hook add --point kprobe:do_sys_open --lang c --sec pid==1234`.
+- Do not pass both `--code` and `--sec`. Hook events are merged into the session event stream.
 
 ## Expressions (print / trace)
 
@@ -34,4 +40,6 @@ Built-in names: `pid`, `tgid`, `comm`, `cpu`, `arg0` … `arg5`, `ret`. Values a
 - `rate limited` — per-session rate limit exceeded.
 - `quota: max breakpoints reached` — session breakpoint quota exceeded (and similar for trace/hook).
 - `break: missing symbol` — break command had no argument.
+- `hook add: missing --code or --sec` — neither `--code` nor `--sec` was given.
+- `hook add: cannot use both --code and --sec (use one)` — both were given.
 - `unknown command: <verb>` — verb not recognized.

@@ -10,31 +10,38 @@ import (
 	"github.com/tomatopunk/phantom/pkg/api/proto"
 )
 
-// executeHookAdd compiles C snippet and attaches at the given point.
+// executeHookAdd compiles C snippet (from --code or from --sec) and attaches at the given point.
 func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
-	point, code, err := parseHookAddArgs(args)
+	point, code, sec, err := parseHookAddArgs(args)
 	if err != nil {
 		return errResponse("hook add: " + err.Error()), nil
 	}
-	plan, err := e.planner.PlanHook(point, code)
+	plan, err := e.planner.PlanHook(point, code, sec)
 	if err != nil {
 		return errResponse("hook add: " + err.Error()), nil
 	}
 	if e.hookIncludeDir == "" {
 		return errResponse("hook add: no bpf include dir configured"), nil
 	}
-	cr, err := hook.Compile(ctx, plan.Code, plan.AttachPoint, e.hookIncludeDir)
+	snippet := plan.Code
+	if plan.Sec != "" {
+		snippet, err = hook.SecToSnippet(plan.Sec)
+		if err != nil {
+			return errResponse("hook add: " + err.Error()), nil
+		}
+	}
+	cr, err := hook.Compile(ctx, snippet, plan.AttachPoint, e.hookIncludeDir)
 	if err != nil {
 		return errResponse("hook add: " + err.Error()), nil
 	}
-	detach, err := hook.AttachKprobeFromObject(cr.ObjectPath, cr.Symbol, cr.Cleanup)
+	detach, hookReader, err := hook.AttachKprobeFromObject(cr.ObjectPath, cr.Symbol, cr.Cleanup)
 	if err != nil {
 		if cr.Cleanup != nil {
 			cr.Cleanup()
 		}
 		return errResponse("hook add: " + err.Error()), nil
 	}
-	id := sess.AddHook(plan.AttachPoint, detach)
+	id := sess.AddHook(plan.AttachPoint, detach, hookReader)
 	return &proto.ExecuteResponse{
 		Ok:     true,
 		Output: "hook set at " + plan.AttachPoint + " (" + id + ")",
@@ -44,38 +51,48 @@ func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Sess
 	}, nil
 }
 
-func parseHookAddArgs(args []string) (point, code string, err error) {
+// parseHookAddArgs returns point, code, sec. Exactly one of code or sec must be set (mutually exclusive).
+func parseHookAddArgs(args []string) (point, code, sec string, err error) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--point", "-p":
 			if i+1 >= len(args) {
-				return "", "", fmt.Errorf("--point requires value")
+				return "", "", "", fmt.Errorf("--point requires value")
 			}
 			point = args[i+1]
 			i++
 		case "--lang", "-l":
 			if i+1 >= len(args) {
-				return "", "", fmt.Errorf("--lang requires value")
+				return "", "", "", fmt.Errorf("--lang requires value")
 			}
 			if !strings.EqualFold(args[i+1], "c") {
-				return "", "", fmt.Errorf("only --lang c supported")
+				return "", "", "", fmt.Errorf("only --lang c supported")
 			}
 			i++
 		case "--code", "-c":
 			if i+1 >= len(args) {
-				return "", "", fmt.Errorf("--code requires value")
+				return "", "", "", fmt.Errorf("--code requires value")
 			}
 			code = args[i+1]
+			i++
+		case "--sec", "-s":
+			if i+1 >= len(args) {
+				return "", "", "", fmt.Errorf("--sec requires value")
+			}
+			sec = args[i+1]
 			i++
 		}
 	}
 	if point == "" {
-		return "", "", fmt.Errorf("missing --point (e.g. kprobe:do_sys_open)")
+		return "", "", "", fmt.Errorf("missing --point (e.g. kprobe:do_sys_open)")
 	}
-	if code == "" {
-		return "", "", fmt.Errorf("missing --code")
+	if code != "" && sec != "" {
+		return "", "", "", fmt.Errorf("cannot use both --code and --sec (use one)")
 	}
-	return point, code, nil
+	if code == "" && sec == "" {
+		return "", "", "", fmt.Errorf("missing --code or --sec")
+	}
+	return point, code, sec, nil
 }
 
 // executeHookList returns all hooks.

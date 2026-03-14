@@ -6,6 +6,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/cilium/ebpf/ringbuf"
+
 	"github.com/tomatopunk/phantom/pkg/agent/expression"
 	"github.com/tomatopunk/phantom/pkg/agent/runtime"
 )
@@ -262,12 +264,15 @@ func (s *Session) ListTraces() []*TraceState {
 	return out
 }
 
-// AddHook stores a hook and returns its id.
-func (s *Session) AddHook(attachPoint string, detach func()) string {
+// AddHook stores a hook, starts an event pump reading from the hook's ringbuf, and returns its id.
+// When the hook is removed or the session stops, the pump is cancelled and detach is called.
+func (s *Session) AddHook(attachPoint string, detach func(), reader *ringbuf.Reader) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := s.nextHookIDLocked()
-	s.hooks[id] = &HookState{ID: id, AttachPoint: attachPoint, Detach: detach}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.hooks[id] = &HookState{ID: id, AttachPoint: attachPoint, Detach: detach, Cancel: cancel}
+	go runEventPump(ctx, s, reader)
 	return id
 }
 
@@ -276,13 +281,16 @@ func (s *Session) nextHookIDLocked() string {
 	return fmtID("hook", s.nextHookID)
 }
 
-// RemoveHook removes and detaches a hook.
+// RemoveHook cancels the hook's event pump (so the reader is closed) and detaches the hook.
 func (s *Session) RemoveHook(id string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	h, ok := s.hooks[id]
 	if !ok {
 		return false
+	}
+	if h.Cancel != nil {
+		h.Cancel()
 	}
 	if h.Detach != nil {
 		h.Detach()
@@ -469,6 +477,9 @@ func (s *Session) Stop() {
 	}
 	s.traces = make(map[string]*TraceState)
 	for _, h := range s.hooks {
+		if h.Cancel != nil {
+			h.Cancel()
+		}
 		if h.Detach != nil {
 			h.Detach()
 		}

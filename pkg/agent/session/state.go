@@ -17,11 +17,12 @@ type TraceState struct {
 	Detach      func()
 }
 
-// HookState holds one C hook's attach point and detach.
+// HookState holds one C hook's attach point, detach, and cancel for the event pump.
 type HookState struct {
 	ID          string
 	AttachPoint string // e.g. kprobe:do_sys_open
 	Detach      func()
+	Cancel      func() // cancels the hook's event pump context so reader is closed before detach
 }
 
 // WatchState holds one watch expression and its last value for change detection.

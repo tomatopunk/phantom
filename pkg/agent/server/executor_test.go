@@ -172,3 +172,46 @@ func TestExecuteWatchAndDeleteAndInfoWatch(t *testing.T) {
 		t.Error("delete watch-999: want ok false")
 	}
 }
+
+func TestExecuteHookAdd(t *testing.T) {
+	exec := newCommandExecutor("", "", nil) // no bpf include dir
+	mgr := session.NewManager("")
+	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
+	ctx := context.Background()
+
+	// missing --code and --sec
+	resp, err := exec.execute(ctx, sess, "hook add --point kprobe:do_sys_open --lang c")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() {
+		t.Error("hook add (no code/sec): want ok false")
+	}
+	if !strings.Contains(resp.GetErrorMessage(), "missing --code or --sec") {
+		t.Errorf("hook add: want 'missing --code or --sec', got %q", resp.GetErrorMessage())
+	}
+
+	// both --code and --sec
+	resp, err = exec.execute(ctx, sess, "hook add --point kprobe:do_sys_open --lang c --code x --sec pid==1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() {
+		t.Error("hook add (both): want ok false")
+	}
+	if !strings.Contains(resp.GetErrorMessage(), "cannot use both") {
+		t.Errorf("hook add: want 'cannot use both', got %q", resp.GetErrorMessage())
+	}
+
+	// --sec only: fails with no bpf include dir (we don't compile in test)
+	resp, err = exec.execute(ctx, sess, "hook add --point kprobe:do_sys_open --lang c --sec pid==1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() {
+		t.Error("hook add --sec: want ok false (no bpf include dir in test)")
+	}
+	if !strings.Contains(resp.GetErrorMessage(), "no bpf include dir") {
+		t.Errorf("hook add --sec: want 'no bpf include dir', got %q", resp.GetErrorMessage())
+	}
+}

@@ -17,7 +17,7 @@ BPF_OUT      := $(BPF_KPROBE).o
 BPF_UPROBE_OUT := $(BPF_UPROBE).o
 BPF_EVENTS_OUT := $(BPF_EVENTS).o
 CLANG        ?= clang
-CLANG_FLAGS  := -target bpf -O2 -I $(BPF_INCLUDE) -I $(BPF_SYSINC) -I $(BPF_LIBBPF_INC) -c
+CLANG_FLAGS  := -target bpf -O2 -g -I $(BPF_INCLUDE) -I $(BPF_SYSINC) -I $(BPF_LIBBPF_INC) -c
 
 all: fmt vet proto build test
 

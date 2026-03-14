@@ -6,17 +6,23 @@ import (
 	"strings"
 
 	"github.com/tomatopunk/phantom/pkg/agent/expression"
+	"github.com/tomatopunk/phantom/pkg/agent/probe"
 	"github.com/tomatopunk/phantom/pkg/agent/session"
 	"github.com/tomatopunk/phantom/pkg/api/proto"
 )
 
 // commandExecutor parses command lines and drives session runtime + state.
 type commandExecutor struct {
-	hookIncludeDir string // path to bpf/include for C hook compile
+	hookIncludeDir string       // path to bpf/include for C hook compile
+	vmlinuxPath    string       // optional: path to vmlinux for list disasm (Linux)
+	planner        *probe.Planner
 }
 
-func newCommandExecutor(hookIncludeDir string) *commandExecutor {
-	return &commandExecutor{hookIncludeDir: hookIncludeDir}
+func newCommandExecutor(hookIncludeDir, vmlinuxPath string, planner *probe.Planner) *commandExecutor {
+	if planner == nil {
+		planner = probe.NewPlanner()
+	}
+	return &commandExecutor{hookIncludeDir: hookIncludeDir, vmlinuxPath: vmlinuxPath, planner: planner}
 }
 
 //nolint:gocyclo // dispatch switch is inherently high cyclomatic complexity
@@ -62,23 +68,23 @@ func (e *commandExecutor) execute(ctx context.Context, sess *session.Session, li
 	}
 }
 
-func (*commandExecutor) executeBreak(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
-	return executeBreakOrTbreak(ctx, sess, args, "break", false)
+func (e *commandExecutor) executeBreak(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+	return e.executeBreakOrTbreak(ctx, sess, args, "break", false)
 }
 
-func (*commandExecutor) executeTbreak(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
-	return executeBreakOrTbreak(ctx, sess, args, "tbreak", true)
+func (e *commandExecutor) executeTbreak(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+	return e.executeBreakOrTbreak(ctx, sess, args, "tbreak", true)
 }
 
 // executeBreakOrTbreak is shared logic for break and tbreak (dupl).
-func executeBreakOrTbreak(
+func (e *commandExecutor) executeBreakOrTbreak(
 	ctx context.Context, sess *session.Session, args []string, cmdPrefix string, isTemp bool,
 ) (*proto.ExecuteResponse, error) {
 	_ = ctx
 	if len(args) < 1 {
 		return errResponse(cmdPrefix + ": missing symbol"), nil
 	}
-	symbol := args[0]
+	plan := e.planner.PlanBreak(args[0])
 	rt, err := sess.EnsureRuntime()
 	if err != nil {
 		return errResponse(cmdPrefix + ": " + err.Error()), nil
@@ -86,11 +92,11 @@ func executeBreakOrTbreak(
 	if rt == nil {
 		return errResponse(cmdPrefix + ": no kprobe object path configured"), nil
 	}
-	detach, err := rt.AttachKprobe(symbol)
+	detach, err := rt.AttachKprobe(plan.Symbol)
 	if err != nil {
 		return errResponse(cmdPrefix + ": " + err.Error()), nil
 	}
-	id := sess.AddBreakpoint(symbol, detach, isTemp)
+	id := sess.AddBreakpoint(plan.Symbol, detach, isTemp)
 	sess.EnsureEventPump()
 	msg := "breakpoint set at "
 	if isTemp {
@@ -98,11 +104,11 @@ func executeBreakOrTbreak(
 	}
 	return &proto.ExecuteResponse{
 		Ok:     true,
-		Output: msg + symbol + " (" + id + ")",
+		Output: msg + plan.Symbol + " (" + id + ")",
 		Result: &proto.ExecuteResponse_Breakpoint{
 			Breakpoint: &proto.BreakpointResult{
 				BreakpointId: id,
-				Symbol:       symbol,
+				Symbol:       plan.Symbol,
 				Enabled:      true,
 			},
 		},
@@ -125,20 +131,20 @@ func (*commandExecutor) executePrint(_ context.Context, sess *session.Session, a
 	}, nil
 }
 
-func (*commandExecutor) executeTrace(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+func (e *commandExecutor) executeTrace(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
 		return errResponse("trace: missing expression(s)"), nil
 	}
-	exprs := args
-	id := sess.AddTrace(exprs, nil)
+	plan := e.planner.PlanTrace(args)
+	id := sess.AddTrace(plan.Expressions, nil)
 	if sess.Runtime() != nil {
 		sess.EnsureEventPump()
 	}
 	return &proto.ExecuteResponse{
 		Ok:     true,
-		Output: "tracing " + strings.Join(exprs, ", ") + " (" + id + ")",
+		Output: "tracing " + strings.Join(plan.Expressions, ", ") + " (" + id + ")",
 		Result: &proto.ExecuteResponse_Trace{
-			Trace: &proto.TraceResult{TraceId: id, Expressions: exprs},
+			Trace: &proto.TraceResult{TraceId: id, Expressions: plan.Expressions},
 		},
 	}, nil
 }

@@ -3,17 +3,21 @@ package session
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/tomatopunk/phantom/pkg/agent/runtime"
 )
 
-// EventType STATE_CHANGE (4) for watch triggers; matches proto.EventType_EVENT_TYPE_STATE_CHANGE.
-const eventTypeStateChange = 4
+// EventType constants; match proto.EventType.
+const (
+	eventTypeTraceSample = 2 // EVENT_TYPE_TRACE_SAMPLE
+	eventTypeStateChange = 4 // EVENT_TYPE_STATE_CHANGE
+)
 
 // runEventPump reads from the ring buffer, decodes events, updates last event and broadcasts to subscribers.
-// After each event it evaluates watch expressions and broadcasts a STATE_CHANGE event for each value change.
+// After each event it evaluates trace expressions (TRACE_SAMPLE) and watch expressions (STATE_CHANGE), then broadcasts the raw event.
 func runEventPump(ctx context.Context, sess *Session, reader *ringbuf.Reader) {
 	defer reader.Close()
 	for {
@@ -35,6 +39,28 @@ func runEventPump(ctx context.Context, sess *Session, reader *ringbuf.Reader) {
 		}
 		evCopy := ev
 		sess.SetLastEvent(&evCopy)
+		// Broadcast TRACE_SAMPLE for each registered trace.
+		for _, sample := range sess.EvaluateTraceSamples(&evCopy) {
+			var parts []string
+			for _, expr := range sample.Expressions {
+				parts = append(parts, expr+"="+sample.Values[expr])
+			}
+			payload := sample.TraceID
+			if len(parts) > 0 {
+				payload += " " + strings.Join(parts, " ")
+			}
+			traceEv := runtime.Event{
+				TimestampNs: evCopy.TimestampNs,
+				SessionID:   evCopy.SessionID,
+				EventType:   eventTypeTraceSample,
+				PID:         evCopy.PID,
+				Tgid:        evCopy.Tgid,
+				CPU:         evCopy.CPU,
+				ProbeID:     evCopy.ProbeID,
+				Payload:     []byte(payload),
+			}
+			sess.BroadcastEvent(&traceEv)
+		}
 		triggers := sess.EvaluateWatchChanges(&evCopy)
 		for _, t := range triggers {
 			payload := fmt.Sprintf("watch %s %s: %s -> %s", t.ID, t.Expression, t.OldValue, t.NewValue)

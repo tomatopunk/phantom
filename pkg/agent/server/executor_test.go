@@ -9,7 +9,7 @@ import (
 )
 
 func TestExecuteBreakPrintTrace(t *testing.T) {
-	exec := newCommandExecutor("")
+	exec := newCommandExecutor("", "", nil)
 	mgr := session.NewManager("") // no kprobe path: break will fail
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 
@@ -43,7 +43,7 @@ func TestExecuteBreakPrintTrace(t *testing.T) {
 }
 
 func TestExecuteList(t *testing.T) {
-	exec := newCommandExecutor("")
+	exec := newCommandExecutor("", "", nil)
 	mgr := session.NewManager("")
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
@@ -74,7 +74,7 @@ func TestExecuteList(t *testing.T) {
 }
 
 func TestExecuteBt(t *testing.T) {
-	exec := newCommandExecutor("")
+	exec := newCommandExecutor("", "", nil)
 	mgr := session.NewManager("")
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
@@ -98,7 +98,7 @@ func TestExecuteBt(t *testing.T) {
 
 //nolint:gocyclo // table-driven style test with many cases
 func TestExecuteWatchAndDeleteAndInfoWatch(t *testing.T) {
-	exec := newCommandExecutor("")
+	exec := newCommandExecutor("", "", nil)
 	mgr := session.NewManager("")
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()

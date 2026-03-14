@@ -23,3 +23,4 @@ jobs:
         run: |
           test -f bpf/probes/kernel/minikprobe.o
           test -f bpf/probes/user/uprobe.o
+          test -f bpf/core/events.o

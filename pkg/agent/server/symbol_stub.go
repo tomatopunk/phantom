@@ -9,3 +9,7 @@ var errListNotSupported = errors.New("source not available for kernel symbol on 
 func listSymbolKernel(_ string) (string, error) {
 	return "", errListNotSupported
 }
+
+func listSymbolKernelAndDisasm(symbol, _ string) (string, error) {
+	return listSymbolKernel(symbol)
+}

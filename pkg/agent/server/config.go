@@ -10,6 +10,7 @@ type Config struct {
 	HealthAddr       string    // optional: HTTP /health on this address
 	MetricsAddr      string    // optional: HTTP /metrics for Prometheus
 	KprobeObjectPath string    // path to kprobe .o for real break/trace (Linux)
+	VmlinuxPath      string    // optional: path to vmlinux for list disasm (Linux)
 	BpfIncludeDir    string    // path to bpf/include for C hook compile (e.g. ./bpf/include)
 	RateLimit        float64   // requests per second per session (0 = no limit)
 	RateBurst        int       // burst size for rate limiter

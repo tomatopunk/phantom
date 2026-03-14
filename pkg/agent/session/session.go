@@ -306,6 +306,28 @@ func (s *Session) EvaluateWatchChanges(ev *runtime.Event) []WatchTrigger {
 	return out
 }
 
+// EvaluateTraceSamples evaluates all trace expressions against ev and returns one TraceSampleResult per trace.
+func (s *Session) EvaluateTraceSamples(ev *runtime.Event) []TraceSampleResult {
+	s.mu.RLock()
+	traces := make([]*TraceState, 0, len(s.traces))
+	for _, tr := range s.traces {
+		traces = append(traces, tr)
+	}
+	s.mu.RUnlock()
+	if len(traces) == 0 {
+		return nil
+	}
+	out := make([]TraceSampleResult, 0, len(traces))
+	for _, tr := range traces {
+		values := make(map[string]string, len(tr.Expressions))
+		for _, expr := range tr.Expressions {
+			values[expr] = expression.Evaluate(ev, expr)
+		}
+		out = append(out, TraceSampleResult{TraceID: tr.ID, Expressions: tr.Expressions, Values: values})
+	}
+	return out
+}
+
 // SetLastEvent updates the last event for "print" resolution.
 func (s *Session) SetLastEvent(ev *runtime.Event) {
 	if ev == nil {

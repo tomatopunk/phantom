@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tomatopunk/phantom/pkg/agent/probe"
 	"github.com/tomatopunk/phantom/pkg/agent/runtime"
 	"github.com/tomatopunk/phantom/pkg/agent/session"
 	"github.com/tomatopunk/phantom/pkg/api/proto"
@@ -18,12 +19,13 @@ type debuggerServer struct {
 	cfg      *serverConfig
 }
 
-// serverConfig holds optional rate limit, quota, audit, and hook include path (injected by Run).
+// serverConfig holds optional rate limit, quota, audit, hook include path, and vmlinux path (injected by Run).
 type serverConfig struct {
 	rateLimiter   *RateLimiter
 	quota         *SessionQuota
 	audit         AuditLogger
 	bpfIncludeDir string
+	vmlinuxPath   string
 }
 
 // AuditLogger is implemented by AuditLog and NopAuditLog.
@@ -35,20 +37,22 @@ type AuditLogger interface {
 func NewDebuggerServer(sessions *session.Manager) *debuggerServer {
 	return &debuggerServer{
 		sessions: sessions,
-		exec:     newCommandExecutor(""),
+		exec:     newCommandExecutor("", "", probe.NewPlanner()),
 		cfg:      nil,
 	}
 }
 
-// NewDebuggerServerWithConfig returns a server with rate limit, quota, audit, and hook include dir.
+// NewDebuggerServerWithConfig returns a server with rate limit, quota, audit, hook include dir, and vmlinux path.
 func NewDebuggerServerWithConfig(sessions *session.Manager, cfg *serverConfig) *debuggerServer {
 	includeDir := ""
+	vmlinuxPath := ""
 	if cfg != nil {
 		includeDir = cfg.bpfIncludeDir
+		vmlinuxPath = cfg.vmlinuxPath
 	}
 	return &debuggerServer{
 		sessions: sessions,
-		exec:     newCommandExecutor(includeDir),
+		exec:     newCommandExecutor(includeDir, vmlinuxPath, probe.NewPlanner()),
 		cfg:      cfg,
 	}
 }

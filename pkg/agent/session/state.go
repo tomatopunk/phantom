@@ -39,3 +39,10 @@ type WatchTrigger struct {
 	OldValue   string
 	NewValue   string
 }
+
+// TraceSampleResult holds one trace's evaluated values for a single event (for TRACE_SAMPLE broadcast).
+type TraceSampleResult struct {
+	TraceID     string            // trace-1, trace-2, ...
+	Expressions []string          // original expressions
+	Values      map[string]string // expr -> evaluated value
+}

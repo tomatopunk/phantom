@@ -174,8 +174,8 @@ func (*commandExecutor) executeInfoSession(_ context.Context, sess *session.Sess
 	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
 }
 
-// executeList returns symbol info from kernel symbol table (best-effort); source/disasm not available.
-func (*commandExecutor) executeList(_ context.Context, _ *session.Session, args []string) (*proto.ExecuteResponse, error) {
+// executeList returns symbol info from kernel symbol table (best-effort); with VmlinuxPath set, appends disassembly.
+func (e *commandExecutor) executeList(_ context.Context, _ *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	sym := ""
 	if len(args) >= 1 {
 		sym = args[0]
@@ -183,7 +183,7 @@ func (*commandExecutor) executeList(_ context.Context, _ *session.Session, args 
 	if sym == "" {
 		return &proto.ExecuteResponse{Ok: true, Output: "list: specify a symbol (e.g. list do_sys_open)"}, nil
 	}
-	out, err := listSymbolKernel(sym)
+	out, err := listSymbolKernelAndDisasm(sym, e.vmlinuxPath)
 	if err != nil {
 		return &proto.ExecuteResponse{Ok: true, Output: "list " + sym + ": " + err.Error()}, nil
 	}

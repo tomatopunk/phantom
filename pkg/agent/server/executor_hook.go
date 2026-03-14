@@ -16,10 +16,14 @@ func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Sess
 	if err != nil {
 		return errResponse("hook add: " + err.Error()), nil
 	}
+	plan, err := e.planner.PlanHook(point, code)
+	if err != nil {
+		return errResponse("hook add: " + err.Error()), nil
+	}
 	if e.hookIncludeDir == "" {
 		return errResponse("hook add: no bpf include dir configured"), nil
 	}
-	cr, err := hook.Compile(ctx, code, point, e.hookIncludeDir)
+	cr, err := hook.Compile(ctx, plan.Code, plan.AttachPoint, e.hookIncludeDir)
 	if err != nil {
 		return errResponse("hook add: " + err.Error()), nil
 	}
@@ -30,12 +34,12 @@ func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Sess
 		}
 		return errResponse("hook add: " + err.Error()), nil
 	}
-	id := sess.AddHook(point, detach)
+	id := sess.AddHook(plan.AttachPoint, detach)
 	return &proto.ExecuteResponse{
 		Ok:     true,
-		Output: "hook set at " + point + " (" + id + ")",
+		Output: "hook set at " + plan.AttachPoint + " (" + id + ")",
 		Result: &proto.ExecuteResponse_Hook{
-			Hook: &proto.HookResult{HookId: id, AttachPoint: point, Compiled: true},
+			Hook: &proto.HookResult{HookId: id, AttachPoint: plan.AttachPoint, Compiled: true},
 		},
 	}, nil
 }

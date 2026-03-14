@@ -12,8 +12,10 @@ BPF_SYSINC   := /usr/include/$(shell uname -m)-linux-gnu
 BPF_LIBBPF_INC := /usr/include
 BPF_KPROBE   := bpf/probes/kernel/minikprobe
 BPF_UPROBE   := bpf/probes/user/uprobe
+BPF_EVENTS   := bpf/core/events
 BPF_OUT      := $(BPF_KPROBE).o
 BPF_UPROBE_OUT := $(BPF_UPROBE).o
+BPF_EVENTS_OUT := $(BPF_EVENTS).o
 CLANG        ?= clang
 CLANG_FLAGS  := -target bpf -O2 -I $(BPF_INCLUDE) -I $(BPF_SYSINC) -I $(BPF_LIBBPF_INC) -c
 
@@ -49,8 +51,9 @@ lint: fmt vet
 build-bpf:
 	$(CLANG) $(CLANG_FLAGS) $(BPF_KPROBE).c -o $(BPF_OUT)
 	$(CLANG) $(CLANG_FLAGS) $(BPF_UPROBE).c -o $(BPF_UPROBE_OUT)
+	$(CLANG) $(CLANG_FLAGS) $(BPF_EVENTS).c -o $(BPF_EVENTS_OUT)
 
 clean:
-	rm -f $(BINARY_AGENT) $(BINARY_CLI) $(BPF_OUT) $(BPF_UPROBE_OUT)
+	rm -f $(BINARY_AGENT) $(BINARY_CLI) $(BPF_OUT) $(BPF_UPROBE_OUT) $(BPF_EVENTS_OUT)
 	$(GO) clean -cache -testcache
 	find bpf -name '*.o' -o -name '*.bpf.o' -o -name '*.skel.h' 2>/dev/null | xargs rm -f 2>/dev/null || true

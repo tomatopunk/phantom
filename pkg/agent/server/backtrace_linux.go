@@ -24,7 +24,7 @@ func readKernelStack(ev *runtime.Event) string {
 	if tid == 0 {
 		return "bt: no pid/tgid in event"
 	}
-	path := filepath.Join("/proc", strconv.FormatUint(uint64(tid), 10), "stack")
+	path := filepath.Join("/", "proc", strconv.FormatUint(uint64(tid), 10), "stack")
 	b, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {

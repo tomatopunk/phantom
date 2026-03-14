@@ -19,7 +19,7 @@ func listSymbolKernel(symbol string) (string, error) {
 	defer f.Close()
 
 	var lines []string
-	var matchIdx int = -1
+	var matchIdx = -1
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()

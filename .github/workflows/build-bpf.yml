@@ -11,8 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install clang
-        run: sudo apt-get update && sudo apt-get install -y clang
+      - name: Install clang and libbpf
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libbpf-dev linux-headers-$(uname -r)
+      - name: Check libbpf headers
+        run: ls -la /usr/include/bpf/
       - name: Build eBPF
         run: make build-bpf
       - name: Verify artifacts

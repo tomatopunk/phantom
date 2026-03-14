@@ -41,4 +41,6 @@ jobs:
       - run: |
           sudo apt-get update
           sudo apt-get install -y clang libbpf-dev linux-headers-$(uname -r)
+      - name: Check libbpf headers
+        run: ls -la /usr/include/bpf/
       - run: make build-bpf

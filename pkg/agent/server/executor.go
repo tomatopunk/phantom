@@ -13,8 +13,8 @@ import (
 
 // commandExecutor parses command lines and drives session runtime + state.
 type commandExecutor struct {
-	hookIncludeDir string       // path to bpf/include for C hook compile
-	vmlinuxPath    string       // optional: path to vmlinux for list disasm (Linux)
+	hookIncludeDir string // path to bpf/include for C hook compile
+	vmlinuxPath    string // optional: path to vmlinux for list disasm (Linux)
 	planner        *probe.Planner
 }
 

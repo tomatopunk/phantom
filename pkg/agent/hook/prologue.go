@@ -23,9 +23,9 @@ type PrologueSpec struct {
 }
 
 var (
-	prologueMu   sync.RWMutex
-	prologueReg  = make(map[string]PrologueSpec)
-	builtinOnce  sync.Once
+	prologueMu  sync.RWMutex
+	prologueReg = make(map[string]PrologueSpec)
+	builtinOnce sync.Once
 )
 
 // RegisterPrologue registers a prologue for the given kprobe symbol (e.g. "tcp_sendmsg").

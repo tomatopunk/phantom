@@ -212,8 +212,8 @@ func parseSecExpr(sec string, allowed map[string]string) (secNode, error) {
 }
 
 type secParser struct {
-	toks   []token
-	i      int
+	toks    []token
+	i       int
 	allowed map[string]string
 }
 

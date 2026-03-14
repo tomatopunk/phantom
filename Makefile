@@ -1,5 +1,5 @@
 # Phantom — build and CI
-.PHONY: all build proto test fmt vet lint clean agent cli build-bpf
+.PHONY: all build proto test fmt vet lint clean agent cli build-bpf test-e2e-http10-generic
 
 BINARY_AGENT := phantom-agent
 BINARY_CLI   := phantom-cli
@@ -38,6 +38,11 @@ proto: $(PROTO_SRC)
 
 test:
 	$(GO) test ./...
+
+# E2E test for HTTP/1.0 traffic using only generic eBPF (kprobe + break tcp_sendmsg).
+# Requires: agent, cli, bpf/probes/kernel/minikprobe.o
+test-e2e-http10-generic:
+	./scripts/e2e_http10_generic.sh
 
 fmt:
 	$(GO) fmt ./...

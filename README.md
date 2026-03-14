@@ -51,6 +51,23 @@ make build-bpf
 
 This produces `bpf/probes/kernel/minikprobe.o` and `bpf/probes/user/uprobe.o`. The agent can then load them via the runtime API.
 
+## E2E test (HTTP/1.0 traffic)
+
+Use the built-in kprobe and `break` command to verify eBPF hook + event stream on HTTP traffic:
+
+```bash
+make test-e2e-http10-generic
+# Or: ./scripts/e2e_http10_generic.sh
+```
+
+This starts the agent with `-kprobe` (minikprobe.o), sets `break tcp_sendmsg`, sends `curl --http1.0`, and asserts that at least one break hit event is received. Requires Linux, CAP_BPF (or root), and `make build-bpf`.
+
+**Go e2e (for CI):**
+
+```bash
+E2E_HTTP10=1 go test -v ./test/e2e/ -run TestHttp10CaptureE2E
+```
+
 ## Project layout
 
 - `cmd/agent` — gRPC server (sessions, execute, stream events)

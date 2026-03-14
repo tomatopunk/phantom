@@ -1,0 +1,21 @@
+name: Build eBPF
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-bpf:
+    name: Build eBPF objects
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang
+        run: sudo apt-get update && sudo apt-get install -y clang
+      - name: Build eBPF
+        run: make build-bpf
+      - name: Verify artifacts
+        run: |
+          test -f bpf/probes/kernel/minikprobe.o
+          test -f bpf/probes/user/uprobe.o

@@ -1,0 +1,22 @@
+[Unit]
+Description=Phantom Agent
+Documentation=https://github.com/tomatopunk/phantom
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/phantom-agent
+Restart=on-failure
+RestartSec=5
+# Optional: restrict to localhost
+# ExecStart=/usr/local/bin/phantom-agent -listen 127.0.0.1:9090
+# Optional: auth token (use EnvironmentFile for secrets)
+# Environment=PHANTOM_TOKEN=your-token
+# Optional: health check on :8080
+# Environment=PHANTOM_HEALTH=:8080
+# Capabilities for eBPF load/attach (Linux)
+# CapabilityBoundingSet=CAP_BPF CAP_PERFMON CAP_SYS_ADMIN
+# AmbientCapabilities=CAP_BPF CAP_PERFMON CAP_SYS_ADMIN
+
+[Install]
+WantedBy=multi-user.target

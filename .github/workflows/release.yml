@@ -1,0 +1,75 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build agent
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -o phantom-agent-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/agent
+      - name: Build CLI
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -o phantom-cli-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/cli
+      - name: Upload agent artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: phantom-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: phantom-agent-${{ matrix.goos }}-${{ matrix.goarch }}
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: phantom-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: phantom-cli-${{ matrix.goos }}-${{ matrix.goarch }}
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: phantom-*
+          merge-multiple: true
+      - name: Flatten artifacts
+        run: |
+          for dir in phantom-agent-* phantom-cli-*; do
+            [ -d "$dir" ] && mv "$dir"/"$dir" . 2>/dev/null || true
+          done
+          chmod +x phantom-agent-* phantom-cli-* 2>/dev/null || true
+          ls -la
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            phantom-agent-*
+            phantom-cli-*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

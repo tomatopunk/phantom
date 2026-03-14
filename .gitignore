@@ -1,0 +1,26 @@
+# Binaries
+/phantom
+/phantom-agent
+/phantom-cli
+*.exe
+
+# Generated
+*.pb.go
+*.pb.gw.go
+bpf/*.o
+bpf/*.bpf.o
+bpf/*.skel.h
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Env / secrets
+.env
+*.token
+.cursor
+
+# Builder
+phantom-agent
+phantom-cli

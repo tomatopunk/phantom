@@ -1,0 +1,30 @@
+package runtime
+
+import (
+	"encoding/binary"
+	"errors"
+)
+
+// eventHeaderSize is the fixed size of event_header in the eBPF C code.
+const eventHeaderSize = 32
+
+// DecodeEvent parses a ringbuf record into Event (matches event_header layout).
+func DecodeEvent(raw []byte) (Event, error) {
+	if len(raw) < eventHeaderSize {
+		return Event{}, errors.New("event too short")
+	}
+	ev := Event{
+		TimestampNs: binary.NativeEndian.Uint64(raw[0:8]),
+		SessionID:   binary.NativeEndian.Uint32(raw[8:12]),
+		EventType:   binary.NativeEndian.Uint32(raw[12:16]),
+		PID:         binary.NativeEndian.Uint32(raw[16:20]),
+		Tgid:        binary.NativeEndian.Uint32(raw[20:24]),
+		CPU:         binary.NativeEndian.Uint32(raw[24:28]),
+		ProbeID:     binary.NativeEndian.Uint32(raw[28:32]),
+	}
+	if len(raw) > eventHeaderSize {
+		ev.Payload = make([]byte, len(raw)-eventHeaderSize)
+		copy(ev.Payload, raw[eventHeaderSize:])
+	}
+	return ev, nil
+}

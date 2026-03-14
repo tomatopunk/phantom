@@ -37,4 +37,62 @@ func TestEvaluate(t *testing.T) {
 	if got := Evaluate(ev, "  PID  "); got != "42" {
 		t.Errorf("Evaluate(ev, '  PID  ') = %q want 42", got)
 	}
+	// arg0..arg5, ret (zero when not in event)
+	if got := Evaluate(ev, "arg0"); got != "0" {
+		t.Errorf("Evaluate(ev, arg0) = %q want 0", got)
+	}
+	if got := Evaluate(ev, "arg5"); got != "0" {
+		t.Errorf("Evaluate(ev, arg5) = %q want 0", got)
+	}
+	if got := Evaluate(ev, "ret"); got != "0" {
+		t.Errorf("Evaluate(ev, ret) = %q want 0", got)
+	}
+	// comm when empty
+	if got := Evaluate(ev, "comm"); got != "(not in event)" {
+		t.Errorf("Evaluate(ev, comm) = %q want (not in event)", got)
+	}
+}
+
+func TestEvaluateArgRetComm(t *testing.T) {
+	ev := &runtime.Event{}
+	ev.Args[0] = 100
+	ev.Args[5] = 200
+	ev.Ret = 0
+	ev.Comm = "bash"
+
+	if got := Evaluate(ev, "arg0"); got != "100" {
+		t.Errorf("Evaluate(ev, arg0) = %q want 100", got)
+	}
+	if got := Evaluate(ev, "arg5"); got != "200" {
+		t.Errorf("Evaluate(ev, arg5) = %q want 200", got)
+	}
+	if got := Evaluate(ev, "ret"); got != "0" {
+		t.Errorf("Evaluate(ev, ret) = %q want 0", got)
+	}
+	if got := Evaluate(ev, "comm"); got != "bash" {
+		t.Errorf("Evaluate(ev, comm) = %q want bash", got)
+	}
+}
+
+func TestConditionPasses(t *testing.T) {
+	ev := &runtime.Event{PID: 42, Tgid: 40, CPU: 0}
+
+	if !ConditionPasses(ev, "") {
+		t.Error("empty condition should pass")
+	}
+	if !ConditionPasses(ev, "pid") {
+		t.Error("pid=42 should be truthy")
+	}
+	if ConditionPasses(ev, "cpu") {
+		t.Error("cpu=0 should be false")
+	}
+	if !ConditionPasses(ev, "1") {
+		t.Error("1 should pass")
+	}
+	if ConditionPasses(ev, "0") {
+		t.Error("0 should not pass")
+	}
+	if ConditionPasses(nil, "pid") {
+		t.Error("nil event should not pass")
+	}
 }

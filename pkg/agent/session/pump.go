@@ -38,7 +38,15 @@ func runEventPump(ctx context.Context, sess *Session, reader *ringbuf.Reader) {
 			continue
 		}
 		evCopy := ev
+		if evCopy.EventType == runtime.EventTypeBreakHit && !sess.ShouldReportBreakHit(&evCopy) {
+			// Condition not satisfied for any breakpoint; suppress this BREAK_HIT.
+			continue
+		}
 		sess.SetLastEvent(&evCopy)
+		// On BREAK_HIT, auto-remove temporary breakpoints (tbreak).
+		if evCopy.EventType == runtime.EventTypeBreakHit {
+			sess.RemoveTemporaryBreakpointsOnHit()
+		}
 		// Broadcast TRACE_SAMPLE for each registered trace.
 		for _, sample := range sess.EvaluateTraceSamples(&evCopy) {
 			var parts []string

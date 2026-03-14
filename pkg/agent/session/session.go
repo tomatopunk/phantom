@@ -126,6 +126,42 @@ func (s *Session) RemoveBreakpoint(id string) bool {
 	return true
 }
 
+// RemoveTemporaryBreakpointsOnHit detaches and removes all breakpoints marked IsTemp (tbreak).
+// Called from the event pump on BREAK_HIT so that temporary breakpoints disappear after first hit.
+func (s *Session) RemoveTemporaryBreakpointsOnHit() {
+	list := s.ListBreakpoints()
+	var toRemove []string
+	for _, bp := range list {
+		if bp.IsTemp {
+			toRemove = append(toRemove, bp.ID)
+		}
+	}
+	for _, id := range toRemove {
+		s.RemoveBreakpoint(id)
+	}
+}
+
+// ShouldReportBreakHit returns true if this BREAK_HIT event should be reported (set last event, broadcast, remove tbreaks).
+// We only suppress when at least one breakpoint has a condition and every such condition fails for this event.
+func (s *Session) ShouldReportBreakHit(ev *runtime.Event) bool {
+	list := s.ListBreakpoints()
+	var withCondition []*BreakpointState
+	for _, bp := range list {
+		if bp.Enabled && bp.Condition != "" {
+			withCondition = append(withCondition, bp)
+		}
+	}
+	if len(withCondition) == 0 {
+		return true
+	}
+	for _, bp := range withCondition {
+		if expression.ConditionPasses(ev, bp.Condition) {
+			return true
+		}
+	}
+	return false
+}
+
 // GetBreakpoint returns breakpoint state by id.
 func (s *Session) GetBreakpoint(id string) *BreakpointState {
 	s.mu.RLock()
@@ -146,18 +182,31 @@ func (s *Session) ListBreakpoints() []*BreakpointState {
 
 // EnableBreakpoint enables a breakpoint (no-op if already enabled; re-attach if was disabled).
 func (s *Session) EnableBreakpoint(id string) bool {
-	// For Phase 1 we don't support disable/enable re-attach; just flip Enabled.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bp, ok := s.breakpoints[id]
 	if !ok {
 		return false
 	}
+	if bp.Enabled && bp.Detach != nil {
+		return true // already enabled and attached
+	}
+	if bp.Detach == nil {
+		// Was disabled; re-attach so the breakpoint can fire again.
+		if s.runtime == nil || bp.Symbol == "" {
+			return false
+		}
+		detach, err := s.runtime.AttachKprobe(bp.Symbol)
+		if err != nil {
+			return false
+		}
+		bp.Detach = detach
+	}
 	bp.Enabled = true
 	return true
 }
 
-// DisableBreakpoint marks breakpoint disabled (Phase 1: detach and keep entry; later can re-attach).
+// DisableBreakpoint marks breakpoint disabled (detach and keep entry; enable will re-attach).
 func (s *Session) DisableBreakpoint(id string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

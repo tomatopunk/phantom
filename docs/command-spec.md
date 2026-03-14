@@ -6,7 +6,7 @@ Commands are sent as a single line via `Execute(session_id, command_line)`. The 
 
 | Command | Alias | Args | Description |
 |---------|-------|------|-------------|
-| `break <sym>` | `b` | symbol or addr | Set breakpoint (kprobe/uprobe). Returns breakpoint id and symbol. |
+| `break <sym>` | `b` | symbol | Set breakpoint (kprobe). Returns breakpoint id and symbol. Uprobe not yet supported. |
 | `tbreak <sym>` | — | symbol | Temporary breakpoint (auto-delete on first hit). |
 | `print <expr>` | `p` | expression | Print value (e.g. `pid`, `arg0`, `ret`) from last event context. |
 | `trace <expr>` | `t` | one or more | Start tracing expressions. Returns trace id. |
@@ -20,7 +20,7 @@ Commands are sent as a single line via `Execute(session_id, command_line)`. The 
 | `bt` | — | — | Backtrace; returns "not supported" if unavailable. |
 | `watch <expr>` | — | expression | Watchpoint (emit when value changes). |
 | `help [cmd]` | — | optional command | Short help for command or global. |
-| `hook add ...` | — | see below | Inject C hook: `--point <kprobe:SYM>` or `uprobe:/path:SYM`, `--lang c`, `--code '...'`. |
+| `hook add ...` | — | see below | Inject C hook: `--point kprobe:SYM`, `--lang c`, `--code '...'`. Uprobe attach point not yet supported. |
 | `quit` / `exit` / `q` | — | — | Exit REPL. |
 
 ## Expressions (print / trace)

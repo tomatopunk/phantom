@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tomatopunk/phantom/pkg/agent/runtime"
+	"github.com/tomatopunk/phantom/pkg/agent/expression"
 	"github.com/tomatopunk/phantom/pkg/agent/session"
 	"github.com/tomatopunk/phantom/pkg/api/proto"
 )
@@ -96,9 +96,9 @@ func (e *commandExecutor) executePrint(ctx context.Context, sess *session.Sessio
 	if len(args) < 1 {
 		return errResponse("print: missing expression"), nil
 	}
-	expr := strings.ToLower(strings.TrimSpace(args[0]))
+	expr := strings.TrimSpace(args[0])
 	ev := sess.GetLastEvent()
-	value := resolvePrintExpression(expr, ev)
+	value := expression.Evaluate(ev, expr)
 	return &proto.ExecuteResponse{
 		Ok:     true,
 		Output: "$" + expr + " = " + value,
@@ -106,28 +106,6 @@ func (e *commandExecutor) executePrint(ctx context.Context, sess *session.Sessio
 			Print: &proto.PrintResult{Expression: expr, Value: value},
 		},
 	}, nil
-}
-
-func resolvePrintExpression(expr string, ev *runtime.Event) string {
-	if ev == nil {
-		return "(no event yet)"
-	}
-	switch expr {
-	case "pid":
-		return fmt.Sprintf("%d", ev.PID)
-	case "tgid":
-		return fmt.Sprintf("%d", ev.Tgid)
-	case "cpu":
-		return fmt.Sprintf("%d", ev.CPU)
-	case "probe_id":
-		return fmt.Sprintf("%d", ev.ProbeID)
-	case "event_type":
-		return fmt.Sprintf("%d", ev.EventType)
-	case "timestamp_ns":
-		return fmt.Sprintf("%d", ev.TimestampNs)
-	default:
-		return "(unknown expression)"
-	}
 }
 
 func (e *commandExecutor) executeTrace(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {

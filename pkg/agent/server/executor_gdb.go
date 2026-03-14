@@ -37,10 +37,10 @@ func (e *commandExecutor) executeTbreak(ctx context.Context, sess *session.Sessi
 	}, nil
 }
 
-// executeDelete removes a breakpoint or trace by id.
+// executeDelete removes a breakpoint, trace, or watch by id.
 func (e *commandExecutor) executeDelete(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
-		return errResponse("delete: missing breakpoint or trace id"), nil
+		return errResponse("delete: missing breakpoint, trace, or watch id"), nil
 	}
 	id := args[0]
 	if sess.RemoveBreakpoint(id) {
@@ -49,7 +49,10 @@ func (e *commandExecutor) executeDelete(ctx context.Context, sess *session.Sessi
 	if sess.RemoveTrace(id) {
 		return &proto.ExecuteResponse{Ok: true, Output: "trace " + id + " deleted"}, nil
 	}
-	return errResponse("delete: no breakpoint or trace number " + id), nil
+	if sess.RemoveWatch(id) {
+		return &proto.ExecuteResponse{Ok: true, Output: "watch " + id + " deleted"}, nil
+	}
+	return errResponse("delete: no breakpoint, trace, or watch " + id), nil
 }
 
 // executeDisable disables a breakpoint (detaches).
@@ -88,10 +91,10 @@ func (e *commandExecutor) executeCondition(ctx context.Context, sess *session.Se
 	return errResponse("condition: no breakpoint number " + id), nil
 }
 
-// executeInfo dispatches to info break, trace, or session.
+// executeInfo dispatches to info break, trace, watch, or session.
 func (e *commandExecutor) executeInfo(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
-		return errResponse("info: usage info break|trace|session"), nil
+		return errResponse("info: usage info break|trace|watch|session"), nil
 	}
 	sub := strings.ToLower(args[0])
 	switch sub {
@@ -99,6 +102,8 @@ func (e *commandExecutor) executeInfo(ctx context.Context, sess *session.Session
 		return e.executeInfoBreak(ctx, sess)
 	case "trace", "traces", "t":
 		return e.executeInfoTrace(ctx, sess)
+	case "watch", "watches", "w":
+		return e.executeInfoWatch(ctx, sess)
 	case "session", "sess":
 		return e.executeInfoSession(ctx, sess)
 	case "hook", "hooks":
@@ -157,15 +162,36 @@ func (e *commandExecutor) executeInfoTrace(ctx context.Context, sess *session.Se
 	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
 }
 
+// executeInfoWatch returns a listing of all watches and their last value.
+func (e *commandExecutor) executeInfoWatch(ctx context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
+	list := sess.ListWatches()
+	var lines []string
+	for _, w := range list {
+		val := w.LastValue
+		if !w.HasValue {
+			val = "(not yet set)"
+		}
+		lines = append(lines, fmt.Sprintf("%s  %s  last=%s", w.ID, w.Expression, val))
+	}
+	output := "watches:\n"
+	if len(lines) == 0 {
+		output += "  (none)\n"
+	} else {
+		output += strings.Join(lines, "\n") + "\n"
+	}
+	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
+}
+
 // executeInfoSession returns session id and basic stats.
 func (e *commandExecutor) executeInfoSession(ctx context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
 	bps := sess.ListBreakpoints()
 	trs := sess.ListTraces()
-	output := fmt.Sprintf("session %s  breakpoints=%d  traces=%d\n", sess.ID, len(bps), len(trs))
+	wchs := sess.ListWatches()
+	output := fmt.Sprintf("session %s  breakpoints=%d  traces=%d  watches=%d\n", sess.ID, len(bps), len(trs), len(wchs))
 	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
 }
 
-// executeList returns source/symbol info (stub: kernel symbol not resolved from source).
+// executeList returns symbol info from kernel symbol table (best-effort); source/disasm not available.
 func (e *commandExecutor) executeList(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	sym := ""
 	if len(args) >= 1 {
@@ -174,21 +200,34 @@ func (e *commandExecutor) executeList(ctx context.Context, sess *session.Session
 	if sym == "" {
 		return &proto.ExecuteResponse{Ok: true, Output: "list: specify a symbol (e.g. list do_sys_open)"}, nil
 	}
-	return &proto.ExecuteResponse{Ok: true, Output: "list " + sym + ": (source not available for kernel symbol)"}, nil
+	out, err := listSymbolKernel(sym)
+	if err != nil {
+		return &proto.ExecuteResponse{Ok: true, Output: "list " + sym + ": " + err.Error()}, nil
+	}
+	if out == "" {
+		return &proto.ExecuteResponse{Ok: true, Output: "list " + sym + ": symbol not found in /proc/kallsyms"}, nil
+	}
+	return &proto.ExecuteResponse{Ok: true, Output: out}, nil
 }
 
-// executeBt returns backtrace (stub: not supported).
+// executeBt returns kernel stack for the thread from the last event (best-effort).
 func (e *commandExecutor) executeBt(ctx context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
-	return &proto.ExecuteResponse{Ok: true, Output: "bt: backtrace not supported"}, nil
+	ev := sess.GetLastEvent()
+	output := readKernelStack(ev)
+	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
 }
 
-// executeWatch registers a watch expression (stub: registered, no diff yet).
+// executeWatch registers a watch expression and returns its id; value changes are reported via STATE_CHANGE events.
 func (e *commandExecutor) executeWatch(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
 		return errResponse("watch: missing expression"), nil
 	}
 	expr := strings.Join(args, " ")
-	return &proto.ExecuteResponse{Ok: true, Output: "watch " + expr + " (registered; change detection not yet implemented)"}, nil
+	id := sess.AddWatch(expr)
+	if sess.Runtime() != nil {
+		sess.EnsureEventPump()
+	}
+	return &proto.ExecuteResponse{Ok: true, Output: "watch " + expr + " (" + id + ")"}, nil
 }
 
 // executeHelp returns short help for a command or all.
@@ -205,19 +244,19 @@ func (e *commandExecutor) executeHelp(ctx context.Context, args []string) (*prot
 		case "trace", "t":
 			return &proto.ExecuteResponse{Ok: true, Output: "trace <expr...>  trace expressions"}, nil
 		case "delete":
-			return &proto.ExecuteResponse{Ok: true, Output: "delete <id>  delete breakpoint or trace"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "delete <id>  delete breakpoint, trace, or watch"}, nil
 		case "enable", "disable":
 			return &proto.ExecuteResponse{Ok: true, Output: cmd + " <bp_id>  enable or disable breakpoint"}, nil
 		case "condition":
 			return &proto.ExecuteResponse{Ok: true, Output: "condition <bp_id> <expr>  set breakpoint condition"}, nil
 		case "info":
-			return &proto.ExecuteResponse{Ok: true, Output: "info break|trace|session  list state"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "info break|trace|watch|session  list state"}, nil
 		case "list":
-			return &proto.ExecuteResponse{Ok: true, Output: "list [symbol]  list source (stub)"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "list [symbol]  list kernel symbol(s) from /proc/kallsyms"}, nil
 		case "bt":
-			return &proto.ExecuteResponse{Ok: true, Output: "bt  backtrace (not supported)"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "bt  backtrace (kernel stack of last event thread)"}, nil
 		case "watch":
-			return &proto.ExecuteResponse{Ok: true, Output: "watch <expr>  watch expression (stub)"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "watch <expr>  emit event when expression value changes"}, nil
 		case "continue", "c":
 			return &proto.ExecuteResponse{Ok: true, Output: "continue  continue execution"}, nil
 		default:
@@ -229,14 +268,14 @@ func (e *commandExecutor) executeHelp(ctx context.Context, args []string) (*prot
   tbreak <symbol>       temporary breakpoint
   print, p <expr>       print expression
   trace, t <expr...>    trace expressions
-  delete <id>           delete breakpoint/trace
+  delete <id>           delete breakpoint/trace/watch
   enable <id>           enable breakpoint
   disable <id>          disable breakpoint
   condition <id> <expr> set condition
-  info break|trace|session
-  list [symbol]         list source (stub)
-  bt                    backtrace (stub)
-  watch <expr>          watch (stub)
+  info break|trace|watch|session
+  list [symbol]         list kernel symbol(s)
+  bt                    backtrace (kernel stack)
+  watch <expr>          watch expression (emit on change)
   continue, c           continue
   help [cmd]
 `

@@ -41,3 +41,133 @@ func TestExecuteBreakPrintTrace(t *testing.T) {
 		}
 	}
 }
+
+func TestExecuteList(t *testing.T) {
+	exec := newCommandExecutor("")
+	mgr := session.NewManager("")
+	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
+	ctx := context.Background()
+
+	// no symbol
+	resp, err := exec.execute(ctx, sess, "list")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.GetOk() {
+		t.Errorf("list: want ok true got false")
+	}
+	if !strings.Contains(resp.GetOutput(), "specify a symbol") {
+		t.Errorf("list: output should ask for symbol, got %q", resp.GetOutput())
+	}
+
+	// with symbol (platform-dependent: kallsyms or stub message)
+	resp, err = exec.execute(ctx, sess, "list do_sys_open")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.GetOk() {
+		t.Errorf("list do_sys_open: want ok true")
+	}
+	if resp.GetOutput() == "" {
+		t.Error("list do_sys_open: expected some output")
+	}
+}
+
+func TestExecuteBt(t *testing.T) {
+	exec := newCommandExecutor("")
+	mgr := session.NewManager("")
+	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
+	ctx := context.Background()
+
+	resp, err := exec.execute(ctx, sess, "bt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.GetOk() {
+		t.Errorf("bt: want ok true")
+	}
+	out := resp.GetOutput()
+	if !strings.Contains(out, "bt") {
+		t.Errorf("bt: output should contain bt, got %q", out)
+	}
+	// No event yet -> "no event yet" or platform "not supported"
+	if !strings.Contains(out, "event") && !strings.Contains(out, "supported") && !strings.Contains(out, "stack") {
+		t.Errorf("bt: expected event/supported/stack in output, got %q", out)
+	}
+}
+
+func TestExecuteWatchAndDeleteAndInfoWatch(t *testing.T) {
+	exec := newCommandExecutor("")
+	mgr := session.NewManager("")
+	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
+	ctx := context.Background()
+
+	// watch missing expression
+	resp, err := exec.execute(ctx, sess, "watch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() {
+		t.Error("watch: want ok false when missing expression")
+	}
+	if !strings.Contains(resp.GetErrorMessage(), "missing") {
+		t.Errorf("watch: want missing expression error, got %q", resp.GetErrorMessage())
+	}
+
+	// watch pid -> success, output contains id
+	resp, err = exec.execute(ctx, sess, "watch pid")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.GetOk() {
+		t.Fatalf("watch pid: %s", resp.GetErrorMessage())
+	}
+	out := resp.GetOutput()
+	if !strings.Contains(out, "watch") || !strings.Contains(out, "pid") {
+		t.Errorf("watch pid: output should contain watch and pid, got %q", out)
+	}
+	if !strings.Contains(out, "watch-") {
+		t.Errorf("watch pid: output should contain watch id (watch-N), got %q", out)
+	}
+
+	// info watch -> list the watch
+	resp, err = exec.execute(ctx, sess, "info watch")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.GetOk() {
+		t.Fatalf("info watch: %s", resp.GetErrorMessage())
+	}
+	if !strings.Contains(resp.GetOutput(), "watches") {
+		t.Errorf("info watch: output should contain watches, got %q", resp.GetOutput())
+	}
+
+	// delete watch-1 (id from first watch)
+	list := sess.ListWatches()
+	if len(list) != 1 {
+		t.Fatalf("expected 1 watch, got %d", len(list))
+	}
+	id := list[0].ID
+	resp, err = exec.execute(ctx, sess, "delete "+id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.GetOk() {
+		t.Fatalf("delete %s: %s", id, resp.GetErrorMessage())
+	}
+	if !strings.Contains(resp.GetOutput(), "deleted") {
+		t.Errorf("delete: output should contain deleted, got %q", resp.GetOutput())
+	}
+	if len(sess.ListWatches()) != 0 {
+		t.Error("after delete watch, ListWatches should be empty")
+	}
+
+	// delete nonexistent watch
+	resp, err = exec.execute(ctx, sess, "delete watch-999")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() {
+		t.Error("delete watch-999: want ok false")
+	}
+}

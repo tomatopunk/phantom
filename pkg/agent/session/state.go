@@ -23,3 +23,19 @@ type HookState struct {
 	AttachPoint string // e.g. kprobe:do_sys_open
 	Detach      func()
 }
+
+// WatchState holds one watch expression and its last value for change detection.
+type WatchState struct {
+	ID         string
+	Expression string
+	LastValue  string
+	HasValue   bool
+}
+
+// WatchTrigger describes a watch that fired (value changed).
+type WatchTrigger struct {
+	ID         string
+	Expression string
+	OldValue   string
+	NewValue   string
+}

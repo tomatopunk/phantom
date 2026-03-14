@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/tomatopunk/phantom/pkg/agent/expression"
 	"github.com/tomatopunk/phantom/pkg/agent/runtime"
 )
 
@@ -26,13 +27,15 @@ type Session struct {
 	// Event pump: reads from runtime ringbuf and broadcasts to subscribers.
 	pumpCancel context.CancelFunc
 
-	// Breakpoints, traces, and hooks with detach funcs for cleanup.
+	// Breakpoints, traces, hooks, and watches.
 	breakpoints map[string]*BreakpointState
 	traces      map[string]*TraceState
 	hooks       map[string]*HookState
+	watches     map[string]*WatchState
 	nextBPID    uint64
 	nextTraceID uint64
 	nextHookID  uint64
+	nextWatchID uint64
 
 	// Last event for "print" resolution; updated by event pump.
 	lastEvent atomic.Value // *runtime.Event
@@ -52,6 +55,7 @@ func NewSession(id string, kprobePath string) *Session {
 		breakpoints: make(map[string]*BreakpointState),
 		traces:      make(map[string]*TraceState),
 		hooks:       make(map[string]*HookState),
+		watches:     make(map[string]*WatchState),
 	}
 	_ = ctx
 	return s
@@ -249,6 +253,59 @@ func (s *Session) ListHooks() []*HookState {
 	return out
 }
 
+// AddWatch stores a watch expression and returns its id.
+func (s *Session) AddWatch(expr string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id := s.nextWatchIDLocked()
+	s.watches[id] = &WatchState{ID: id, Expression: expr}
+	return id
+}
+
+func (s *Session) nextWatchIDLocked() string {
+	s.nextWatchID++
+	return fmtID("watch", s.nextWatchID)
+}
+
+// RemoveWatch removes a watch by id.
+func (s *Session) RemoveWatch(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.watches[id]; !ok {
+		return false
+	}
+	delete(s.watches, id)
+	return true
+}
+
+// ListWatches returns all watch states.
+func (s *Session) ListWatches() []*WatchState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*WatchState, 0, len(s.watches))
+	for _, w := range s.watches {
+		out = append(out, w)
+	}
+	return out
+}
+
+// EvaluateWatchChanges evaluates all watch expressions against ev, updates last values,
+// and returns triggers for watches whose value changed.
+func (s *Session) EvaluateWatchChanges(ev *runtime.Event) []WatchTrigger {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []WatchTrigger
+	for _, w := range s.watches {
+		newVal := expression.Evaluate(ev, w.Expression)
+		if w.HasValue && w.LastValue != newVal {
+			out = append(out, WatchTrigger{ID: w.ID, Expression: w.Expression, OldValue: w.LastValue, NewValue: newVal})
+		}
+		w.LastValue = newVal
+		w.HasValue = true
+	}
+	return out
+}
+
 // SetLastEvent updates the last event for "print" resolution.
 func (s *Session) SetLastEvent(ev *runtime.Event) {
 	if ev == nil {
@@ -346,6 +403,7 @@ func (s *Session) Stop() {
 		}
 	}
 	s.hooks = make(map[string]*HookState)
+	s.watches = make(map[string]*WatchState)
 	if s.runtime != nil {
 		s.runtime.Close()
 		s.runtime = nil

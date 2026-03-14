@@ -28,7 +28,7 @@ func SecToSnippet(sec string, attachPoint string) (string, error) {
 }
 
 // allowedFieldsForAttachPoint returns the set of field names allowed for the given attach point.
-// Socket fields (sport, dport, saddr, daddr) are only allowed for kprobe:tcp_sendmsg and kprobe:tcp_recvmsg.
+// Extra fields (e.g. sport, dport, saddr, daddr) come from the prologue registry for that symbol.
 func allowedFieldsForAttachPoint(attachPoint string) map[string]string {
 	base := map[string]string{
 		"pid": "ev.pid", "tgid": "ev.tgid", "cpu": "ev.cpu",
@@ -40,11 +40,8 @@ func allowedFieldsForAttachPoint(attachPoint string) map[string]string {
 		return base
 	}
 	symbol = strings.TrimSpace(strings.ToLower(symbol))
-	if symbol == "tcp_sendmsg" || symbol == "tcp_recvmsg" {
-		base["sport"] = "sport"
-		base["dport"] = "dport"
-		base["saddr"] = "saddr"
-		base["daddr"] = "daddr"
+	for _, f := range ExtraFieldsForSymbol(symbol) {
+		base[f] = f
 	}
 	return base
 }

@@ -2,12 +2,21 @@ package hook
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+)
+
+//go:embed embed/hook.c
+var hookTemplate []byte
+
+const (
+	placeholderPrologue = "{{PROLOGUE}}"
+	placeholderSnippet  = "{{SNIPPET}}"
 )
 
 // CompileResult holds the path to the compiled .o, symbol, and cleanup to remove temp dir.
@@ -45,61 +54,9 @@ func Compile(ctx context.Context, snippet, attachPoint, includeDir string) (Comp
 	if len(snippet) > maxSnippetLen {
 		return CompileResult{}, fmt.Errorf("snippet too long")
 	}
-	// Optional prologue for tcp_sendmsg/tcp_recvmsg: read sport, dport, saddr, daddr from sock (arg0).
-	const socketPrologue = `
-	/* sock_common offsets (typical 5.x); sport/dport/saddr/daddr for --sec only on tcp_sendmsg/tcp_recvmsg */
-	void *sk = (void *)arg0;
-	__u16 sport_be = 0, dport_be = 0;
-	__u32 saddr_be = 0, daddr_be = 0;
-	bpf_probe_read_kernel(&sport_be, 2, sk + 14);
-	bpf_probe_read_kernel(&dport_be, 2, sk + 16);
-	bpf_probe_read_kernel(&daddr_be, 4, sk + 20);
-	bpf_probe_read_kernel(&saddr_be, 4, sk + 24);
-	__u16 sport = __builtin_bswap16(sport_be);
-	__u16 dport = __builtin_bswap16(dport_be);
-	__u32 saddr = __builtin_bswap32(saddr_be);
-	__u32 daddr = __builtin_bswap32(daddr_be);
-`
-	prologue := ""
-	if symbol == "tcp_sendmsg" || symbol == "tcp_recvmsg" {
-		prologue = socketPrologue
-	}
-	// Build minimal kprobe C: user snippet runs with ctx and ev; we submit ev to ringbuf.
-	tpl := `
-#define __BPF_TRACING__
-#include <linux/bpf.h>
-#include <bpf/bpf_helpers.h>
-#include <bpf/bpf_tracing.h>
-#include "common.h"
-struct { __uint(type, BPF_MAP_TYPE_RINGBUF); __uint(max_entries, 256*1024); } events SEC(".maps");
-SEC("kprobe")
-int hook_handler(struct pt_regs *ctx) {
-	__u64 ts = bpf_ktime_get_ns();
-	__u64 pid_tgid = bpf_get_current_pid_tgid();
-	__u32 cpu = bpf_get_smp_processor_id();
-	struct event_header ev = {
-		.timestamp_ns = ts,
-		.pid = (__u32)(pid_tgid >> 32),
-		.tgid = (__u32)pid_tgid,
-		.event_type = PHANTOM_EVENT_TYPE_BREAK_HIT,
-		.cpu = cpu,
-	};
-	long arg0 = PT_REGS_PARM1(ctx);
-	long arg1 = PT_REGS_PARM2(ctx);
-	long arg2 = PT_REGS_PARM3(ctx);
-	long arg3 = PT_REGS_PARM4(ctx);
-	long arg4 = PT_REGS_PARM5(ctx);
-	long arg5 = PT_REGS_PARM6(ctx);
-	long ret = 0;
-	(void)arg0; (void)arg1; (void)arg2; (void)arg3; (void)arg4; (void)arg5; (void)ret;
-` + prologue + `
-	/* user snippet can use ctx, ev, arg0..arg5, ret; on tcp_sendmsg/tcp_recvmsg also sport,dport,saddr,daddr */
-` + snippet + `
-	bpf_ringbuf_output(&events, &ev, sizeof(ev), 0);
-	return 0;
-}
-char _license[] SEC("license") = "GPL";
-`
+	prologue := PrologueC(symbol)
+	tpl := strings.Replace(string(hookTemplate), placeholderPrologue, prologue, 1)
+	tpl = strings.Replace(tpl, placeholderSnippet, snippet, 1)
 	dir, err := os.MkdirTemp("", "phantom-hook-")
 	if err != nil {
 		return CompileResult{}, err

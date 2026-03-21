@@ -106,7 +106,7 @@ make test-e2e-mr
 
 Requires Linux, `clang`, kernel headers, `libbpf`, `curl`, `python3`, **Rust** (`make cli`), and `make build-bpf` / `phantom-agent` (the Makefile recipe builds the uprobe helper on Linux automatically).
 
-**Hardened / CI hosts:** [`scripts/e2e_linux_bpf_env.sh`](../scripts/e2e_linux_bpf_env.sh) applies **`setcap`** on `phantom-agent` when passwordless **sudo** is available: **memlock** and BPF maps (**cap_sys_resource**), **BPF** (**cap_bpf**), and **vDSO kernel-version detection** used by **cilium/ebpf** when loading kprobes (**cap_sys_ptrace**, for `/proc/self/mem`).
+**Hardened / CI hosts:** [`scripts/e2e_linux_bpf_env.sh`](../scripts/e2e_linux_bpf_env.sh) applies **`setcap`** on `phantom-agent` when passwordless **sudo** is available (**cap_sys_resource**, **cap_bpf**) so memlocked maps and BPF load work without root. Kprobe **`KERNEL_VERSION`** is filled from **uname** in the agent so **cilium/ebpf** does not need **`/proc/self/mem`** (which hardened runners often block).
 
 ## Tcpdump-style observation (commands only)
 

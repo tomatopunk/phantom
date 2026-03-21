@@ -22,7 +22,7 @@ import (
 	"context"
 	"os/exec"
 	"path/filepath"
-	"runtime"
+	goruntime "runtime"
 	"testing"
 )
 
@@ -30,11 +30,16 @@ func TestCompile_COReHook(t *testing.T) {
 	if _, err := exec.LookPath("clang"); err != nil {
 		t.Skip("clang not installed")
 	}
-	if runtime.GOOS != "linux" {
+	if goruntime.GOOS != "linux" {
 		t.Skip("linux only")
 	}
-	root := filepath.Join("..", "..", "..", "bpf", "include")
-	abs, err := filepath.Abs(root)
+	_, thisFile, _, ok := goruntime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller")
+	}
+	// Repo: src/agent/bpf/include/{common.h,...} — same tree as Makefile BPF_INCLUDE (not repo-root/bpf/include).
+	includeDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "src", "agent", "bpf", "include")
+	abs, err := filepath.Abs(includeDir)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -19,7 +19,8 @@
 # agent can load BPF on constrained hosts (e.g. GitHub Actions):
 #   - RLIMIT_MEMLOCK (cap_sys_resource): map creation / cilium/ebpf RemoveMemlock
 #   - BPF load (cap_bpf): unprivileged BPF where enforced
-#   - /proc/self/mem for vDSO (cap_sys_ptrace): cilium/ebpf reads kernel version from vDSO when loading kprobes
+# Kprobe kernel version uses uname in the agent (see lib/agent/runtime/kprobe_kernel_version_linux.go),
+# not /proc/self/mem, so cap_sys_ptrace is not required for scripted e2e.
 
 phantom_e2e_soft_memlock() {
   ulimit -l unlimited 2>/dev/null || true
@@ -41,8 +42,8 @@ phantom_e2e_grant_agent_file_caps() {
   elif sudo -n true 2>/dev/null; then
     ok_sudo=1
   fi
-  if [ "$ok_sudo" -eq 1 ] && sudo setcap cap_sys_resource,cap_sys_ptrace,cap_bpf+ep "$bin" 2>/dev/null; then
-    echo "${tag}: setcap cap_sys_resource,cap_sys_ptrace,cap_bpf+ep on $(basename "$bin")" >&2
+  if [ "$ok_sudo" -eq 1 ] && sudo setcap cap_sys_resource,cap_bpf+ep "$bin" 2>/dev/null; then
+    echo "${tag}: setcap cap_sys_resource,cap_bpf+ep on $(basename "$bin")" >&2
   fi
 }
 

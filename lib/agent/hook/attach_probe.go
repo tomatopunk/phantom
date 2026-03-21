@@ -23,6 +23,8 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
+
+	agentrt "github.com/tomatopunk/phantom/lib/agent/runtime"
 )
 
 func findRingBufMap(coll *ebpf.Collection) (*ebpf.Map, error) {
@@ -84,6 +86,9 @@ func AttachProbeFromObject(
 	spec, err := ebpf.LoadCollectionSpec(objectPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load spec: %w", err)
+	}
+	if kerr := agentrt.FillKprobeKernelVersionsFromUname(spec); kerr != nil {
+		return nil, nil, fmt.Errorf("kprobe kernel version: %w", kerr)
 	}
 	coll, err := ebpf.NewCollection(spec)
 	if err != nil {

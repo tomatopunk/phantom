@@ -38,6 +38,9 @@ func (r *Runtime) LoadFromFile(path string) error {
 	if err != nil {
 		return fmt.Errorf("load spec %s: %w", path, err)
 	}
+	if kerr := FillKprobeKernelVersionsFromUname(spec); kerr != nil {
+		return fmt.Errorf("kprobe kernel version: %w", kerr)
+	}
 	coll, err := ebpf.NewCollection(spec)
 	if err != nil {
 		return fmt.Errorf("new collection: %w", err)
@@ -114,6 +117,9 @@ func (r *Runtime) LoadUprobeFromFile(path string) error {
 	spec, err := ebpf.LoadCollectionSpec(path)
 	if err != nil {
 		return fmt.Errorf("load uprobe spec %s: %w", path, err)
+	}
+	if kerr := FillKprobeKernelVersionsFromUname(spec); kerr != nil {
+		return fmt.Errorf("kprobe kernel version: %w", kerr)
 	}
 	coll, err := ebpf.NewCollection(spec)
 	if err != nil {

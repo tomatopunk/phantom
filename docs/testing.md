@@ -106,7 +106,7 @@ make test-e2e-mr
 
 Requires Linux, `clang`, kernel headers, `libbpf`, `curl`, `python3`, **Rust** (`make cli`), and `make build-bpf` / `phantom-agent` (the Makefile recipe builds the uprobe helper on Linux automatically).
 
-**Hardened / CI hosts:** [`scripts/e2e_linux_bpf_env.sh`](../scripts/e2e_linux_bpf_env.sh) raises **memlock** where possible and applies **`setcap`** (**cap_sys_resource**, **cap_bpf**) when **sudo** is available. On **GitHub Actions**, the same scripts start **`phantom-agent` with `sudo -n -E`** so **BPF program/map** loading succeeds (file caps alone are unreliable there; **`-n`** avoids blocking on a password prompt when no TTY is present). Kprobe **`KERNEL_VERSION`** is filled from **uname** in the agent so **cilium/ebpf** does not need **`/proc/self/mem`**.
+**Hardened / CI hosts:** [`scripts/e2e_linux_bpf_env.sh`](../scripts/e2e_linux_bpf_env.sh) raises **memlock** where possible and applies **`setcap`** (**cap_sys_resource**, **cap_bpf**) when **sudo** is available. On **GitHub Actions**, the shell e2e scripts start **`phantom-agent` with `sudo -n -E`** so **BPF program/map** loading succeeds there (**`-n`** avoids blocking on a password prompt when no TTY is present). **Go** e2e (`test/e2e`) does **not** auto-sudo: `make test-e2e-mr` runs those scripts first so **`phantom-agent` already has file caps** when `go test` starts the agent directly. If you run **`make test-e2e-ci` alone** without prior **setcap**, set **`E2E_AGENT_USE_SUDO=1`** (uses **`sudo -n -E`**) or apply **setcap** yourself. Kprobe **`KERNEL_VERSION`** is filled from **uname** in the agent so **cilium/ebpf** does not need **`/proc/self/mem`**.
 
 ## Tcpdump-style observation (commands only)
 

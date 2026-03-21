@@ -19,6 +19,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -44,6 +45,9 @@ const (
 	e2eHTTPReadBuf         = 4096
 	e2eRawTCPReadBuf       = 256
 	httpMethodGETSpace     = "GET "
+	// How long StartAgent waits for the agent's gRPC listen address to accept TCP (agent may load BPF first).
+	e2eAgentListenWait = 20 * time.Second
+	e2eAgentListenPoll = 50 * time.Millisecond
 )
 
 // FindRepoRoot returns the repository root (directory containing go.mod).
@@ -92,19 +96,36 @@ func SkipIfMissing(t *testing.T, paths ...string) {
 	}
 }
 
-// e2eAgentUseSudo matches scripts/e2e_linux_bpf_env.sh: on GitHub Actions, start the agent with
-// sudo -n -E when passwordless sudo works so BPF program loads are not blocked by RLIMIT_MEMLOCK.
-// -n is required: without it, sudo may block forever waiting for a password on headless CI (no TTY).
-// Set E2E_AGENT_USE_SUDO=1 to force the same locally.
+// e2eAgentUseSudo is opt-in only (E2E_AGENT_USE_SUDO=1). Go tests do not auto-sudo on GitHub Actions:
+// nesting `go test` → sudo → agent can hang or misbehave in headless CI, and `make test-e2e-mr` already
+// runs shell e2e scripts that setcap(8) on phantom-agent before Go e2e, which is enough for BPF memlock
+// in the same job. Use sudo when you run test-e2e-ci alone without prior setcap.
 func e2eAgentUseSudo() bool {
-	if os.Getenv("E2E_AGENT_USE_SUDO") == "1" {
-		return true
+	return os.Getenv("E2E_AGENT_USE_SUDO") == "1"
+}
+
+// waitForAgentTCP dials listenAddr until it succeeds or ctx is done (agent crashed, wrong port, or still loading).
+func waitForAgentTCP(ctx context.Context, listenAddr string) error {
+	var d net.Dialer
+	ticker := time.NewTicker(e2eAgentListenPoll)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%w waiting for agent on %s", ctx.Err(), listenAddr)
+		default:
+		}
+		c, err := d.DialContext(ctx, "tcp", listenAddr)
+		if err == nil {
+			_ = c.Close()
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("%w waiting for agent on %s", ctx.Err(), listenAddr)
+		case <-ticker.C:
+		}
 	}
-	if os.Getenv("GITHUB_ACTIONS") == "" {
-		return false
-	}
-	sudoCheck := exec.CommandContext(context.Background(), "sudo", "-n", "true")
-	return sudoCheck.Run() == nil
 }
 
 // StartAgent starts the agent with kprobe; caller must kill the process when done.
@@ -125,7 +146,7 @@ func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpf
 	}
 	var cmd *exec.Cmd
 	if e2eAgentUseSudo() {
-		t.Log("e2e: starting agent under sudo -n -E (CI BPF memlock)")
+		t.Log("e2e: starting agent under sudo -n -E (E2E_AGENT_USE_SUDO=1)")
 		sudoArgs := append([]string{"-n", "-E", agentBin}, args...)
 		cmd = exec.CommandContext(context.Background(), "sudo", sudoArgs...) // #nosec G204
 	} else {
@@ -139,7 +160,12 @@ func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpf
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start agent: %v", err)
 	}
-	time.Sleep(1 * time.Second)
+	waitCtx, cancel := context.WithTimeout(context.Background(), e2eAgentListenWait)
+	defer cancel()
+	if err := waitForAgentTCP(waitCtx, listenAddr); err != nil {
+		StopAgentProcess(cmd)
+		t.Fatalf("agent not listening on %s: %v (if BPF/memlock, run shell e2e first for setcap, or E2E_AGENT_USE_SUDO=1)", listenAddr, err)
+	}
 	return cmd
 }
 

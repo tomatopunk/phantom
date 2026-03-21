@@ -120,6 +120,9 @@ func Compile(ctx context.Context, snippet, attachPoint, includeDir string) (Comp
 	if includeDir != "" {
 		args = append(args, "-I", includeDir)
 	}
+	for _, inc := range hostClangBPFExtraIncludes() {
+		args = append(args, "-I", inc)
+	}
 	const compileTimeout = 30 * time.Second
 	compileCtx, cancel := context.WithTimeout(ctx, compileTimeout)
 	defer cancel()
@@ -161,6 +164,9 @@ func CompileRaw(ctx context.Context, source, includeDir string) (CompileResult, 
 	args = append(args, "-c", srcPath, "-o", outPath)
 	if includeDir != "" {
 		args = append(args, "-I", includeDir)
+	}
+	for _, inc := range hostClangBPFExtraIncludes() {
+		args = append(args, "-I", inc)
 	}
 	const compileTimeout = 30 * time.Second
 	compileCtx, cancel := context.WithTimeout(ctx, compileTimeout)

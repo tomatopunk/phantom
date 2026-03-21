@@ -97,12 +97,22 @@ func SkipIfMissing(t *testing.T, paths ...string) {
 	}
 }
 
-// e2eAgentUseSudo is opt-in only (E2E_AGENT_USE_SUDO=1). Go tests do not auto-sudo on GitHub Actions:
-// nesting `go test` → sudo → agent can hang or misbehave in headless CI, and `make test-e2e-mr` already
-// runs shell e2e scripts that setcap(8) on phantom-agent before Go e2e, which is enough for BPF memlock
-// in the same job. Use sudo when you run test-e2e-ci alone without prior setcap.
+// e2eAgentUseSudo is true when E2E_AGENT_USE_SUDO=1, or on Linux GitHub Actions (GITHUB_ACTIONS=true).
+// Shell e2e runs the agent under sudo there; Go e2e matches that because file caps on ./phantom-agent are
+// lost whenever `go build -o phantom-agent` runs, and setcap can fail silently in scripts.
+// Set E2E_AGENT_USE_SUDO=0 to force the non-sudo path on GHA (e.g. when relying on setcap after a manual build).
 func e2eAgentUseSudo() bool {
-	return os.Getenv("E2E_AGENT_USE_SUDO") == "1"
+	if os.Getenv("E2E_AGENT_USE_SUDO") == "0" {
+		return false
+	}
+	if os.Getenv("E2E_AGENT_USE_SUDO") == "1" {
+		return true
+	}
+	if runtime.GOOS != LinuxGOOS {
+		return false
+	}
+	v := os.Getenv("GITHUB_ACTIONS")
+	return v == "true" || v == "1"
 }
 
 // waitForAgentTCP dials listenAddr until it succeeds or ctx is done (agent crashed, wrong port, or still loading).
@@ -153,8 +163,13 @@ func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpf
 		bashArgs := append([]string{"-c", bashPrelude, agentBin}, args...)
 		cmd = exec.CommandContext(context.Background(), "bash", bashArgs...) // #nosec G204
 	} else if e2eAgentUseSudo() {
-		t.Log("e2e: starting agent under sudo -n -E (E2E_AGENT_USE_SUDO=1)")
-		sudoArgs := append([]string{"-n", "-E", agentBin}, args...)
+		if os.Getenv("GITHUB_ACTIONS") == "true" || os.Getenv("GITHUB_ACTIONS") == "1" {
+			t.Log("e2e: starting agent under sudo -n -E + bash ulimit (GitHub Actions)")
+		} else {
+			t.Log("e2e: starting agent under sudo -n -E + bash ulimit (E2E_AGENT_USE_SUDO=1)")
+		}
+		// Same as phantom_e2e_run_agent_sudo: root + soft memlock before exec (reliable when file caps were stripped by go build).
+		sudoArgs := append([]string{"-n", "-E", "bash", "-c", `ulimit -l unlimited 2>/dev/null || true; exec "$0" "$@"`, agentBin}, args...)
 		cmd = exec.CommandContext(context.Background(), "sudo", sudoArgs...) // #nosec G204
 	} else {
 		cmd = exec.CommandContext(context.Background(), agentBin, args...) // #nosec G204

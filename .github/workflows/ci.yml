@@ -201,7 +201,5 @@ jobs:
           make proto
           make build-bpf
           make agent
-          # Go e2e starts phantom-agent without sudo; file caps must be set before go test (shell scripts also setcap).
-          sudo setcap cap_sys_resource,cap_bpf+ep ./phantom-agent
-          getcap ./phantom-agent
+          # test-e2e-mr re-applies setcap after shell scripts rebuild phantom-agent; Go e2e uses sudo on GHA (see test/e2e/helpers.go).
           make test-e2e-mr

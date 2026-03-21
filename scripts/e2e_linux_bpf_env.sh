@@ -57,8 +57,12 @@ phantom_e2e_grant_agent_file_caps() {
   elif sudo -n true 2>/dev/null; then
     ok_sudo=1
   fi
-  if [ "$ok_sudo" -eq 1 ] && sudo setcap cap_sys_resource,cap_bpf+ep "$bin" 2>/dev/null; then
-    echo "${tag}: setcap cap_sys_resource,cap_bpf+ep on $(basename "$bin")" >&2
+  if [ "$ok_sudo" -eq 1 ]; then
+    if sudo setcap cap_sys_resource,cap_bpf+ep "$bin" 2>/dev/null; then
+      echo "${tag}: setcap cap_sys_resource,cap_bpf+ep on $(basename "$bin")" >&2
+    elif [ -n "${GITHUB_ACTIONS:-}" ]; then
+      echo "${tag}: WARNING: setcap failed for $(basename "$bin"); shell e2e relies on sudo for the agent (see phantom_e2e_agent_needs_sudo)" >&2
+    fi
   fi
 }
 

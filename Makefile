@@ -82,10 +82,19 @@ build-uprobe-e2e-helper:
 		cc -g -O0 -o test/e2e/uprobe_helper/uprobe_helper test/e2e/uprobe_helper/main.c; \
 	fi
 
+# Re-apply file caps after shell scripts run `go build -o phantom-agent` (replaces inode / drops xattrs).
+# Go e2e on GHA uses sudo for the agent anyway; this helps local `make test-e2e-mr` without GITHUB_ACTIONS.
+.PHONY: phantom-e2e-reapply-caps
+phantom-e2e-reapply-caps:
+	@if [ "$$(uname -s)" = Linux ] && command -v sudo >/dev/null && sudo -n true 2>/dev/null; then \
+		sudo setcap cap_sys_resource,cap_bpf+ep ./phantom-agent && getcap ./phantom-agent; \
+	fi
+
 # MR/CI full BPF e2e: Rust CLI + shell scripts + extended Go e2e.
 test-e2e-mr: cli build-uprobe-e2e-helper
 	./scripts/e2e_http10_generic.sh
 	./scripts/e2e_tcpdump_style_cli.sh
+	$(MAKE) phantom-e2e-reapply-caps
 	$(MAKE) test-e2e-ci
 
 # Run all e2e: CLI script + HTTP/1.0 script + Go e2e (network tests skip on non-Linux).

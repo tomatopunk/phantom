@@ -17,7 +17,7 @@
 //! Rust CLI for Phantom: REPL and `discover` subcommands.
 
 use clap::{Parser, Subcommand};
-use phantom_client::PhantomClient;
+use phantom_client::{DebugEvent, EventType, PhantomClient};
 use std::io::{self, BufRead, Write};
 
 #[derive(Parser, Debug)]
@@ -125,6 +125,21 @@ async fn run_discover(
     Ok(())
 }
 
+fn format_debug_event_line(ev: &DebugEvent) -> String {
+    let ty = EventType::try_from(ev.event_type).unwrap_or(EventType::Unspecified);
+    format!(
+        "type={} timestamp_ns={} session_id={} pid={} tgid={} cpu={} probe_id={} payload_len={}",
+        ty.as_str_name(),
+        ev.timestamp_ns,
+        ev.session_id,
+        ev.pid,
+        ev.tgid,
+        ev.cpu,
+        ev.probe_id,
+        ev.payload.len(),
+    )
+}
+
 async fn run_repl(
     agent: &str,
     token: Option<String>,
@@ -133,6 +148,20 @@ async fn run_repl(
     let mut c = PhantomClient::connect(agent, token).await?;
     c.open_session("").await?;
     eprintln!("session {}", c.session_id());
+
+    let mut stream_client = c.clone();
+    tokio::spawn(async move {
+        let Ok(mut stream) = stream_client.stream_events().await else {
+            return;
+        };
+        loop {
+            match stream.message().await {
+                Ok(Some(ev)) => println!("{}", format_debug_event_line(&ev)),
+                Ok(None) => break,
+                Err(_) => break,
+            }
+        }
+    });
 
     let stdin = io::stdin();
     let mut out = io::stdout();

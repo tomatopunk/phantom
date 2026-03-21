@@ -156,6 +156,12 @@ jobs:
           cd src/desktop
           npm install
           npm run build
+      # Tauri 2 on Linux pulls gtk/glib/webkit via build.rs; pkg-config needs .pc from -dev packages.
+      - name: Install Tauri Linux native deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libglib2.0-dev libssl-dev
       - name: Rust (phantom-desktop lib)
         if: matrix.os == 'ubuntu-latest'
         run: cargo build -p phantom-desktop

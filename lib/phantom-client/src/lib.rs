@@ -24,9 +24,9 @@ pub mod phantom {
 
 pub use phantom::api::{
     debugger_service_client::DebuggerServiceClient, CloseSessionRequest, CompileAndAttachRequest,
-    CompileAndAttachResponse, DebugEvent, ExecuteRequest, ExecuteResponse, GetHostMetricsRequest,
-    GetHostMetricsResponse, GetTaskTreeRequest, GetTaskTreeResponse, InspectElfRequest,
-    ListKprobeSymbolsRequest, ListSessionsRequest, ListTracepointsRequest,
+    CompileAndAttachResponse, DebugEvent, EventType, ExecuteRequest, ExecuteResponse,
+    GetHostMetricsRequest, GetHostMetricsResponse, GetTaskTreeRequest, GetTaskTreeResponse,
+    InspectElfRequest, ListKprobeSymbolsRequest, ListSessionsRequest, ListTracepointsRequest,
     ListUprobeSymbolsRequest, OpenSessionRequest, OpenSessionResponse, StreamEventsRequest,
 };
 
@@ -34,6 +34,7 @@ use tonic::metadata::AsciiMetadataValue;
 use tonic::Request;
 
 /// High-level client: session, optional Bearer token, and helpers for common RPCs.
+#[derive(Clone)]
 pub struct PhantomClient {
     inner: DebuggerServiceClient<tonic::transport::Channel>,
     token: Option<String>,

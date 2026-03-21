@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use phantom_client::{
-    CompileAndAttachResponse, ExecuteResponse, GetHostMetricsResponse, GetTaskTreeResponse,
-    PhantomClient,
+    CompileAndAttachResponse, GetHostMetricsResponse, GetTaskTreeResponse, PhantomClient,
 };
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, State};
@@ -99,14 +98,6 @@ fn task_tree_json(r: GetTaskTreeResponse) -> Value {
     json!({
         "tgid": r.tgid,
         "tasks": tasks,
-        "error_message": r.error_message,
-    })
-}
-
-fn execute_json(r: ExecuteResponse) -> Value {
-    json!({
-        "ok": r.ok,
-        "output": r.output,
         "error_message": r.error_message,
     })
 }
@@ -269,7 +260,12 @@ async fn execute_cmd(state: State<'_, AppState>, command_line: String) -> Result
         .execute(&command_line)
         .await
         .map_err(|e| format!("execute: {e}"))?;
-    Ok(execute_json(r))
+    let output = r.into_result().map_err(|msg| msg)?;
+    Ok(json!({
+        "ok": true,
+        "output": output,
+        "error_message": "",
+    }))
 }
 
 #[tauri::command]

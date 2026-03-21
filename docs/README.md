@@ -11,5 +11,6 @@ English-language technical docs for Phantom.
 | [ops.md](ops.md) | Deployment (systemd), configuration knobs, troubleshooting. |
 | [testing.md](testing.md) | End-to-end and integration tests, Make targets, CI alignment. |
 | [roadmap.md](roadmap.md) | Planned directions and ideas (not a committed schedule). |
+| [near-maturity-inventory.md](near-maturity-inventory.md) | Prioritized gaps for Near-term quality vs raw feature presence. |
 
 The root [README.md](../README.md) is the short project entry point; start there, then dive into the files above as needed.

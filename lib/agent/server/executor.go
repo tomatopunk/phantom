@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/cilium/ebpf/btf"
@@ -26,49 +25,6 @@ func newCommandExecutor(hookIncludeDir, vmlinuxPath string, planner *probe.Plann
 		planner = probe.NewPlanner()
 	}
 	return &commandExecutor{hookIncludeDir: hookIncludeDir, vmlinuxPath: vmlinuxPath, btfSpec: btfSpec, planner: planner, quota: quota}
-}
-
-//nolint:gocyclo // dispatch switch is inherently high cyclomatic complexity
-func (e *commandExecutor) execute(ctx context.Context, sess *session.Session, line string) (*proto.ExecuteResponse, error) {
-	if line == "" {
-		return &proto.ExecuteResponse{Ok: true, Output: ""}, nil
-	}
-	parts := splitCommandLine(line)
-	verb := strings.ToLower(parts[0])
-	switch verb {
-	case "break", "b":
-		return e.executeBreak(ctx, sess, parts[1:])
-	case "tbreak":
-		return e.executeTbreak(ctx, sess, parts[1:])
-	case "print", "p":
-		return e.executePrint(ctx, sess, parts[1:])
-	case "trace", "t":
-		return e.executeTrace(ctx, sess, parts[1:])
-	case "continue", "c":
-		return e.executeContinue(ctx, sess)
-	case "delete":
-		return e.executeDelete(ctx, sess, parts[1:])
-	case "disable":
-		return e.executeDisable(ctx, sess, parts[1:])
-	case "enable":
-		return e.executeEnable(ctx, sess, parts[1:])
-	case "condition":
-		return e.executeCondition(ctx, sess, parts[1:])
-	case "info":
-		return e.executeInfo(ctx, sess, parts[1:])
-	case "list":
-		return e.executeList(ctx, sess, parts[1:])
-	case "bt":
-		return e.executeBt(ctx, sess)
-	case "watch":
-		return e.executeWatch(ctx, sess, parts[1:])
-	case "help":
-		return e.executeHelp(ctx, parts[1:])
-	case "hook":
-		return e.executeHook(ctx, sess, parts[1:])
-	default:
-		return errResponse(fmt.Sprintf("unknown command: %s", verb)), nil
-	}
 }
 
 func (e *commandExecutor) executeBreak(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {

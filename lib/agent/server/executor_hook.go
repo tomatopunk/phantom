@@ -12,62 +12,75 @@ import (
 	"github.com/tomatopunk/phantom/lib/proto"
 )
 
-// executeHookAdd compiles C snippet (from --code or from --sec) and attaches at the given point.
-func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+// withHookQuota rolls back a reserved hook slot when the inner call returns !ok (and no transport error).
+func (e *commandExecutor) withHookQuota(sess *session.Session, run func() (*proto.ExecuteResponse, error)) (*proto.ExecuteResponse, error) {
 	var success bool
 	defer func() {
 		if !success && e.quota != nil {
 			e.quota.RemoveHook(sess.ID)
 		}
 	}()
-	point, code, sec, limit, err := parseHookAddArgs(args)
+	resp, err := run()
 	if err != nil {
-		return errResponse("hook add: " + err.Error()), nil
+		return resp, err
 	}
-	plan, err := e.planner.PlanHook(point, code, sec, limit)
-	if err != nil {
-		return errResponse("hook add: " + err.Error()), nil
+	if resp.GetOk() {
+		success = true
 	}
-	snippet := plan.Code
-	if plan.Sec != "" {
-		snippet, err = hook.SecToSnippet(plan.Sec, plan.AttachPoint)
+	return resp, err
+}
+
+// executeHookAdd compiles C snippet (from --code or from --sec) and attaches at the given point.
+func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+	return e.withHookQuota(sess, func() (*proto.ExecuteResponse, error) {
+		point, code, sec, limit, err := parseHookAddArgs(args)
 		if err != nil {
 			return errResponse("hook add: " + err.Error()), nil
 		}
-	}
-	if e.hookIncludeDir == "" {
-		return errResponse("hook add: no bpf include dir configured"), nil
-	}
-	cr, err := hook.Compile(ctx, snippet, plan.AttachPoint, e.hookIncludeDir)
-	if err != nil {
-		return errResponse("hook add: " + err.Error()), nil
-	}
-	if cr.ParsedAttach == nil {
-		return errResponse("hook add: internal: missing attach info"), nil
-	}
-	detach, hookReader, err := hook.AttachProbeFromObject(cr.ObjectPath, cr.ParsedAttach, hook.HookTemplateProgramName, cr.Cleanup)
-	if err != nil {
-		if cr.Cleanup != nil {
-			cr.Cleanup()
+		plan, err := e.planner.PlanHook(point, code, sec, limit)
+		if err != nil {
+			return errResponse("hook add: " + err.Error()), nil
 		}
-		return errResponse("hook add: " + err.Error()), nil
-	}
-	opt := &session.HookOpts{}
-	if plan.Sec != "" {
-		opt.FilterExpr = plan.Sec
-		opt.Note = "hook add --sec"
-	} else {
-		opt.Note = "hook add --code"
-	}
-	id := sess.AddHook(plan.AttachPoint, detach, hookReader, plan.Limit, opt)
-	success = true
-	return &proto.ExecuteResponse{
-		Ok:     true,
-		Output: "hook set at " + plan.AttachPoint + " (" + id + ")",
-		Result: &proto.ExecuteResponse_Hook{
-			Hook: &proto.HookResult{HookId: id, AttachPoint: plan.AttachPoint, Compiled: true},
-		},
-	}, nil
+		snippet := plan.Code
+		if plan.Sec != "" {
+			snippet, err = hook.SecToSnippet(plan.Sec, plan.AttachPoint)
+			if err != nil {
+				return errResponse("hook add: " + err.Error()), nil
+			}
+		}
+		if e.hookIncludeDir == "" {
+			return errResponse("hook add: no bpf include dir configured"), nil
+		}
+		cr, err := hook.Compile(ctx, snippet, plan.AttachPoint, e.hookIncludeDir)
+		if err != nil {
+			return errResponse("hook add: " + err.Error()), nil
+		}
+		if cr.ParsedAttach == nil {
+			return errResponse("hook add: internal: missing attach info"), nil
+		}
+		detach, hookReader, err := hook.AttachProbeFromObject(cr.ObjectPath, cr.ParsedAttach, hook.HookTemplateProgramName, cr.Cleanup)
+		if err != nil {
+			if cr.Cleanup != nil {
+				cr.Cleanup()
+			}
+			return errResponse("hook add: " + err.Error()), nil
+		}
+		opt := &session.HookOpts{}
+		if plan.Sec != "" {
+			opt.FilterExpr = plan.Sec
+			opt.Note = "hook add --sec"
+		} else {
+			opt.Note = "hook add --code"
+		}
+		id := sess.AddHook(plan.AttachPoint, detach, hookReader, plan.Limit, opt)
+		return &proto.ExecuteResponse{
+			Ok:     true,
+			Output: "hook set at " + plan.AttachPoint + " (" + id + ")",
+			Result: &proto.ExecuteResponse_Hook{
+				Hook: &proto.HookResult{HookId: id, AttachPoint: plan.AttachPoint, Compiled: true},
+			},
+		}, nil
+	})
 }
 
 // parseHookAddArgs returns point, code, sec, limit. Exactly one of code or sec must be set (mutually exclusive).
@@ -169,45 +182,40 @@ func parseHookAttachArgs(args []string) (attach, source, file, program string, e
 }
 
 func (e *commandExecutor) executeHookAttach(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
-	var success bool
-	defer func() {
-		if !success && e.quota != nil {
-			e.quota.RemoveHook(sess.ID)
-		}
-	}()
-	attach, inline, file, program, err := parseHookAttachArgs(args)
-	if err != nil {
-		return errResponse("hook attach: " + err.Error()), nil
-	}
-	var src string
-	if file != "" {
-		path := filepath.Clean(file)
-		if !filepath.IsAbs(path) {
-			return errResponse("hook attach: --file path must be absolute"), nil
-		}
-		data, err := os.ReadFile(path)
+	return e.withHookQuota(sess, func() (*proto.ExecuteResponse, error) {
+		attach, inline, file, program, err := parseHookAttachArgs(args)
 		if err != nil {
-			return errResponse("hook attach: read file: " + err.Error()), nil
+			return errResponse("hook attach: " + err.Error()), nil
 		}
-		if len(data) > hook.MaxRawSourceLen {
-			return errResponse(fmt.Sprintf("hook attach: file larger than %d bytes", hook.MaxRawSourceLen)), nil
+		var src string
+		if file != "" {
+			path := filepath.Clean(file)
+			if !filepath.IsAbs(path) {
+				return errResponse("hook attach: --file path must be absolute"), nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return errResponse("hook attach: read file: " + err.Error()), nil
+			}
+			if len(data) > hook.MaxRawSourceLen {
+				return errResponse(fmt.Sprintf("hook attach: file larger than %d bytes", hook.MaxRawSourceLen)), nil
+			}
+			src = string(data)
+		} else {
+			src = inline
 		}
-		src = string(data)
-	} else {
-		src = inline
-	}
-	r := e.tryCompileAttachHook(ctx, sess, src, attach, program, 0)
-	if !r.GetOk() {
-		return errResponse("hook attach: " + r.GetErrorMessage()), nil
-	}
-	success = true
-	return &proto.ExecuteResponse{
-		Ok:     true,
-		Output: "hook set at " + r.GetAttachPoint() + " (" + r.GetHookId() + ")",
-		Result: &proto.ExecuteResponse_Hook{
-			Hook: &proto.HookResult{HookId: r.GetHookId(), AttachPoint: r.GetAttachPoint(), Compiled: true},
-		},
-	}, nil
+		r := e.tryCompileAttachHook(ctx, sess, src, attach, program, 0)
+		if !r.GetOk() {
+			return errResponse("hook attach: " + r.GetErrorMessage()), nil
+		}
+		return &proto.ExecuteResponse{
+			Ok:     true,
+			Output: "hook set at " + r.GetAttachPoint() + " (" + r.GetHookId() + ")",
+			Result: &proto.ExecuteResponse_Hook{
+				Hook: &proto.HookResult{HookId: r.GetHookId(), AttachPoint: r.GetAttachPoint(), Compiled: true},
+			},
+		}, nil
+	})
 }
 
 // executeHookList returns all hooks.

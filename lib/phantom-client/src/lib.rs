@@ -24,6 +24,22 @@ pub struct PhantomClient {
     session_id: String,
 }
 
+impl ExecuteResponse {
+    /// Maps logical success (`ok == true`) to `Ok(output)` and agent-reported failure to `Err`.
+    pub fn into_result(self) -> Result<String, String> {
+        if self.ok {
+            Ok(self.output)
+        } else {
+            let msg = self.error_message.trim();
+            if msg.is_empty() {
+                Err("command failed (no error message from agent)".to_string())
+            } else {
+                Err(msg.to_string())
+            }
+        }
+    }
+}
+
 impl PhantomClient {
     /// Connects to the agent. `agent` may be `host:port` or a full `http://` URL.
     pub async fn connect(
@@ -204,5 +220,34 @@ impl PhantomClient {
             .await?;
         self.session_id.clear();
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod execute_response_tests {
+    use super::ExecuteResponse;
+
+    #[test]
+    fn into_result_success() {
+        let mut r = ExecuteResponse::default();
+        r.ok = true;
+        r.output = "out".to_string();
+        assert_eq!(r.into_result().unwrap(), "out");
+    }
+
+    #[test]
+    fn into_result_failure_trims_message() {
+        let mut r = ExecuteResponse::default();
+        r.ok = false;
+        r.error_message = "  boom  ".to_string();
+        assert_eq!(r.into_result().unwrap_err(), "boom");
+    }
+
+    #[test]
+    fn into_result_failure_empty_message() {
+        let mut r = ExecuteResponse::default();
+        r.ok = false;
+        r.error_message = "  ".to_string();
+        assert!(r.into_result().unwrap_err().contains("command failed"));
     }
 }

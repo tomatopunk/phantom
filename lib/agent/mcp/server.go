@@ -144,14 +144,7 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 		if sym == "" {
 			return "", fmt.Errorf("symbol required")
 		}
-		resp, err := s.backend.Execute(ctx, sid, "break "+sym)
-		if err != nil {
-			return "", err
-		}
-		if !resp.GetOk() {
-			return "", fmt.Errorf("%s", resp.GetErrorMessage())
-		}
-		return resp.GetOutput(), nil
+		return ExecuteCommandLine(ctx, s.backend, sid, "break "+sym)
 	case "run_command":
 		sid := str("session_id")
 		if sid == "" {
@@ -161,14 +154,7 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 		if cmd == "" {
 			return "", fmt.Errorf("command_line required")
 		}
-		resp, err := s.backend.Execute(ctx, sid, cmd)
-		if err != nil {
-			return "", err
-		}
-		if !resp.GetOk() {
-			return resp.GetErrorMessage(), nil
-		}
-		return resp.GetOutput(), nil
+		return ExecuteCommandLine(ctx, s.backend, sid, cmd)
 	case "list_sessions":
 		ids, err := s.backend.ListSessions(ctx)
 		if err != nil {
@@ -214,14 +200,7 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 		} else {
 			cmd = "hook add --point " + point + " --lang c --sec " + sec
 		}
-		resp, err := s.backend.Execute(ctx, sid, cmd)
-		if err != nil {
-			return "", err
-		}
-		if !resp.GetOk() {
-			return "", fmt.Errorf("%s", resp.GetErrorMessage())
-		}
-		return resp.GetOutput(), nil
+		return ExecuteCommandLine(ctx, s.backend, sid, cmd)
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}

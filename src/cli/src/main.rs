@@ -149,17 +149,20 @@ async fn run_repl(
             break;
         }
         match c.execute(line).await {
-            Ok(resp) => {
-                if !resp.ok {
-                    writeln!(out, "{}", resp.error_message)?;
+            Ok(resp) => match resp.into_result() {
+                Ok(output) => {
+                    if !output.is_empty() {
+                        writeln!(out, "{}", output)?;
+                    }
+                }
+                Err(msg) => {
+                    writeln!(out, "{}", msg)?;
                     if !interactive {
                         let _ = c.close_session().await;
                         std::process::exit(1);
                     }
-                } else if !resp.output.is_empty() {
-                    writeln!(out, "{}", resp.output)?;
                 }
-            }
+            },
             Err(e) => {
                 writeln!(out, "error: {}", e)?;
                 if !interactive {

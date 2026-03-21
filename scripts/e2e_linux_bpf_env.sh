@@ -21,6 +21,13 @@
 #   - BPF load (cap_bpf): unprivileged BPF where enforced
 # Kprobe kernel version uses uname in the agent (see lib/agent/runtime/kprobe_kernel_version_linux.go),
 # not /proc/self/mem, so cap_sys_ptrace is not required for scripted e2e.
+#
+# GitHub Actions: file caps are not always enough for BPF program load memlock; scripts run the agent
+# with sudo -E when GITHUB_ACTIONS is set (see phantom_e2e_agent_needs_sudo).
+
+phantom_e2e_agent_needs_sudo() {
+  [ -n "${GITHUB_ACTIONS:-}" ] && sudo -n true 2>/dev/null
+}
 
 phantom_e2e_soft_memlock() {
   ulimit -l unlimited 2>/dev/null || true

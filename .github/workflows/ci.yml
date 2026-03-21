@@ -111,7 +111,7 @@ jobs:
       # Hook TestCompile_COReHook runs before the later "Build eBPF" step; needs same headers as CO-RE clang (Makefile).
       - name: Install protoc and BPF compile deps (Linux)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libbpf-dev linux-libc-dev clang
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libbpf-dev linux-libc-dev clang linux-headers-$(uname -r)
       - name: Install protoc (macOS)
         if: matrix.os == 'macos-latest'
         run: brew install protobuf

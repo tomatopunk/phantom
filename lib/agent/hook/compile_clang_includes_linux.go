@@ -40,6 +40,25 @@ func hostClangBPFExtraIncludes() []string {
 	return out
 }
 
+// hostClangBPFForceIncludes prepends arch UAPI so PT_REGS_* in bpf_tracing.h see a complete struct pt_regs
+// (otherwise libbpf only forward-declares pt_regs and CO-RE clang fails).
+func hostClangBPFForceIncludes() []string {
+	sys := archLinuxUserIncludeDir()
+	if sys == "" {
+		return nil
+	}
+	p := filepath.Join(sys, "asm", "ptrace.h")
+	if !isRegularFile(p) {
+		return nil
+	}
+	return []string{"-include", p}
+}
+
+func isRegularFile(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && st.Mode().IsRegular()
+}
+
 func archLinuxUserIncludeDir() string {
 	switch runtime.GOARCH {
 	case "amd64":

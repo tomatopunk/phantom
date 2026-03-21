@@ -61,7 +61,12 @@ AGENT_PORT="${AGENT_PORT:-19093}"
 AGENT_ADDR="127.0.0.1:$AGENT_PORT"
 phantom_e2e_linux_bpf_env "$AGENT_BIN" "e2e_tcpdump_style_cli"
 echo "e2e_tcpdump_style_cli: starting agent at $AGENT_ADDR..."
-"$AGENT_BIN" -listen "$AGENT_ADDR" -kprobe "$BPF_KPROBE_OUT" >"$AGENT_LOG" 2>&1 &
+if phantom_e2e_agent_needs_sudo; then
+  echo "e2e_tcpdump_style_cli: agent under sudo -E (CI BPF memlock)" >&2
+  sudo -E "$AGENT_BIN" -listen "$AGENT_ADDR" -kprobe "$BPF_KPROBE_OUT" >"$AGENT_LOG" 2>&1 &
+else
+  "$AGENT_BIN" -listen "$AGENT_ADDR" -kprobe "$BPF_KPROBE_OUT" >"$AGENT_LOG" 2>&1 &
+fi
 AGENT_PID=$!
 sleep 1
 if ! kill -0 "$AGENT_PID" 2>/dev/null; then

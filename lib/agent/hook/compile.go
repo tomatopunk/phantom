@@ -116,6 +116,7 @@ func Compile(ctx context.Context, snippet, attachPoint, includeDir string) (Comp
 		"-g", // BTF for CO-RE relocations
 	}
 	args = append(args, bpfTargetArchDefines()...)
+	args = append(args, hostClangBPFForceIncludes()...)
 	args = append(args, "-c", srcPath, "-o", outPath)
 	if includeDir != "" {
 		args = append(args, "-I", includeDir)
@@ -161,6 +162,7 @@ func CompileRaw(ctx context.Context, source, includeDir string) (CompileResult, 
 		"-g",
 	}
 	args = append(args, bpfTargetArchDefines()...)
+	args = append(args, hostClangBPFForceIncludes()...)
 	args = append(args, "-c", srcPath, "-o", outPath)
 	if includeDir != "" {
 		args = append(args, "-I", includeDir)

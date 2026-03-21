@@ -21,3 +21,7 @@ package hook
 func hostClangBPFExtraIncludes() []string {
 	return nil
 }
+
+func hostClangBPFForceIncludes() []string {
+	return nil
+}

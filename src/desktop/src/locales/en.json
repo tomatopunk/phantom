@@ -7,7 +7,26 @@
     "emptyOutput": "(empty)",
     "errorOutput": "error"
   },
+  "sidebar": {
+    "aria": "Tools sidebar",
+    "nav": {
+      "overview": "Metrics and host context",
+      "overviewShort": "Metrics",
+      "discover": "List tracepoints, kprobes, uprobes",
+      "discoverShort": "Find",
+      "session": "Breakpoints, traces, hooks, watches",
+      "sessionShort": "Probes",
+      "console": "Execute agent commands",
+      "consoleShort": "CLI",
+      "hook": "eBPF C compile and attach",
+      "hookShort": "Hook"
+    }
+  },
+  "errorBanner": {
+    "dismiss": "Dismiss"
+  },
   "header": {
+    "toolbarAria": "Connection and capture toolbar",
     "brand": "Phantom",
     "agent": "Agent",
     "token": "Token",
@@ -19,9 +38,7 @@
     "filterPlaceholder": "Substring; space means match all tokens…",
     "clearEvents": "Clear events",
     "exportJsonl": "Export JSONL",
-    "exportTitle": "Ctrl/Cmd+E",
-    "langZh": "中文",
-    "langEn": "English"
+    "exportTitle": "Ctrl/Cmd+E"
   },
   "breadcrumb": {
     "prefix": "Path:",
@@ -29,6 +46,7 @@
     "tgid": "TGID {{id}}"
   },
   "dimension": {
+    "aria": "Metrics dimension",
     "host": "Host",
     "nic": "NIC",
     "threads": "Threads"
@@ -62,6 +80,7 @@
     "filter": "Filter"
   },
   "discover": {
+    "aria": "Discovery kind",
     "tracepoint": "Tracepoint",
     "kprobe": "Kprobe",
     "uprobe": "Uprobe",
@@ -71,7 +90,8 @@
   },
   "cmd": {
     "title": "Command (execute)",
-    "run": "Run"
+    "run": "Run",
+    "inputAria": "Command input"
   },
   "hook": {
     "title": "eBPF C editor (compile & attach)",
@@ -90,6 +110,7 @@
     "sourceLocal": "local"
   },
   "sessionPanel": {
+    "aria": "Session probe categories",
     "title": "Session probes",
     "refresh": "Refresh",
     "empty": "(none)",
@@ -118,7 +139,8 @@
     "capturing": "running",
     "stopped": "stopped",
     "metricsRefresh": "Metrics refresh:",
-    "shortcutExport": "Shortcut: ⌘/Ctrl+E export JSONL"
+    "shortcutExport": "Shortcut: ⌘/Ctrl+E export JSONL",
+    "shortcutsHint": "⌘/Ctrl+E export · Menu bar: clear events, language"
   },
   "glossary": {
     "loadavg_one": "/proc/loadavg field 1: 1-minute load average (runnable + uninterruptible tasks, interpret per CPU count).",

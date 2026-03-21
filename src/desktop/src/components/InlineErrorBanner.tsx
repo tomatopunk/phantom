@@ -1,4 +1,4 @@
-/*
+/**
  * Copyright 2026 The Phantom Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,29 +16,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/* Shared definitions for eBPF programs (event layout, map keys). */
+import type { TFunction } from "i18next";
 
-#ifndef PHANTOM_BPF_INCLUDE_COMMON_H
-#define PHANTOM_BPF_INCLUDE_COMMON_H
-
-#ifndef __u64
-#define __u64 unsigned long long
-#endif
-#ifndef __u32
-#define __u32 unsigned int
-#endif
-
-#define PHANTOM_EVENT_HEADER_SIZE 32
-#define PHANTOM_EVENT_TYPE_BREAK_HIT 1
-
-struct event_header {
-	__u64 timestamp_ns;
-	__u32 session_id;
-	__u32 event_type;
-	__u32 pid;
-	__u32 tgid;
-	__u32 cpu;
-	__u32 probe_id;
+type Props = {
+  t: TFunction;
+  message: string;
+  onDismiss: () => void;
 };
 
-#endif /* PHANTOM_BPF_INCLUDE_COMMON_H */
+export function InlineErrorBanner({ t, message, onDismiss }: Props) {
+  if (!message) return null;
+  return (
+    <div
+      className="flex shrink-0 items-center gap-2 border-b border-amber-700/50 bg-amber-950/40 px-3 py-2 text-sm text-amber-100/95"
+      role="alert"
+    >
+      <span className="min-w-0 flex-1 break-words">{message}</span>
+      <button type="button" className="btn-app shrink-0 text-xs" onClick={onDismiss}>
+        {t("errorBanner.dismiss")}
+      </button>
+    </div>
+  );
+}

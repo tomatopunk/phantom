@@ -1,3 +1,21 @@
+/**
+ * Copyright 2026 The Phantom Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
@@ -83,25 +101,22 @@ export function SessionProbesPanel({
   }, [connected, refresh, refreshTrigger]);
 
   return (
-    <div className="border-t border-shell-border p-2 space-y-1 flex flex-col min-h-[120px] max-h-[200px]">
-      <div className="flex items-center gap-1 flex-wrap">
-        <span className="text-xs text-shell-muted">{t("sessionPanel.title")}</span>
-        <button
-          type="button"
-          disabled={!connected || busy}
-          className="px-2 text-xs rounded border border-shell-border disabled:opacity-40"
-          onClick={() => void refresh()}
-        >
+    <div className="flex flex-1 min-h-0 flex-col p-3 gap-2">
+      <div className="flex items-center gap-2 flex-wrap shrink-0">
+        <span className="text-xs font-medium text-app-label">{t("sessionPanel.title")}</span>
+        <button type="button" disabled={!connected || busy} className="btn-app text-xs" onClick={() => void refresh()}>
           {t("sessionPanel.refresh")}
         </button>
       </div>
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex flex-wrap gap-1 shrink-0" role="tablist" aria-label={t("sessionPanel.aria")}>
         {(["break", "trace", "hook", "watch"] as const).map((k) => (
           <button
             key={k}
             type="button"
-            className={`px-2 py-0.5 rounded text-xs border ${
-              tab === k ? "bg-white/10 border-shell-border" : "border-transparent hover:bg-white/5"
+            role="tab"
+            aria-selected={tab === k}
+            className={`rounded-md px-2 py-1 text-xs border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-accent ${
+              tab === k ? "border-app-separator bg-app-field text-app-label" : "border-transparent text-app-secondary hover:bg-app-hover"
             }`}
             onClick={() => setTab(k)}
           >
@@ -109,16 +124,16 @@ export function SessionProbesPanel({
           </button>
         ))}
       </div>
-      {err && <p className="text-[10px] text-amber-400">{err}</p>}
-      <div className="flex-1 overflow-auto text-[10px] font-mono-tight">
+      {err && <p className="text-[11px] text-amber-400 shrink-0">{err}</p>}
+      <div className="flex-1 min-h-0 overflow-auto text-[10px] font-mono-tight text-app-label">
         {tab === "break" &&
           breaks.map((r) => (
-            <div key={r.id} className="flex flex-wrap gap-1 items-center border-b border-shell-border/30 py-0.5">
-              <span className="text-shell-accent">{r.id}</span>
+            <div key={r.id} className="flex flex-wrap gap-1 items-center border-b border-app-separator/40 py-1">
+              <span className="text-app-accent">{r.id}</span>
               <span className="truncate max-w-[140px]" title={r.symbol}>
                 {r.symbol}
               </span>
-              <span className="text-shell-muted">{r.enabled ? "on" : "off"}</span>
+              <span className="text-app-secondary">{r.enabled ? "on" : "off"}</span>
               {r.condition && <span className="text-gray-500 truncate max-w-[100px]">{r.condition}</span>}
               <span className="ml-auto flex gap-0.5 shrink-0">
                 <button type="button" className="text-blue-400 hover:underline" onClick={() => void runCmd(`delete ${r.id}`)}>
@@ -135,8 +150,8 @@ export function SessionProbesPanel({
           ))}
         {tab === "trace" &&
           traces.map((r) => (
-            <div key={r.id} className="flex gap-1 items-center border-b border-shell-border/30 py-0.5">
-              <span className="text-shell-accent">{r.id}</span>
+            <div key={r.id} className="flex gap-1 items-center border-b border-app-separator/40 py-1">
+              <span className="text-app-accent">{r.id}</span>
               <span className="truncate flex-1">{r.expressions}</span>
               <button type="button" className="text-blue-400 hover:underline shrink-0" onClick={() => void runCmd(`delete ${r.id}`)}>
                 del
@@ -145,9 +160,9 @@ export function SessionProbesPanel({
           ))}
         {tab === "hook" &&
           hooks.map((r) => (
-            <div key={r.id} className="flex flex-col gap-0.5 border-b border-shell-border/30 py-0.5">
+            <div key={r.id} className="flex flex-col gap-0.5 border-b border-app-separator/40 py-1">
               <div className="flex gap-1 items-center">
-                <span className="text-shell-accent">{r.id}</span>
+                <span className="text-app-accent">{r.id}</span>
                 <span className="truncate flex-1" title={r.attach}>
                   {r.attach}
                 </span>
@@ -165,19 +180,19 @@ export function SessionProbesPanel({
           ))}
         {tab === "watch" &&
           watches.map((r) => (
-            <div key={r.id} className="flex gap-1 items-center border-b border-shell-border/30 py-0.5">
-              <span className="text-shell-accent">{r.id}</span>
+            <div key={r.id} className="flex gap-1 items-center border-b border-app-separator/40 py-1">
+              <span className="text-app-accent">{r.id}</span>
               <span className="truncate">{r.expression}</span>
-              <span className="text-shell-muted truncate">{r.last}</span>
+              <span className="text-app-secondary truncate">{r.last}</span>
               <button type="button" className="text-blue-400 hover:underline ml-auto shrink-0" onClick={() => void runCmd(`delete ${r.id}`)}>
                 del
               </button>
             </div>
           ))}
-        {tab === "break" && breaks.length === 0 && <p className="text-shell-muted">{t("sessionPanel.empty")}</p>}
-        {tab === "trace" && traces.length === 0 && <p className="text-shell-muted">{t("sessionPanel.empty")}</p>}
-        {tab === "hook" && hooks.length === 0 && <p className="text-shell-muted">{t("sessionPanel.empty")}</p>}
-        {tab === "watch" && watches.length === 0 && <p className="text-shell-muted">{t("sessionPanel.empty")}</p>}
+        {tab === "break" && breaks.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
+        {tab === "trace" && traces.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
+        {tab === "hook" && hooks.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
+        {tab === "watch" && watches.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
       </div>
     </div>
   );

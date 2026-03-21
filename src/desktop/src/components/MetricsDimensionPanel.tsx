@@ -1,3 +1,21 @@
+/**
+ * Copyright 2026 The Phantom Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import type { TFunction } from "i18next";
 import { GlossaryTip } from "../procGlossary";
 import type { CpuJ, NetDev, TaskRow } from "../app/types";
@@ -44,19 +62,21 @@ export function MetricsDimensionPanel({
   setFilter,
 }: Props) {
   return (
-    <>
-      <div className="px-2 py-1 border-b border-shell-border text-xs text-shell-muted">
+    <div className="flex flex-col flex-1 min-h-0 h-full">
+      <div className="shrink-0 px-3 py-2 border-b border-app-separator text-xs text-app-secondary">
         {t("breadcrumb.prefix")}
         {hostname}
         {breadcrumbExtra}
       </div>
-      <div className="flex gap-1 px-2 py-1 border-b border-shell-border">
+      <div className="shrink-0 flex gap-1 px-3 py-2 border-b border-app-separator" role="tablist" aria-label={t("dimension.aria")}>
         {(["host", "nic", "threads"] as const).map((d) => (
           <button
             key={d}
             type="button"
-            className={`px-2 py-0.5 rounded text-xs border ${
-              dimension === d ? "bg-shell-accent/20 border-shell-accent" : "border-transparent hover:bg-white/5"
+            role="tab"
+            aria-selected={dimension === d}
+            className={`rounded-md px-2 py-1 text-xs border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-accent ${
+              dimension === d ? "bg-app-accent-muted border-app-accent text-app-label" : "border-transparent text-app-secondary hover:bg-app-hover"
             }`}
             onClick={() => setDimension(d)}
           >
@@ -64,35 +84,35 @@ export function MetricsDimensionPanel({
           </button>
         ))}
       </div>
-      <div className="shrink-0 max-h-[34vh] overflow-auto p-2 text-xs space-y-2">
-        {!connected && <p className="text-shell-muted">{t("metrics.hintDisconnected")}</p>}
+      <div className="flex-1 min-h-0 overflow-auto p-3 text-xs text-app-label space-y-2">
+        {!connected && <p className="text-app-secondary">{t("metrics.hintDisconnected")}</p>}
         {connected && dimension === "host" && metrics && (
           <div className="space-y-2">
             {(metrics.error_message as string) && (
               <p className="text-amber-400">{(metrics.error_message as string) || ""}</p>
             )}
             <div className="grid grid-cols-2 gap-2">
-              <div className="bg-black/30 rounded p-2 border border-shell-border">
+              <div className="rounded-md border border-app-separator bg-app-field p-2">
                 <GlossaryTip term="loadavg_one" labelKey="metrics.load1m" /> {Number(metrics.loadavg_one).toFixed(2)}
               </div>
-              <div className="bg-black/30 rounded p-2 border border-shell-border">
+              <div className="rounded-md border border-app-separator bg-app-field p-2">
                 <GlossaryTip term="loadavg_five" labelKey="metrics.load5m" /> {Number(metrics.loadavg_five).toFixed(2)}
               </div>
-              <div className="bg-black/30 rounded p-2 border border-shell-border">
+              <div className="rounded-md border border-app-separator bg-app-field p-2">
                 <GlossaryTip term="mem_total_kb" labelKey="metrics.memTotal" />{" "}
                 {(Number(metrics.mem_total_kb) / 1024 / 1024).toFixed(1)} GB
               </div>
-              <div className="bg-black/30 rounded p-2 border border-shell-border">
+              <div className="rounded-md border border-app-separator bg-app-field p-2">
                 <GlossaryTip term="mem_available_kb" labelKey="metrics.memAvail" />{" "}
                 {(Number(metrics.mem_available_kb) / 1024 / 1024).toFixed(1)} GB
               </div>
             </div>
             {!!metrics.mem_total_kb && (
               <div>
-                <div className="flex justify-between text-[10px] text-shell-muted mb-0.5">
+                <div className="flex justify-between text-[10px] text-app-secondary mb-0.5">
                   <span>{t("metrics.memBarCaption")}</span>
                 </div>
-                <div className="h-2 bg-black/40 rounded overflow-hidden border border-shell-border">
+                <div className="h-2 rounded overflow-hidden border border-app-separator bg-app-field">
                   <div
                     className="h-full bg-blue-600/70"
                     style={{
@@ -107,10 +127,10 @@ export function MetricsDimensionPanel({
               </div>
             )}
             <div className="font-mono-tight text-[10px] overflow-x-auto">
-              <div className="text-shell-muted mb-1">{t("metrics.statTableCaption")}</div>
+              <div className="text-app-secondary mb-1">{t("metrics.statTableCaption")}</div>
               <table className="w-full border-collapse">
                 <thead>
-                  <tr className="text-left text-shell-muted">
+                  <tr className="text-left text-app-secondary">
                     <th className="pr-2">{t("metrics.cpuCol")}</th>
                     <th>
                       <GlossaryTip term="cpu_user" labelKey="metrics.colUser" />
@@ -128,7 +148,7 @@ export function MetricsDimensionPanel({
                 </thead>
                 <tbody>
                   {cpus.slice(0, 9).map((c) => (
-                    <tr key={c.label} className="border-t border-shell-border/50">
+                    <tr key={c.label} className="border-t border-app-separator/60">
                       <td className="pr-2">{c.label}</td>
                       <td>{c.user}</td>
                       <td>{c.system}</td>
@@ -139,26 +159,26 @@ export function MetricsDimensionPanel({
                 </tbody>
               </table>
               {cpus.length > 9 && (
-                <div className="text-shell-muted mt-1">{t("metrics.rowsTotal", { count: cpus.length })}</div>
+                <div className="text-app-secondary mt-1">{t("metrics.rowsTotal", { count: cpus.length })}</div>
               )}
             </div>
           </div>
         )}
         {connected && dimension === "nic" && metrics && (
           <div>
-            <p className="text-shell-muted mb-2">{t("metrics.nicHint")}</p>
+            <p className="text-app-secondary mb-2">{t("metrics.nicHint")}</p>
             <ul className="space-y-1 font-mono-tight">
               {netDevs.map((n) => (
                 <li key={n.name}>
                   <button
                     type="button"
-                    className={`w-full text-left px-1 rounded ${
-                      selNic === n.name ? "bg-shell-accent/25" : "hover:bg-white/5"
+                    className={`w-full text-left px-2 py-0.5 rounded-md ${
+                      selNic === n.name ? "bg-app-accent-muted" : "hover:bg-app-hover"
                     }`}
                     onClick={() => setSelNic(n.name)}
                   >
                     <span className="font-semibold">{n.name}</span>{" "}
-                    <span className="text-shell-muted">
+                    <span className="text-app-secondary">
                       {t("metrics.rxLabel")} <GlossaryTip term="rx_bytes" labelKey="metrics.byteAbbr" /> {n.rx_bytes} ·{" "}
                       {t("metrics.txLabel")} <GlossaryTip term="tx_bytes" labelKey="metrics.byteAbbr" /> {n.tx_bytes}
                     </span>
@@ -173,13 +193,13 @@ export function MetricsDimensionPanel({
             <div className="flex gap-1 items-center">
               <GlossaryTip term="tgid" labelKey="tasks.colTgid" />
               <input
-                className="bg-black/40 border border-shell-border rounded px-1 w-24 font-mono-tight"
+                className="input-app w-24 font-mono-tight py-1"
                 value={tgidStr}
                 onChange={(e) => setTgidStr(e.target.value)}
               />
               <button
                 type="button"
-                className="px-2 py-0.5 rounded border border-shell-border hover:bg-white/5"
+                className="btn-app text-xs"
                 onClick={loadTasks}
               >
                 {t("tasks.loadTask")}
@@ -188,7 +208,7 @@ export function MetricsDimensionPanel({
             {taskErr && <p className="text-amber-400">{taskErr}</p>}
             <table className="w-full font-mono-tight text-[10px] border-collapse">
               <thead>
-                <tr className="text-shell-muted text-left">
+                <tr className="text-app-secondary text-left">
                   <th>
                     <GlossaryTip term="tid" labelKey="tasks.colTid" />
                   </th>
@@ -201,7 +221,7 @@ export function MetricsDimensionPanel({
               </thead>
               <tbody>
                 {tasks.map((task) => (
-                  <tr key={task.tid} className="border-t border-shell-border/40">
+                  <tr key={task.tid} className="border-t border-app-separator/50">
                     <td className="pr-1">{task.tid}</td>
                     <td className="truncate max-w-[80px]" title={task.name}>
                       {task.name}
@@ -210,7 +230,7 @@ export function MetricsDimensionPanel({
                     <td>
                       <button
                         type="button"
-                        className="text-shell-accent hover:underline"
+                        className="text-app-accent hover:underline"
                         onClick={() => {
                           setFilter(String(tgidStr));
                         }}
@@ -225,6 +245,6 @@ export function MetricsDimensionPanel({
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }

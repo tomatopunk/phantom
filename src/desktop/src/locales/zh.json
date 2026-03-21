@@ -7,7 +7,26 @@
     "emptyOutput": "(空)",
     "errorOutput": "错误"
   },
+  "sidebar": {
+    "aria": "工具侧栏",
+    "nav": {
+      "overview": "指标与主机上下文",
+      "overviewShort": "指标",
+      "discover": "列出 tracepoint / kprobe / uprobe",
+      "discoverShort": "发现",
+      "session": "断点、跟踪、Hook、监视",
+      "sessionShort": "探针",
+      "console": "执行 agent 命令",
+      "consoleShort": "命令",
+      "hook": "eBPF C 编译并附加",
+      "hookShort": "Hook"
+    }
+  },
+  "errorBanner": {
+    "dismiss": "关闭"
+  },
   "header": {
+    "toolbarAria": "连接与捕获工具栏",
     "brand": "Phantom",
     "agent": "Agent",
     "token": "Token",
@@ -19,9 +38,7 @@
     "filterPlaceholder": "子串，空格表示同时匹配…",
     "clearEvents": "清空事件",
     "exportJsonl": "导出 JSONL",
-    "exportTitle": "Ctrl/Cmd+E",
-    "langZh": "中文",
-    "langEn": "English"
+    "exportTitle": "Ctrl/Cmd+E"
   },
   "breadcrumb": {
     "prefix": "地址：",
@@ -29,6 +46,7 @@
     "tgid": "TGID {{id}}"
   },
   "dimension": {
+    "aria": "指标维度",
     "host": "主机",
     "nic": "网卡",
     "threads": "线程树"
@@ -62,6 +80,7 @@
     "filter": "过滤"
   },
   "discover": {
+    "aria": "发现类型",
     "tracepoint": "Tracepoint",
     "kprobe": "Kprobe",
     "uprobe": "Uprobe",
@@ -71,7 +90,8 @@
   },
   "cmd": {
     "title": "命令 (execute)",
-    "run": "运行"
+    "run": "运行",
+    "inputAria": "命令行输入"
   },
   "hook": {
     "title": "eBPF C 编辑器（编译并附加）",
@@ -90,6 +110,7 @@
     "sourceLocal": "本地"
   },
   "sessionPanel": {
+    "aria": "会话探针类别",
     "title": "会话探针",
     "refresh": "刷新",
     "empty": "(无)",
@@ -118,7 +139,8 @@
     "capturing": "运行中",
     "stopped": "停止",
     "metricsRefresh": "指标刷新:",
-    "shortcutExport": "快捷键: ⌘/Ctrl+E 导出 JSONL"
+    "shortcutExport": "快捷键: ⌘/Ctrl+E 导出 JSONL",
+    "shortcutsHint": "⌘/Ctrl+E 导出 · 菜单栏可清空事件与切换语言"
   },
   "glossary": {
     "loadavg_one": "/proc/loadavg 第 1 列：过去 1 分钟平均负载（可运行+不可中断睡眠的任务数，按 CPU 核数理解）。",

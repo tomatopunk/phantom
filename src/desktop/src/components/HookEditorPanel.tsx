@@ -1,3 +1,21 @@
+/**
+ * Copyright 2026 The Phantom Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import Editor, { type OnMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -211,11 +229,11 @@ export function HookEditorPanel({
   };
 
   return (
-    <div className="border-t border-shell-border p-2 space-y-1 flex flex-col flex-1 min-h-0 overflow-hidden">
-      <div className="text-xs text-shell-muted">{t("hook.title")}</div>
-      <div className="flex flex-wrap gap-1 items-center">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden gap-2 p-3">
+      <div className="text-xs font-medium text-app-label shrink-0">{t("hook.title")}</div>
+      <div className="flex flex-wrap gap-2 items-center shrink-0">
         <select
-          className="flex-1 min-w-[8rem] bg-black/40 border border-shell-border rounded px-1 text-[10px]"
+          className="input-app flex-1 min-w-[8rem] text-[10px]"
           value={presetId}
           onChange={(e) => setPresetId(e.target.value)}
         >
@@ -226,27 +244,22 @@ export function HookEditorPanel({
             </option>
           ))}
         </select>
-        <button
-          type="button"
-          className="px-2 text-[10px] rounded border border-shell-border"
-          disabled={!selectedPreset}
-          onClick={applyPreset}
-        >
+        <button type="button" className="btn-app text-[10px]" disabled={!selectedPreset} onClick={applyPreset}>
           {t("hookEditor.loadPreset")}
         </button>
         {selectedPreset?.mode === "template_sec" && (
           <button
             type="button"
             disabled={!connected || busy}
-            className="px-2 text-[10px] rounded border border-shell-border disabled:opacity-40"
+            className="btn-app text-[10px]"
             onClick={() => void runTemplatePreset()}
           >
             {t("hookEditor.applyTemplate")}
           </button>
         )}
       </div>
-      {selectedPreset && <p className="text-[10px] text-shell-muted">{selectedPreset.description}</p>}
-      <div className="border border-shell-border rounded overflow-hidden min-h-[200px] h-[min(40vh,320px)] shrink-0">
+      {selectedPreset && <p className="text-[10px] text-app-secondary shrink-0">{selectedPreset.description}</p>}
+      <div className="flex min-h-[200px] flex-1 flex-col overflow-hidden rounded-md border border-app-separator">
         <Editor
           height="100%"
           defaultLanguage="c"
@@ -263,33 +276,28 @@ export function HookEditorPanel({
           }}
         />
       </div>
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex flex-wrap gap-2 shrink-0">
         <input
-          className="flex-1 min-w-[8rem] bg-black/40 border border-shell-border rounded px-1 text-xs font-mono-tight"
+          className="input-app flex-1 min-w-[8rem] text-xs font-mono-tight"
           value={attach}
           onChange={(e) => setAttach(e.target.value)}
           placeholder={t("hook.attachPh")}
         />
         <input
-          className="w-28 bg-black/40 border border-shell-border rounded px-1 text-xs font-mono-tight"
+          className="input-app w-28 text-xs font-mono-tight"
           value={programName}
           onChange={(e) => setProgramName(e.target.value)}
           placeholder={t("hook.progNamePh")}
         />
-        <button
-          type="button"
-          disabled={!connected || busy}
-          className="px-2 text-xs rounded border border-shell-border disabled:opacity-40"
-          onClick={() => void runCompileAttach()}
-        >
+        <button type="button" disabled={!connected || busy} className="btn-app-primary text-xs" onClick={() => void runCompileAttach()}>
           {t("hookEditor.compileAttach")}
         </button>
       </div>
-      <div className="text-[10px] text-shell-muted">{t("hookEditor.hintSec")}</div>
-      <div className="border border-shell-border rounded bg-black/20 max-h-28 overflow-auto shrink-0">
-        <div className="px-1 py-0.5 text-shell-muted text-[10px] border-b border-shell-border/50">{t("hookEditor.problems")}</div>
+      <div className="text-[10px] text-app-secondary shrink-0">{t("hookEditor.hintSec")}</div>
+      <div className="max-h-28 overflow-auto shrink-0 rounded-md border border-app-separator bg-app-field">
+        <div className="px-2 py-1 text-app-secondary text-[10px] border-b border-app-separator/60">{t("hookEditor.problems")}</div>
         {problems.length === 0 ? (
-          <p className="p-1 text-shell-muted text-[10px]">{t("hookEditor.noProblems")}</p>
+          <p className="p-2 text-app-secondary text-[10px]">{t("hookEditor.noProblems")}</p>
         ) : (
           <ul className="p-1 space-y-0.5">
             {problems.map((p) => (
@@ -308,7 +316,7 @@ export function HookEditorPanel({
         )}
       </div>
       {compilerOut ? (
-        <pre className="text-[10px] bg-black/40 border border-shell-border rounded p-1 max-h-32 overflow-auto whitespace-pre-wrap shrink-0">
+        <pre className="text-[10px] rounded-md border border-app-separator bg-app-field p-2 max-h-32 overflow-auto whitespace-pre-wrap shrink-0 text-app-label">
           {compilerOut}
         </pre>
       ) : null}

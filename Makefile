@@ -1,5 +1,5 @@
 # Phantom — build and CI
-.PHONY: all build proto test fmt vet lint clean agent cli rust-cli rust-workspace build-bpf test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-ci test-e2e-all desktop-install desktop-dev desktop-build
+.PHONY: all build proto test fmt vet lint clean agent cli rust-cli rust-workspace build-bpf test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-ci test-e2e-all desktop-install desktop-dev desktop-build license-add license-check
 
 BINARY_AGENT := phantom-agent
 DESKTOP_DIR  := src/desktop
@@ -84,8 +84,17 @@ fmt:
 vet:
 	$(GO) vet ./...
 
-lint: fmt vet
+lint: fmt vet license-check
 	@which staticcheck >/dev/null 2>&1 && staticcheck ./... || true
+
+# Add Apache-2.0 + SPDX file headers (see scripts/license-addlicense.sh for ignores).
+# Override: make license-add LICENSE_COPYRIGHT="Your Name" LICENSE_YEAR=2025
+license-add:
+	bash scripts/license-addlicense.sh -v .
+
+# Verify headers; used in CI. Fails with non-zero exit if any file is missing a license.
+license-check:
+	bash scripts/license-addlicense.sh -check .
 
 build-bpf:
 	$(CLANG) $(CLANG_FLAGS) $(BPF_KPROBE).c -o $(BPF_OUT)

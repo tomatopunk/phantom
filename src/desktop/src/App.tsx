@@ -1,8 +1,25 @@
+/**
+ * Copyright 2026 The Phantom Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { eventMatchesFilter, MAX_EVENTS } from "./app/eventUtils";
 import type { CpuJ, DebugEventPayload, NetDev, TaskRow } from "./app/types";
 import * as api from "./api";
@@ -12,8 +29,11 @@ import { CmdReplBlock } from "./components/CmdReplBlock";
 import { DiscoverPanel } from "./components/DiscoverPanel";
 import { EventsStreamPanel } from "./components/EventsStreamPanel";
 import { HookEditorPanel } from "./components/HookEditorPanel";
+import { InlineErrorBanner } from "./components/InlineErrorBanner";
 import { MetricsDimensionPanel } from "./components/MetricsDimensionPanel";
 import { SessionProbesPanel } from "./components/SessionProbesPanel";
+import { usePhantomMenu } from "./hooks/usePhantomMenu";
+import { AppShell } from "./layout/AppShell";
 
 export type { DebugEventPayload } from "./app/types";
 
@@ -33,6 +53,7 @@ export default function App() {
   const [capturing, setCapturing] = useState(false);
   const [filter, setFilter] = useState("");
   const [selFi, setSelFi] = useState<number | null>(null);
+  const [appError, setAppError] = useState("");
 
   const eventsRef = useRef<DebugEventPayload[]>([]);
   const [tick, setTick] = useState(0);
@@ -135,6 +156,14 @@ export default function App() {
     URL.revokeObjectURL(a.href);
   }, []);
 
+  const clearEvents = useCallback(() => {
+    eventsRef.current = [];
+    setSelFi(null);
+    bump();
+  }, [bump]);
+
+  usePhantomMenu({ exportJsonl, clearEvents, i18n });
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "e") {
@@ -147,16 +176,18 @@ export default function App() {
   }, [exportJsonl]);
 
   const onConnect = async () => {
+    setAppError("");
     try {
       const sid = await api.connectAgent(agent.trim(), token);
       setSessionId(sid);
       setConnected(true);
     } catch (e) {
-      alert(String(e));
+      setAppError(String(e));
     }
   };
 
   const onDisconnect = async () => {
+    setAppError("");
     try {
       await api.stopCapture();
     } catch {
@@ -166,26 +197,28 @@ export default function App() {
     try {
       await api.disconnectAgent();
     } catch (e) {
-      alert(String(e));
+      setAppError(String(e));
     }
     setConnected(false);
     setSessionId(null);
   };
 
   const onStartCap = async () => {
+    setAppError("");
     try {
       await api.startCapture();
       setCapturing(true);
     } catch (e) {
-      alert(String(e));
+      setAppError(String(e));
     }
   };
 
   const onStopCap = async () => {
+    setAppError("");
     try {
       await api.stopCapture();
     } catch (e) {
-      alert(String(e));
+      setAppError(String(e));
     }
     setCapturing(false);
   };
@@ -243,10 +276,9 @@ export default function App() {
     (dimension === "threads" && tgidStr ? ` › ${t("breadcrumb.tgid", { id: tgidStr })}` : "");
 
   return (
-    <div className="h-full flex flex-col bg-shell-bg text-gray-200 text-sm">
+    <div className="flex h-full flex-col bg-app-bg text-sm text-app-label">
       <AppHeader
         t={t}
-        i18n={i18n}
         agent={agent}
         setAgent={setAgent}
         token={token}
@@ -256,69 +288,54 @@ export default function App() {
         filter={filter}
         setFilter={setFilter}
         setSelFi={setSelFi}
-        eventsRef={eventsRef}
-        bump={bump}
         onConnect={onConnect}
         onDisconnect={onDisconnect}
         onStartCap={onStartCap}
         onStopCap={onStopCap}
-        exportJsonl={exportJsonl}
       />
+      <InlineErrorBanner t={t} message={appError} onDismiss={() => setAppError("")} />
 
-      <div className="flex-1 min-h-0 flex">
-        <PanelGroup direction="horizontal" className="flex-1">
-          <Panel defaultSize={28} minSize={18} className="min-w-0 flex flex-col border-r border-shell-border bg-shell-panel">
-            <MetricsDimensionPanel
-              t={t}
-              hostname={hostname}
-              breadcrumbExtra={breadcrumbExtra}
-              connected={connected}
-              metrics={metrics}
-              dimension={dimension}
-              setDimension={setDimension}
-              cpus={cpus}
-              netDevs={netDevs}
-              selNic={selNic}
-              setSelNic={setSelNic}
-              tgidStr={tgidStr}
-              setTgidStr={setTgidStr}
-              tasks={tasks}
-              taskErr={taskErr}
-              loadTasks={loadTasks}
-              setFilter={setFilter}
-            />
-
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-t border-shell-border">
-              <DiscoverPanel
-                t={t}
-                discTab={discTab}
-                setDiscTab={setDiscTab}
-                discPrefix={discPrefix}
-                setDiscPrefix={setDiscPrefix}
-                discBin={discBin}
-                setDiscBin={setDiscBin}
-                discLines={discLines}
-                runDiscover={runDiscover}
-                connected={connected}
-              />
-
-              <SessionProbesPanel connected={connected} refreshTrigger={probeRefresh} />
-
-              <CmdReplBlock
-                t={t}
-                cmd={cmd}
-                setCmd={setCmd}
-                cmdOut={cmdOut}
-                runCmd={runCmd}
-                connected={connected}
-              />
-
-              <HookEditorPanel connected={connected} onProbesChanged={() => setProbeRefresh((n) => n + 1)} />
-            </div>
-          </Panel>
-
-          <PanelResizeHandle className="w-1 bg-shell-border hover:bg-shell-accent/40 transition-colors" />
-
+      <AppShell
+        t={t}
+        overview={
+          <MetricsDimensionPanel
+            t={t}
+            hostname={hostname}
+            breadcrumbExtra={breadcrumbExtra}
+            connected={connected}
+            metrics={metrics}
+            dimension={dimension}
+            setDimension={setDimension}
+            cpus={cpus}
+            netDevs={netDevs}
+            selNic={selNic}
+            setSelNic={setSelNic}
+            tgidStr={tgidStr}
+            setTgidStr={setTgidStr}
+            tasks={tasks}
+            taskErr={taskErr}
+            loadTasks={loadTasks}
+            setFilter={setFilter}
+          />
+        }
+        discover={
+          <DiscoverPanel
+            t={t}
+            discTab={discTab}
+            setDiscTab={setDiscTab}
+            discPrefix={discPrefix}
+            setDiscPrefix={setDiscPrefix}
+            discBin={discBin}
+            setDiscBin={setDiscBin}
+            discLines={discLines}
+            runDiscover={runDiscover}
+            connected={connected}
+          />
+        }
+        session={<SessionProbesPanel connected={connected} refreshTrigger={probeRefresh} />}
+        repl={<CmdReplBlock t={t} cmd={cmd} setCmd={setCmd} cmdOut={cmdOut} runCmd={runCmd} connected={connected} />}
+        hook={<HookEditorPanel connected={connected} onProbesChanged={() => setProbeRefresh((n) => n + 1)} />}
+        events={
           <EventsStreamPanel
             t={t}
             filtered={filtered}
@@ -331,8 +348,8 @@ export default function App() {
             relTimeNs={relTimeNs}
             selected={selected}
           />
-        </PanelGroup>
-      </div>
+        }
+      />
 
       <AppFooter t={t} sessionId={sessionId} connected={connected} capturing={capturing} metricsAt={metricsAt} />
     </div>

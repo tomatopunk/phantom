@@ -27,6 +27,7 @@ phantom-cli
 
 # Node / npm (e.g. src/desktop) — do not commit; run npm install locally / in CI
 node_modules/
+src/desktop/dist/
 
 # Rust (workspace at repo root)
 /target/

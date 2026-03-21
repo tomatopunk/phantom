@@ -1,3 +1,19 @@
+// Copyright 2026 The Phantom Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -5,6 +21,7 @@ use phantom_client::{
     CompileAndAttachResponse, GetHostMetricsResponse, GetTaskTreeResponse, PhantomClient,
 };
 use serde_json::{json, Value};
+use tauri::menu::{MenuBuilder, MenuItem, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -367,6 +384,73 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(state)
+        .setup(|app| {
+            let phantom_export = MenuItem::with_id(
+                app,
+                "phantom_export",
+                "Export JSONL…",
+                true,
+                Some("CmdOrCtrl+E"),
+            )?;
+            let phantom_clear = MenuItem::with_id(
+                app,
+                "phantom_clear",
+                "Clear Events",
+                true,
+                None::<&str>,
+            )?;
+            let file_menu = SubmenuBuilder::new(app, "File")
+                .item(&phantom_export)
+                .item(&phantom_clear)
+                .separator()
+                .item(&PredefinedMenuItem::quit(app, None)?)
+                .build()?;
+
+            let edit_menu = SubmenuBuilder::new(app, "Edit")
+                .cut()
+                .copy()
+                .paste()
+                .separator()
+                .select_all()
+                .build()?;
+
+            let lang_zh = MenuItem::with_id(app, "phantom_lang_zh", "中文", true, None::<&str>)?;
+            let lang_en = MenuItem::with_id(app, "phantom_lang_en", "English", true, None::<&str>)?;
+            let view_menu = SubmenuBuilder::new(app, "View")
+                .item(&lang_zh)
+                .item(&lang_en)
+                .build()?;
+
+            let help_menu = SubmenuBuilder::new(app, "Help")
+                .item(&PredefinedMenuItem::about(app, Some("About Phantom"), None)?)
+                .build()?;
+
+            let menu = MenuBuilder::new(app)
+                .item(&file_menu)
+                .item(&edit_menu)
+                .item(&view_menu)
+                .item(&help_menu)
+                .build()?;
+
+            app.set_menu(menu)?;
+            Ok(())
+        })
+        .on_menu_event(|app, event| {
+            let action = if event.id() == "phantom_export" {
+                Some("export")
+            } else if event.id() == "phantom_clear" {
+                Some("clear")
+            } else if event.id() == "phantom_lang_zh" {
+                Some("lang_zh")
+            } else if event.id() == "phantom_lang_en" {
+                Some("lang_en")
+            } else {
+                None
+            };
+            if let Some(a) = action {
+                let _ = app.emit("phantom-menu", json!({ "action": a }));
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             connect_agent,
             disconnect_agent,

@@ -50,4 +50,4 @@ See [docs/coding-standards.md](coding-standards.md): English comments at key poi
 
 ## Further improvements
 
-Possible next steps: condition/watchpoint refinements, session persistence, additional MCP tools. See the codebase and architecture above for extension points.
+High-level directions (conditions, persistence, MCP, packaging, and more) are tracked in [roadmap.md](roadmap.md). The sections above remain the reference for where to extend the codebase today.

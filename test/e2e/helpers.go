@@ -19,6 +19,7 @@ package e2e
 
 import (
 	"context"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -37,10 +38,12 @@ const (
 
 	// StreamEvents must be subscribed before traffic; CI runners need a bit more than local dev.
 	e2eStreamAttachDelay = 500 * time.Millisecond
-	e2ePollInterval      = 50 * time.Millisecond
-	e2eHTTPReadBuf       = 4096
-	e2eRawTCPReadBuf     = 256
-	httpMethodGETSpace   = "GET "
+	// After canceling StreamEvents, wait for the recv loop to exit before returning (avoids gRPC hangs at test teardown).
+	e2eStreamGoroutineWait = 5 * time.Second
+	e2ePollInterval        = 50 * time.Millisecond
+	e2eHTTPReadBuf         = 4096
+	e2eRawTCPReadBuf       = 256
+	httpMethodGETSpace     = "GET "
 )
 
 // FindRepoRoot returns the repository root (directory containing go.mod).
@@ -99,7 +102,8 @@ func e2eAgentUseSudo() bool {
 	if os.Getenv("GITHUB_ACTIONS") == "" {
 		return false
 	}
-	return exec.Command("sudo", "-n", "true").Run() == nil
+	sudoCheck := exec.CommandContext(context.Background(), "sudo", "-n", "true")
+	return sudoCheck.Run() == nil
 }
 
 // StartAgent starts the agent with kprobe; caller must kill the process when done.
@@ -121,12 +125,15 @@ func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpf
 	var cmd *exec.Cmd
 	if e2eAgentUseSudo() {
 		t.Log("e2e: starting agent under sudo -E (CI BPF memlock)")
-		cmd = exec.CommandContext(context.Background(), "sudo", append([]string{"-E", agentBin}, args...)...)
+		sudoArgs := append([]string{"-E", agentBin}, args...)
+		cmd = exec.CommandContext(context.Background(), "sudo", sudoArgs...) // #nosec G204
 	} else {
-		cmd = exec.CommandContext(context.Background(), agentBin, args...)
+		cmd = exec.CommandContext(context.Background(), agentBin, args...) // #nosec G204
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Avoid wiring agent I/O to os.Stdout/os.Stderr: exec.Cmd waits for copy goroutines (WaitDelay) and
+	// tests can hang at package shutdown if the agent process was only Kill'd without Wait.
+	cmd.Stdout = io.Discard
+	cmd.Stderr = io.Discard
 	cmd.Env = os.Environ()
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start agent: %v", err)
@@ -141,6 +148,8 @@ func StopAgentProcess(cmd *exec.Cmd) {
 		return
 	}
 	_ = cmd.Process.Kill()
+	// Reap the child (and sudo wrapper); required so os/exec completes I/O wait and the test process can exit.
+	_ = cmd.Wait()
 }
 
 // WaitForBreakHits starts StreamEvents, runs trigger, and waits until at least minHits
@@ -193,6 +202,10 @@ func WaitForBreakHits(
 			out := make([]*proto.DebugEvent, len(hits))
 			copy(out, hits)
 			mu.Unlock()
+			select {
+			case <-done:
+			case <-time.After(e2eStreamGoroutineWait):
+			}
 			return n, out
 		}
 		time.Sleep(e2ePollInterval)

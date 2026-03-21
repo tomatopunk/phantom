@@ -69,8 +69,8 @@ func TestTcpdumpStyleHttp10(t *testing.T) {
 		t.Fatalf("client: %v", err)
 	}
 	defer c.Close()
-	if _, err := c.Connect(ctx, ""); err != nil {
-		t.Fatalf("connect: %v", err)
+	if _, cerr := c.Connect(ctx, ""); cerr != nil {
+		t.Fatalf("connect: %v", cerr)
 	}
 	br, err := c.Execute(ctx, "break tcp_sendmsg")
 	if err != nil {
@@ -120,8 +120,8 @@ func TestTcpdumpStyleHttp11(t *testing.T) {
 		t.Fatalf("client: %v", err)
 	}
 	defer c.Close()
-	if _, err := c.Connect(ctx, ""); err != nil {
-		t.Fatalf("connect: %v", err)
+	if _, cerr := c.Connect(ctx, ""); cerr != nil {
+		t.Fatalf("connect: %v", cerr)
 	}
 	br, err := c.Execute(ctx, "break tcp_sendmsg")
 	if err != nil {
@@ -165,8 +165,8 @@ func TestTcpdumpStyleRawTcp(t *testing.T) {
 		t.Fatalf("client: %v", err)
 	}
 	defer c.Close()
-	if _, err := c.Connect(ctx, ""); err != nil {
-		t.Fatalf("connect: %v", err)
+	if _, cerr := c.Connect(ctx, ""); cerr != nil {
+		t.Fatalf("connect: %v", cerr)
 	}
 	br, err := c.Execute(ctx, "break tcp_sendmsg")
 	if err != nil {

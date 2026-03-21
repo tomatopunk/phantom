@@ -41,8 +41,7 @@ export function SessionProbesPanel({
         api.executeCmd("info hook"),
         api.executeCmd("info watch"),
       ]);
-      const pick = (r: { ok: boolean; output: string; error_message: string }) =>
-        r.ok ? r.output || "" : r.error_message || "";
+      const pick = (r: { output: string }) => r.output || "";
       setRaw({
         break: pick(b),
         trace: pick(tr),
@@ -60,8 +59,7 @@ export function SessionProbesPanel({
     setBusy(true);
     setErr("");
     try {
-      const r = await api.executeCmd(line);
-      if (!r.ok) setErr(r.error_message || r.output || "error");
+      await api.executeCmd(line);
       await refresh();
     } catch (e) {
       setErr(String(e));

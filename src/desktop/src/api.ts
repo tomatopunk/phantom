@@ -24,6 +24,7 @@ export function fetchTaskTree(tgid: number) {
   return invoke<Record<string, unknown>>("fetch_task_tree", { tgid });
 }
 
+/** Runs a REPL line via the agent. Rejects when the command logically fails (`ok: false`) or on transport errors. */
 export function executeCmd(commandLine: string) {
   return invoke<{ ok: boolean; output: string; error_message: string }>("execute_cmd", {
     commandLine,

@@ -126,21 +126,21 @@ export function HookEditorPanel({
     try {
       const secEsc = selectedPreset.sec.replace(/"/g, '\\"');
       const cmd = `hook add --point ${selectedPreset.attach} --lang c --sec "${secEsc}"`;
-      const r = await api.executeCmd(cmd);
-      if (r.ok) onProbesChanged?.();
-      if (!r.ok) {
-        setCompilerOut(r.error_message || r.output || "");
-        setAgentProblems([
-          {
-            key: "tpl-err",
-            source: "agent",
-            line: 1,
-            column: 1,
-            message: r.error_message || r.output || "hook add failed",
-            detail: r.output,
-          },
-        ]);
-      }
+      await api.executeCmd(cmd);
+      onProbesChanged?.();
+    } catch (e) {
+      const msg = String(e);
+      setCompilerOut(msg);
+      setAgentProblems([
+        {
+          key: "tpl-err",
+          source: "agent",
+          line: 1,
+          column: 1,
+          message: msg,
+          detail: msg,
+        },
+      ]);
     } finally {
       setBusy(false);
     }

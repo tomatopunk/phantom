@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use phantom_client::{
     CompileAndAttachResponse, GetHostMetricsResponse, GetTaskTreeResponse, PhantomClient,
@@ -12,6 +13,14 @@ use tokio::task::JoinHandle;
 struct AppState {
     client: Arc<Mutex<Option<PhantomClient>>>,
     capture_task: Arc<Mutex<Option<JoinHandle<()>>>>,
+}
+
+/// Exponential backoff capped for stream reconnect (ms).
+fn stream_backoff_ms(attempt: u32) -> u64 {
+    const INITIAL: u64 = 400;
+    const MAX: u64 = 30_000;
+    let ms = INITIAL.saturating_mul(2u64.saturating_pow(attempt.min(12)));
+    ms.min(MAX)
 }
 
 fn event_type_name(code: i32) -> &'static str {
@@ -171,48 +180,73 @@ async fn disconnect_agent(state: State<'_, AppState>) -> Result<(), String> {
 async fn start_capture(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     stop_capture_inner(&state.capture_task).await;
 
-    let stream = {
-        let mut guard = state.client.lock().await;
-        let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
-        c.stream_events()
-            .await
-            .map_err(|e| format!("stream_events: {e}"))?
-    };
-
     let app2 = app.clone();
     let capture_task = state.capture_task.clone();
+    let client = state.client.clone();
     let h = tokio::spawn(async move {
-        let mut stream = stream;
+        let mut attempt = 0u32;
         loop {
-            match stream.message().await {
-                Ok(Some(ev)) => {
-                    let pl = &ev.payload;
-                    let take = pl.len().min(8192);
-                    let payload_hex = hex::encode(&pl[..take]);
-                    let truncated = pl.len() > take;
-                    let payload_utf8 = String::from_utf8_lossy(&pl[..take]).to_string();
-                    let j = json!({
-                        "timestamp_ns": ev.timestamp_ns,
-                        "session_id": ev.session_id,
-                        "event_type": ev.event_type,
-                        "event_type_name": event_type_name(ev.event_type),
-                        "pid": ev.pid,
-                        "tgid": ev.tgid,
-                        "cpu": ev.cpu,
-                        "probe_id": ev.probe_id,
-                        "payload_hex": payload_hex,
-                        "payload_truncated": truncated,
-                        "payload_utf8": payload_utf8,
-                    });
-                    let _ = app2.emit("debug-event", j);
+            let stream_result = {
+                let mut guard = client.lock().await;
+                let c = match guard.as_mut() {
+                    Some(c) => c,
+                    None => break,
+                };
+                c.stream_events().await
+            };
+            let mut stream = match stream_result {
+                Ok(s) => {
+                    attempt = 0;
+                    s
                 }
-                Ok(None) => break,
                 Err(e) => {
                     let _ = app2.emit(
                         "debug-event-error",
-                        json!({ "message": e.to_string() }),
+                        json!({ "message": format!("stream_events: {e}") }),
                     );
-                    break;
+                    tokio::time::sleep(Duration::from_millis(stream_backoff_ms(attempt))).await;
+                    attempt = attempt.saturating_add(1);
+                    continue;
+                }
+            };
+
+            loop {
+                match stream.message().await {
+                    Ok(Some(ev)) => {
+                        let pl = &ev.payload;
+                        let take = pl.len().min(8192);
+                        let payload_hex = hex::encode(&pl[..take]);
+                        let truncated = pl.len() > take;
+                        let payload_utf8 = String::from_utf8_lossy(&pl[..take]).to_string();
+                        let j = json!({
+                            "timestamp_ns": ev.timestamp_ns,
+                            "session_id": ev.session_id,
+                            "event_type": ev.event_type,
+                            "event_type_name": event_type_name(ev.event_type),
+                            "pid": ev.pid,
+                            "tgid": ev.tgid,
+                            "cpu": ev.cpu,
+                            "probe_id": ev.probe_id,
+                            "payload_hex": payload_hex,
+                            "payload_truncated": truncated,
+                            "payload_utf8": payload_utf8,
+                        });
+                        let _ = app2.emit("debug-event", j);
+                    }
+                    Ok(None) => {
+                        tokio::time::sleep(Duration::from_millis(stream_backoff_ms(attempt))).await;
+                        attempt = attempt.saturating_add(1);
+                        break;
+                    }
+                    Err(e) => {
+                        let _ = app2.emit(
+                            "debug-event-error",
+                            json!({ "message": e.to_string() }),
+                        );
+                        tokio::time::sleep(Duration::from_millis(stream_backoff_ms(attempt))).await;
+                        attempt = attempt.saturating_add(1);
+                        break;
+                    }
                 }
             }
         }

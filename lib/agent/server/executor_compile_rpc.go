@@ -49,7 +49,7 @@ func (e *commandExecutor) tryCompileAttachHook(ctx context.Context, sess *sessio
 		if cr.Cleanup != nil {
 			cr.Cleanup()
 		}
-		return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: err.Error()}
+		return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: "attach failed: " + err.Error()}
 	}
 	id := sess.AddHook(attach, detach, rd, limit, &session.HookOpts{Note: "CompileAndAttach"})
 	return &proto.CompileAndAttachResponse{Ok: true, HookId: id, AttachPoint: attach}

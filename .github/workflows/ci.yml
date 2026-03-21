@@ -83,14 +83,15 @@ jobs:
         with:
           name: rust-codecov
           path: rust-codecov.json
+      # Do not use secrets.* in step if: — breaks workflow schema validation in some environments.
       - name: Upload Rust coverage to Codecov
-        if: ${{ secrets.CODECOV_TOKEN }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: rust-codecov.json
           flags: rust
           name: rust-codecov
+          fail_ci_if_error: false
 
   test-and-build:
     name: Test and Build (${{ matrix.os }})
@@ -125,13 +126,14 @@ jobs:
           name: go-coverage
           path: coverage.out
       - name: Upload Go coverage to Codecov
-        if: ${{ matrix.os == 'ubuntu-latest' && secrets.CODECOV_TOKEN }}
+        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.out
           flags: go
           name: go-coverage
+          fail_ci_if_error: false
       - name: Go test (macOS)
         if: matrix.os == 'macos-latest'
         run: go test ./...

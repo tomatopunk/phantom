@@ -4,13 +4,22 @@ Rust shell + **React + TypeScript + Vite + Tailwind**；通过共享 [`lib/phant
 
 ## Develop
 
+在仓库根目录：
+
+```bash
+make desktop-install   # 首次或依赖变更后
+make desktop-dev
+```
+
+或手动：
+
 ```bash
 cd src/desktop
 npm install
-npm run tauri dev
+npx tauri dev
 ```
 
-仓库根目录已配置 **Cargo workspace**（见根目录 `Cargo.toml`），也可在仓库根执行 `npm run tauri dev --prefix src/desktop`（若配置了 script），通常仍在 `src/desktop` 下开发最省事。
+仓库根目录已配置 **Cargo workspace**（见根目录 `Cargo.toml`）。
 
 需要先启动 Phantom agent。C hook 编译需要 BPF 头文件，示例：
 
@@ -25,13 +34,19 @@ npm run tauri dev
 `src-tauri/tauri.conf.json` 中 `"bundle": { "active": false }`。生成 release 二进制：
 
 ```bash
+make desktop-build
+```
+
+或手动：
+
+```bash
 cd src/desktop
 npm install
 npm run build
 cargo build --release --manifest-path src-tauri/Cargo.toml
 ```
 
-或在仓库根目录：
+或在仓库根目录仅编 Rust（需已 `npm run build` 过前端）：
 
 ```bash
 cargo build -p phantom-desktop --release

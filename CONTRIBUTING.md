@@ -27,4 +27,5 @@ Exact job names appear in the Actions tab and may include matrix suffixes (e.g. 
 ## Local development
 
 - `make proto` — regenerate Go protobufs (needs `protoc`).
+- `make desktop-install` / `make desktop-dev` — Phantom Desktop (Tauri); `make desktop-build` for release binary (see [src/desktop/README.md](src/desktop/README.md)).
 - `make test-e2e-ci` — same Go e2e subset as CI (Linux, BPF, built agent + `minikprobe.o`). See [README.md](README.md) for other e2e targets.

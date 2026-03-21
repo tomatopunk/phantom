@@ -1,7 +1,9 @@
 # Phantom — build and CI
-.PHONY: all build proto test fmt vet lint clean agent cli rust-cli rust-workspace build-bpf test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-ci test-e2e-all
+.PHONY: all build proto test fmt vet lint clean agent cli rust-cli rust-workspace build-bpf test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-ci test-e2e-all desktop-install desktop-dev desktop-build
 
 BINARY_AGENT := phantom-agent
+DESKTOP_DIR  := src/desktop
+NPM          := npm
 BINARY_RUST_CLI := target/release/phantom-cli
 GO           := go
 PROTO_DIR    := lib/proto
@@ -35,6 +37,16 @@ rust-cli:
 
 rust-workspace:
 	cargo build --workspace
+
+# Tauri desktop (macOS / Windows / Linux). Needs Node + Rust; eBPF agent still runs on Linux for real probes.
+desktop-install:
+	cd $(DESKTOP_DIR) && $(NPM) install
+
+desktop-dev:
+	cd $(DESKTOP_DIR) && npx tauri dev
+
+desktop-build:
+	cd $(DESKTOP_DIR) && $(NPM) run build && cargo build -p phantom-desktop --release
 
 proto: $(PROTO_SRC)
 	$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@latest

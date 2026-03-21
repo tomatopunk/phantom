@@ -24,7 +24,7 @@
     "langEn": "English"
   },
   "breadcrumb": {
-    "prefix": "面包屑：",
+    "prefix": "地址：",
     "nic": "网卡 {{name}}",
     "tgid": "TGID {{id}}"
   },

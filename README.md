@@ -21,7 +21,7 @@ make cli                      # Rust REPL → target/release/phantom-cli
 
 Optional token: `PHANTOM_TOKEN=secret ./phantom-agent` and `--token secret` on the CLI.
 
-**Desktop:** `cd src/desktop`, then `npm install` and `npm run tauri dev` — see [`src/desktop/README.md`](src/desktop/README.md).
+**Desktop:** `make desktop-install` then `make desktop-dev` (or `cd src/desktop` + `npm install` + `npx tauri dev`) — see [`src/desktop/README.md`](src/desktop/README.md).
 
 ## Requirements
 

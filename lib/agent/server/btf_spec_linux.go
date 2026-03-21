@@ -57,9 +57,9 @@ func vmlinuxBTFSearchCandidates(userPath, release string) []string {
 		release = kernelRelease()
 	}
 	if release != "" {
-		add(filepath.Join("/boot", "vmlinux-"+release))
-		add(filepath.Join("/usr/lib/debug/boot", "vmlinux-"+release))
-		add(filepath.Join("/lib/modules", release, "build", "vmlinux"))
+		add("/boot/vmlinux-" + release)
+		add("/usr/lib/debug/boot/vmlinux-" + release)
+		add("/lib/modules/" + release + "/build/vmlinux")
 	}
 	return out
 }
@@ -70,7 +70,7 @@ func vmlinuxBTFSearchCandidates(userPath, release string) []string {
 //
 // On success loading from an ELF file, the second return value is that path so the agent can use it
 // for `list` disassembly when the user did not pass -vmlinux explicitly.
-func loadExecutorBTF(vmlinuxPath string) (*btf.Spec, string) {
+func loadExecutorBTF(vmlinuxPath string) (spec *btf.Spec, elfPath string) {
 	spec, err := btf.LoadKernelSpec()
 	if err == nil {
 		return spec, ""

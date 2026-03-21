@@ -189,6 +189,7 @@ func TestExecuteWatchAndDeleteAndInfoWatch(t *testing.T) {
 	}
 }
 
+//nolint:gocyclo // many hook add parse / execute branches in one test
 func TestExecuteHookAdd(t *testing.T) {
 	exec := newCommandExecutor("", "", nil, nil, nil) // no bpf include dir
 	mgr := session.NewManager("")

@@ -32,7 +32,8 @@ import (
 
 func startInProcessServer(t *testing.T) (addr string, cleanup func()) {
 	t.Helper()
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	lis, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -45,17 +46,19 @@ func startInProcessServer(t *testing.T) (addr string, cleanup func()) {
 	return addr, cleanup
 }
 
-func connectClient(t *testing.T, addr string) (*grpcclient.Client, func()) {
+func connectClient(t *testing.T, addr string) (client *grpcclient.Client, cleanup func()) {
 	t.Helper()
 	ctx := context.Background()
-	c, err := grpcclient.New(ctx, addr, "")
+	client, err := grpcclient.New(ctx, addr, "")
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}
-	return c, func() { _ = c.Close() }
+	return client, func() { _ = client.Close() }
 }
 
 // TestExecuteCommandMatrix runs all supported Execute commands against an in-process server (no kprobe).
+//
+//nolint:gocyclo // enumerates one subtest per Execute subcommand
 func TestExecuteCommandMatrix(t *testing.T) {
 	addr, stop := startInProcessServer(t)
 	defer stop()

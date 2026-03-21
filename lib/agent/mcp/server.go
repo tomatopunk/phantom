@@ -28,6 +28,8 @@ import (
 	"sync"
 )
 
+const defaultListMaxEntries = 5000
+
 // Server runs the MCP JSON-RPC server over stdio.
 type Server struct {
 	backend Backend
@@ -238,7 +240,7 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 		return MarshalCompileAndAttachResult(resp)
 	case "list_tracepoints":
 		prefix := str("prefix")
-		maxEnt, err := uint32FromArgs(args, "max_entries", 5000)
+		maxEnt, err := uint32FromArgs(args, "max_entries", defaultListMaxEntries)
 		if err != nil {
 			return "", err
 		}
@@ -249,7 +251,7 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 		return strings.Join(names, "\n"), nil
 	case "list_kprobe_symbols":
 		prefix := str("prefix")
-		maxEnt, err := uint32FromArgs(args, "max_entries", 5000)
+		maxEnt, err := uint32FromArgs(args, "max_entries", defaultListMaxEntries)
 		if err != nil {
 			return "", err
 		}

@@ -32,28 +32,29 @@ import (
 
 const e2eNetworkEnv = "E2E_NETWORK"
 
-func requireE2ENetwork(t *testing.T) (root, agentBin, kprobeObj string) {
+func requireE2ENetwork(t *testing.T) (agentBin, kprobeObj string) {
 	t.Helper()
-	if runtime.GOOS != "linux" {
+	if runtime.GOOS != LinuxGOOS {
 		t.Skip("tcpdump-style e2e only on Linux")
 	}
 	if os.Getenv(e2eNetworkEnv) != "1" {
 		t.Skip(e2eNetworkEnv + " not set")
 	}
-	root = FindRepoRoot(t)
+	root := FindRepoRoot(t)
 	agentBin, kprobeObj = E2EConfig(t, root)
 	SkipIfMissing(t, agentBin, kprobeObj)
-	return root, agentBin, kprobeObj
+	return agentBin, kprobeObj
 }
 
 // TestTcpdumpStyleHttp10 asserts break hit + L3/L4 metadata on HTTP/1.0 traffic (poll-based wait).
 func TestTcpdumpStyleHttp10(t *testing.T) {
-	_, agentBin, kprobeObj := requireE2ENetwork(t)
+	agentBin, kprobeObj := requireE2ENetwork(t)
 	agentAddr := "127.0.0.1:19094"
 	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
-	defer agentCmd.Process.Kill()
+	defer StopAgentProcess(agentCmd)
 
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	lis, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -76,6 +77,7 @@ func TestTcpdumpStyleHttp10(t *testing.T) {
 	}
 
 	trigger := func() {
+		//nolint:gosec // G204: URL uses localhost and port from this test's listener only
 		cmd := exec.CommandContext(ctx, "curl", "-s", "--http1.0", fmt.Sprintf("http://127.0.0.1:%d/", port))
 		_ = cmd.Run()
 	}
@@ -93,12 +95,13 @@ func TestTcpdumpStyleHttp10(t *testing.T) {
 
 // TestTcpdumpStyleHttp11 asserts break hit on HTTP/1.1 traffic.
 func TestTcpdumpStyleHttp11(t *testing.T) {
-	_, agentBin, kprobeObj := requireE2ENetwork(t)
+	agentBin, kprobeObj := requireE2ENetwork(t)
 	agentAddr := "127.0.0.1:19095"
 	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
-	defer agentCmd.Process.Kill()
+	defer StopAgentProcess(agentCmd)
 
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	var lcHTTP11 net.ListenConfig
+	lis, err := lcHTTP11.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -121,6 +124,7 @@ func TestTcpdumpStyleHttp11(t *testing.T) {
 	}
 
 	trigger := func() {
+		//nolint:gosec // G204: URL uses localhost and port from this test's listener only
 		cmd := exec.CommandContext(ctx, "curl", "-s", "--http1.1", fmt.Sprintf("http://127.0.0.1:%d/", port))
 		_ = cmd.Run()
 	}
@@ -132,12 +136,13 @@ func TestTcpdumpStyleHttp11(t *testing.T) {
 
 // TestTcpdumpStyleRawTcp asserts break hit on raw TCP (non-HTTP) traffic.
 func TestTcpdumpStyleRawTcp(t *testing.T) {
-	_, agentBin, kprobeObj := requireE2ENetwork(t)
+	agentBin, kprobeObj := requireE2ENetwork(t)
 	agentAddr := "127.0.0.1:19096"
 	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
-	defer agentCmd.Process.Kill()
+	defer StopAgentProcess(agentCmd)
 
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	var lcRaw net.ListenConfig
+	lis, err := lcRaw.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -160,7 +165,8 @@ func TestTcpdumpStyleRawTcp(t *testing.T) {
 	}
 
 	trigger := func() {
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 2*time.Second)
+		d := net.Dialer{Timeout: 2 * time.Second}
+		conn, err := d.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
 		if err != nil {
 			return
 		}

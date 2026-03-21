@@ -38,6 +38,7 @@ func TestPlanTrace(t *testing.T) {
 	}
 }
 
+//nolint:gocyclo // table-style cases for hook planner validation
 func TestPlanHook(t *testing.T) {
 	p := NewPlanner()
 

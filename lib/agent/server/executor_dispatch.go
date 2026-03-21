@@ -45,10 +45,10 @@ func normalizeReplVerb(v string) string {
 
 // replVerbTable maps the canonical verb (after alias normalization) to its handler.
 var replVerbTable = map[string]replHandler{
-	"break":     (*commandExecutor).executeBreak,
-	"tbreak":    (*commandExecutor).executeTbreak,
-	"print":     (*commandExecutor).executePrint,
-	"trace":     (*commandExecutor).executeTrace,
+	"break":  (*commandExecutor).executeBreak,
+	"tbreak": (*commandExecutor).executeTbreak,
+	"print":  (*commandExecutor).executePrint,
+	"trace":  (*commandExecutor).executeTrace,
 	"continue": func(e *commandExecutor, ctx context.Context, sess *session.Session, _ []string) (*proto.ExecuteResponse, error) {
 		return e.executeContinue(ctx, sess)
 	},

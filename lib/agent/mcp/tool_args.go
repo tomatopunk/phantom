@@ -18,6 +18,7 @@ package mcp
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 )
 
@@ -34,12 +35,12 @@ func uint32FromArgs(args map[string]any, key string, def uint32) (uint32, error)
 		}
 		return uint32(x), nil
 	case int:
-		if x < 0 {
+		if x < 0 || x > math.MaxUint32 {
 			return 0, fmt.Errorf("%s must be a non-negative integer", key)
 		}
 		return uint32(x), nil
 	case int64:
-		if x < 0 {
+		if x < 0 || x > int64(math.MaxUint32) {
 			return 0, fmt.Errorf("%s must be a non-negative integer", key)
 		}
 		return uint32(x), nil

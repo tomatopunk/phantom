@@ -31,7 +31,7 @@ type fakeMCPBackend struct {
 	listKprobeSymbolsFn func(ctx context.Context, prefix string, maxEntries uint32) ([]string, error)
 }
 
-func (f *fakeMCPBackend) Connect(ctx context.Context, sessionID string) (string, error) {
+func (*fakeMCPBackend) Connect(_ context.Context, sessionID string) (string, error) {
 	return sessionID, nil
 }
 
@@ -84,8 +84,8 @@ func TestRunCommandToolFailsLikeSetBreakpoint(t *testing.T) {
 		},
 	})
 	_, err := s.runTool(context.Background(), "run_command", map[string]any{
-		"session_id":    "s1",
-		"command_line":  "break foo",
+		"session_id":   "s1",
+		"command_line": "break foo",
 	})
 	if err == nil {
 		t.Fatal("run_command: want error when Execute returns ok=false")
@@ -151,8 +151,8 @@ func TestListTracepointsTool(t *testing.T) {
 		},
 	})
 	out, err := s.runTool(context.Background(), "list_tracepoints", map[string]any{
-		"prefix":       "sched",
-		"max_entries":  float64(100),
+		"prefix":      "sched",
+		"max_entries": float64(100),
 	})
 	if err != nil {
 		t.Fatal(err)

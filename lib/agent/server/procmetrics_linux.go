@@ -30,6 +30,26 @@ import (
 	"github.com/tomatopunk/phantom/lib/proto"
 )
 
+const (
+	procLoadavgFieldCount = 3
+	procStatLineMinFields = 5
+	procNetDevMinFields   = 16
+)
+
+// jiffy field indices in /proc/stat CPU lines (after the cpuN label).
+const (
+	jiffyUser = iota
+	jiffyNice
+	jiffySystem
+	jiffyIdle
+	jiffyIowait
+	jiffyIrq
+	jiffySoftirq
+	jiffySteal
+	jiffyGuest
+	jiffyGuestNice
+)
+
 func collectHostMetrics(context.Context) *proto.GetHostMetricsResponse {
 	resp := &proto.GetHostMetricsResponse{}
 	var errs []string
@@ -40,21 +60,21 @@ func collectHostMetrics(context.Context) *proto.GetHostMetricsResponse {
 		resp.Hostname = strings.TrimSpace(string(b))
 	}
 
-	if b, err := os.ReadFile("/proc/loadavg"); err == nil {
+	if b, rerr := os.ReadFile("/proc/loadavg"); rerr == nil {
 		fields := strings.Fields(string(b))
-		if len(fields) >= 3 {
-			if v, err := strconv.ParseFloat(fields[0], 64); err == nil {
+		if len(fields) >= procLoadavgFieldCount {
+			if v, perr := strconv.ParseFloat(fields[0], 64); perr == nil {
 				resp.LoadavgOne = v
 			}
-			if v, err := strconv.ParseFloat(fields[1], 64); err == nil {
+			if v, perr := strconv.ParseFloat(fields[1], 64); perr == nil {
 				resp.LoadavgFive = v
 			}
-			if v, err := strconv.ParseFloat(fields[2], 64); err == nil {
+			if v, perr := strconv.ParseFloat(fields[2], 64); perr == nil {
 				resp.LoadavgFifteen = v
 			}
 		}
 	} else {
-		errs = append(errs, "loadavg: "+err.Error())
+		errs = append(errs, "loadavg: "+rerr.Error())
 	}
 
 	parseMeminfo(resp, &errs)
@@ -117,7 +137,7 @@ func parseProcStatCPUs(resp *proto.GetHostMetricsResponse, errs *[]string) {
 	for sc.Scan() {
 		line := sc.Text()
 		fields := strings.Fields(line)
-		if len(fields) < 5 {
+		if len(fields) < procStatLineMinFields {
 			if len(resp.Cpus) > 0 {
 				break
 			}
@@ -154,16 +174,16 @@ func parseJiffies(nums []string, cj *proto.CpuJiffies) {
 		v, _ := strconv.ParseUint(nums[i], 10, 64)
 		return v
 	}
-	cj.User = u64(0)
-	cj.Nice = u64(1)
-	cj.System = u64(2)
-	cj.Idle = u64(3)
-	cj.Iowait = u64(4)
-	cj.Irq = u64(5)
-	cj.Softirq = u64(6)
-	cj.Steal = u64(7)
-	cj.Guest = u64(8)
-	cj.GuestNice = u64(9)
+	cj.User = u64(jiffyUser)
+	cj.Nice = u64(jiffyNice)
+	cj.System = u64(jiffySystem)
+	cj.Idle = u64(jiffyIdle)
+	cj.Iowait = u64(jiffyIowait)
+	cj.Irq = u64(jiffyIrq)
+	cj.Softirq = u64(jiffySoftirq)
+	cj.Steal = u64(jiffySteal)
+	cj.Guest = u64(jiffyGuest)
+	cj.GuestNice = u64(jiffyGuestNice)
 }
 
 func parseNetDev(resp *proto.GetHostMetricsResponse, errs *[]string) {
@@ -191,7 +211,7 @@ func parseNetDev(resp *proto.GetHostMetricsResponse, errs *[]string) {
 		ifName := strings.TrimSpace(line[:colon])
 		rest := strings.TrimSpace(line[colon+1:])
 		fields := strings.Fields(rest)
-		if len(fields) < 16 {
+		if len(fields) < procNetDevMinFields {
 			continue
 		}
 		parseU64 := func(s string) uint64 {
@@ -199,15 +219,15 @@ func parseNetDev(resp *proto.GetHostMetricsResponse, errs *[]string) {
 			return v
 		}
 		resp.NetDevs = append(resp.NetDevs, &proto.NetDevRow{
-			Name:        ifName,
-			RxBytes:     parseU64(fields[0]),
-			RxPackets:   parseU64(fields[1]),
-			RxErrors:    parseU64(fields[2]),
-			RxDropped:   parseU64(fields[3]),
-			TxBytes:     parseU64(fields[8]),
-			TxPackets:   parseU64(fields[9]),
-			TxErrors:    parseU64(fields[10]),
-			TxDropped:   parseU64(fields[11]),
+			Name:      ifName,
+			RxBytes:   parseU64(fields[0]),
+			RxPackets: parseU64(fields[1]),
+			RxErrors:  parseU64(fields[2]),
+			RxDropped: parseU64(fields[3]),
+			TxBytes:   parseU64(fields[8]),
+			TxPackets: parseU64(fields[9]),
+			TxErrors:  parseU64(fields[10]),
+			TxDropped: parseU64(fields[11]),
 		})
 	}
 	if err := sc.Err(); err != nil {
@@ -221,7 +241,7 @@ func collectTaskTree(_ context.Context, tgid uint32) *proto.GetTaskTreeResponse 
 		resp.ErrorMessage = "tgid must be non-zero"
 		return resp
 	}
-	taskRoot := filepath.Join("/proc", strconv.FormatUint(uint64(tgid), 10), "task")
+	taskRoot := fmt.Sprintf("/proc/%d/task", tgid)
 	ents, err := os.ReadDir(taskRoot)
 	if err != nil {
 		resp.ErrorMessage = fmt.Sprintf("read %s: %v", taskRoot, err)
@@ -247,6 +267,7 @@ func collectTaskTree(_ context.Context, tgid uint32) *proto.GetTaskTreeResponse 
 	return resp
 }
 
+//nolint:gocyclo // maps /proc/<tid>/status keys into proto.TaskInfo
 func parseTaskStatus(path string) *proto.TaskInfo {
 	b, err := os.ReadFile(path)
 	if err != nil {

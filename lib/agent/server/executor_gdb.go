@@ -259,7 +259,8 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
 		case "continue", "c":
 			return &proto.ExecuteResponse{Ok: true, Output: "continue  continue execution"}, nil
 		case "hook":
-			return &proto.ExecuteResponse{Ok: true, Output: "hook add ...  template kprobe/tracepoint/uprobe C snippet; hook attach ...  full C from --file or --source (custom SEC); hook list | hook delete <id>"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "hook add ...  template kprobe/tracepoint/uprobe C snippet; " +
+				"hook attach ...  full C from --file or --source (custom SEC); hook list | hook delete <id>"}, nil
 		default:
 			return &proto.ExecuteResponse{Ok: true, Output: "help " + cmd + ": unknown command"}, nil
 		}

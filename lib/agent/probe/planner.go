@@ -62,7 +62,7 @@ func (*Planner) PlanTrace(expressions []string) TracePlan {
 
 // PlanHook returns a plan to compile and attach a C hook; validates attach point and code/sec mutual exclusion.
 // limit is optional: 0 means no limit; when > 0 the hook auto-detaches after that many events.
-func (p *Planner) PlanHook(attachPoint, code, sec string, limit int) (HookPlan, error) {
+func (*Planner) PlanHook(attachPoint, code, sec string, limit int) (HookPlan, error) {
 	if attachPoint == "" {
 		return HookPlan{}, fmt.Errorf("missing --point (e.g. kprobe:do_sys_open)")
 	}

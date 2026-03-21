@@ -18,7 +18,7 @@
 //
 // Prologues are C fragments injected before the user --sec/--code snippet per symbol.
 // To extend: call RegisterPrologue(symbol, PrologueSpec{Prologue: "…", ExtraFields: []string{…}})
-// from init or from RegisterBuiltinPrologues. To add a new built-in, add a func like
+// after built-ins load (built-ins register on first GetPrologue/RegisterPrologue). To add a new built-in, add a func like
 // registerSocketPrologue() and call it inside RegisterBuiltinPrologues. To override or
 // edit the socket prologue, change registerSocketPrologue in this file.
 package hook
@@ -44,20 +44,27 @@ var (
 	builtinOnce sync.Once
 )
 
-// RegisterPrologue registers a prologue for the given kprobe symbol (e.g. "tcp_sendmsg").
-// Symbol is normalized to lowercase. Re-registering the same symbol overwrites.
-func RegisterPrologue(symbol string, spec PrologueSpec) {
-	prologueMu.Lock()
-	defer prologueMu.Unlock()
+// storePrologue stores spec under symbol (normalized); acquires prologueMu.
+func storePrologue(symbol string, spec PrologueSpec) {
 	symbol = strings.TrimSpace(strings.ToLower(symbol))
 	if symbol == "" {
 		return
 	}
+	prologueMu.Lock()
+	defer prologueMu.Unlock()
 	prologueReg[symbol] = spec
+}
+
+// RegisterPrologue registers a prologue for the given kprobe symbol (e.g. "tcp_sendmsg").
+// Symbol is normalized to lowercase. Re-registering the same symbol overwrites.
+func RegisterPrologue(symbol string, spec PrologueSpec) {
+	RegisterBuiltinPrologues()
+	storePrologue(symbol, spec)
 }
 
 // GetPrologue returns the prologue spec for the symbol, if any.
 func GetPrologue(symbol string) (PrologueSpec, bool) {
+	RegisterBuiltinPrologues()
 	prologueMu.RLock()
 	defer prologueMu.RUnlock()
 	symbol = strings.TrimSpace(strings.ToLower(symbol))
@@ -91,9 +98,6 @@ func RegisterBuiltinPrologues() {
 	})
 }
 
-func init() {
-	RegisterBuiltinPrologues()
-}
 func registerSocketPrologue() {
 	const socketPrologue = `
 	/* CO-RE: sport/dport/saddr/daddr for --sec (no fixed struct offsets) */
@@ -116,6 +120,7 @@ func registerSocketPrologue() {
 		Prologue:    socketPrologue,
 		ExtraFields: []string{"sport", "dport", "saddr", "daddr"},
 	}
-	RegisterPrologue("tcp_sendmsg", spec)
-	RegisterPrologue("tcp_recvmsg", spec)
+	// Use storePrologue only: RegisterPrologue would call RegisterBuiltinPrologues and deadlock inside Once.
+	storePrologue("tcp_sendmsg", spec)
+	storePrologue("tcp_recvmsg", spec)
 }

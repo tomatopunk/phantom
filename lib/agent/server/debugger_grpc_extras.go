@@ -23,7 +23,10 @@ import (
 	"github.com/tomatopunk/phantom/lib/proto"
 )
 
-func (s *debuggerServer) CompileAndAttach(ctx context.Context, req *proto.CompileAndAttachRequest) (*proto.CompileAndAttachResponse, error) {
+func (s *debuggerServer) CompileAndAttach(
+	ctx context.Context,
+	req *proto.CompileAndAttachRequest,
+) (*proto.CompileAndAttachResponse, error) {
 	sid := req.GetSessionId()
 	if sid == "" {
 		return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: "missing session_id"}, nil
@@ -44,17 +47,14 @@ func (s *debuggerServer) CompileAndAttach(ctx context.Context, req *proto.Compil
 			s.cfg.quota.RemoveHook(sid)
 		}
 	}()
-	resp, err := s.exec.compileAndAttach(ctx, sess, req)
-	if err != nil {
-		return nil, err
-	}
+	resp := s.exec.compileAndAttach(ctx, sess, req)
 	if resp.GetOk() {
 		ok = true
 	}
 	return resp, nil
 }
 
-func (s *debuggerServer) ListTracepoints(_ context.Context, req *proto.ListTracepointsRequest) (*proto.ListTracepointsResponse, error) {
+func (*debuggerServer) ListTracepoints(_ context.Context, req *proto.ListTracepointsRequest) (*proto.ListTracepointsResponse, error) {
 	names, err := discovery.ListTracepoints(req.GetPrefix(), int(req.GetMaxEntries()))
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func (s *debuggerServer) ListTracepoints(_ context.Context, req *proto.ListTrace
 	return &proto.ListTracepointsResponse{Names: names}, nil
 }
 
-func (s *debuggerServer) ListKprobeSymbols(_ context.Context, req *proto.ListKprobeSymbolsRequest) (*proto.ListKprobeSymbolsResponse, error) {
+func (*debuggerServer) ListKprobeSymbols(_ context.Context, req *proto.ListKprobeSymbolsRequest) (*proto.ListKprobeSymbolsResponse, error) {
 	syms, err := discovery.ListKprobeSymbols(req.GetPrefix(), int(req.GetMaxEntries()))
 	if err != nil {
 		return nil, err
@@ -70,7 +70,7 @@ func (s *debuggerServer) ListKprobeSymbols(_ context.Context, req *proto.ListKpr
 	return &proto.ListKprobeSymbolsResponse{Symbols: syms}, nil
 }
 
-func (s *debuggerServer) ListUprobeSymbols(_ context.Context, req *proto.ListUprobeSymbolsRequest) (*proto.ListUprobeSymbolsResponse, error) {
+func (*debuggerServer) ListUprobeSymbols(_ context.Context, req *proto.ListUprobeSymbolsRequest) (*proto.ListUprobeSymbolsResponse, error) {
 	path := req.GetBinaryPath()
 	if path == "" {
 		return &proto.ListUprobeSymbolsResponse{}, nil
@@ -82,7 +82,7 @@ func (s *debuggerServer) ListUprobeSymbols(_ context.Context, req *proto.ListUpr
 	return &proto.ListUprobeSymbolsResponse{Symbols: syms}, nil
 }
 
-func (s *debuggerServer) InspectELF(_ context.Context, req *proto.InspectELFRequest) (*proto.InspectELFResponse, error) {
+func (*debuggerServer) InspectELF(_ context.Context, req *proto.InspectELFRequest) (*proto.InspectELFResponse, error) {
 	secs, err := discovery.InspectELFSections(req.GetElfData())
 	if err != nil {
 		return &proto.InspectELFResponse{}, err
@@ -90,10 +90,10 @@ func (s *debuggerServer) InspectELF(_ context.Context, req *proto.InspectELFRequ
 	return &proto.InspectELFResponse{SectionNames: secs}, nil
 }
 
-func (s *debuggerServer) GetHostMetrics(ctx context.Context, _ *proto.GetHostMetricsRequest) (*proto.GetHostMetricsResponse, error) {
+func (*debuggerServer) GetHostMetrics(ctx context.Context, _ *proto.GetHostMetricsRequest) (*proto.GetHostMetricsResponse, error) {
 	return collectHostMetrics(ctx), nil
 }
 
-func (s *debuggerServer) GetTaskTree(ctx context.Context, req *proto.GetTaskTreeRequest) (*proto.GetTaskTreeResponse, error) {
+func (*debuggerServer) GetTaskTree(ctx context.Context, req *proto.GetTaskTreeRequest) (*proto.GetTaskTreeResponse, error) {
 	return collectTaskTree(ctx, req.GetTgid()), nil
 }

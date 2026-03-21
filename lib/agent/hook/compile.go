@@ -37,6 +37,7 @@ const (
 	placeholderSecLine  = "{{SEC_LINE}}"
 	placeholderCtxDecl  = "{{CTX_DECL}}"
 	placeholderArgInit  = "{{ARG_INIT}}"
+	ctxDeclPtRegs       = `struct pt_regs *ctx`
 )
 
 // CompileResult holds the path to the compiled .o and cleanup to remove temp dir.
@@ -50,11 +51,11 @@ type CompileResult struct {
 func hookVariantForPA(pa *ParsedAttach) (secLine, ctxDecl, argInit string, err error) {
 	switch pa.Kind {
 	case AttachKprobe:
-		return `SEC("kprobe")`, `struct pt_regs *ctx`, ptRegsArgInit(), nil
+		return `SEC("kprobe")`, ctxDeclPtRegs, ptRegsArgInit(), nil
 	case AttachUprobe:
-		return `SEC("uprobe")`, `struct pt_regs *ctx`, ptRegsArgInit(), nil
+		return `SEC("uprobe")`, ctxDeclPtRegs, ptRegsArgInit(), nil
 	case AttachUretprobe:
-		return `SEC("uretprobe")`, `struct pt_regs *ctx`, ptRegsArgInit(), nil
+		return `SEC("uretprobe")`, ctxDeclPtRegs, ptRegsArgInit(), nil
 	case AttachTracepoint:
 		return fmt.Sprintf(`SEC("tracepoint/%s/%s")`, pa.TraceGroup, pa.TraceEvent), `void *ctx`, zeroArgInit(), nil
 	default:
@@ -63,7 +64,13 @@ func hookVariantForPA(pa *ParsedAttach) (secLine, ctxDecl, argInit string, err e
 }
 
 func ptRegsArgInit() string {
-	return "\tlong arg0 = PT_REGS_PARM1(ctx);\n\tlong arg1 = PT_REGS_PARM2(ctx);\n\tlong arg2 = PT_REGS_PARM3(ctx);\n\tlong arg3 = PT_REGS_PARM4(ctx);\n\tlong arg4 = PT_REGS_PARM5(ctx);\n\tlong arg5 = PT_REGS_PARM6(ctx);\n\tlong ret = 0;\n"
+	return "\tlong arg0 = PT_REGS_PARM1(ctx);\n" +
+		"\tlong arg1 = PT_REGS_PARM2(ctx);\n" +
+		"\tlong arg2 = PT_REGS_PARM3(ctx);\n" +
+		"\tlong arg3 = PT_REGS_PARM4(ctx);\n" +
+		"\tlong arg4 = PT_REGS_PARM5(ctx);\n" +
+		"\tlong arg5 = PT_REGS_PARM6(ctx);\n" +
+		"\tlong ret = 0;\n"
 }
 
 func zeroArgInit() string {

@@ -35,7 +35,7 @@ import (
 // starts agent with kprobe only, break tcp_sendmsg, sends HTTP/1.0 request via curl,
 // asserts at least one break hit event is received (poll-based wait, no fixed sleep).
 func TestHttp10CaptureE2E(t *testing.T) {
-	if runtime.GOOS != "linux" {
+	if runtime.GOOS != LinuxGOOS {
 		t.Skip("HTTP/1.0 e2e only on Linux")
 	}
 	if os.Getenv("E2E_HTTP10") != "1" {
@@ -47,9 +47,10 @@ func TestHttp10CaptureE2E(t *testing.T) {
 
 	agentAddr := "127.0.0.1:19091"
 	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
-	defer agentCmd.Process.Kill()
+	defer StopAgentProcess(agentCmd)
 
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	lis, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -72,6 +73,7 @@ func TestHttp10CaptureE2E(t *testing.T) {
 	}
 
 	trigger := func() {
+		//nolint:gosec // G204: URL uses localhost and port from this test's listener only
 		curlCmd := exec.CommandContext(ctx, "curl", "-s", "--http1.0", fmt.Sprintf("http://127.0.0.1:%d/", httpPort))
 		_ = curlCmd.Run()
 	}

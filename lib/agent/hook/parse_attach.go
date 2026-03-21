@@ -47,6 +47,8 @@ type ParsedAttach struct {
 //   - tracepoint:subsystem:event
 //   - uprobe:/path/to/bin:symbol  (path is everything before the last ':')
 //   - uretprobe:/path:to:symbol (same path rule)
+//
+//nolint:gocyclo // one function covers all attach kinds and validation branches
 func ParseFullAttachPoint(attach string) (*ParsedAttach, error) {
 	attach = strings.TrimSpace(attach)
 	parts := strings.SplitN(attach, ":", 2)

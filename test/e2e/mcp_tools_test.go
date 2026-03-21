@@ -30,13 +30,13 @@ import (
 	"google.golang.org/grpc"
 )
 
-func startDebuggerServerWithBackend(t *testing.T) (addr string, backend mcp.Backend, cleanup func()) {
+func startDebuggerServerWithBackend(t *testing.T) (backend mcp.Backend, cleanup func()) {
 	t.Helper()
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	lis, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	addr = lis.Addr().String()
 	mgr := session.NewManager("")
 	ds := server.NewDebuggerServer(mgr)
 	srv := grpc.NewServer()
@@ -44,12 +44,12 @@ func startDebuggerServerWithBackend(t *testing.T) (addr string, backend mcp.Back
 	go func() { _ = srv.Serve(lis) }()
 	backend = server.NewMCPServerBackend(ds)
 	cleanup = func() { srv.GracefulStop(); _ = lis.Close() }
-	return addr, backend, cleanup
+	return backend, cleanup
 }
 
 // TestMCPConnectAndListSessions tests Connect and list_sessions via backend.
 func TestMCPConnectAndListSessions(t *testing.T) {
-	_, backend, cleanup := startDebuggerServerWithBackend(t)
+	backend, cleanup := startDebuggerServerWithBackend(t)
 	defer cleanup()
 	ctx := context.Background()
 
@@ -71,7 +71,7 @@ func TestMCPConnectAndListSessions(t *testing.T) {
 
 // TestMCPSetBreakpoint runs set_breakpoint via backend (Execute "break sym"); no kprobe so expect error.
 func TestMCPSetBreakpoint(t *testing.T) {
-	_, backend, cleanup := startDebuggerServerWithBackend(t)
+	backend, cleanup := startDebuggerServerWithBackend(t)
 	defer cleanup()
 	ctx := context.Background()
 	sid, err := backend.Connect(ctx, "")
@@ -95,7 +95,7 @@ func TestMCPSetBreakpoint(t *testing.T) {
 
 // TestMCPRunCommand runs run_command via backend.
 func TestMCPRunCommand(t *testing.T) {
-	_, backend, cleanup := startDebuggerServerWithBackend(t)
+	backend, cleanup := startDebuggerServerWithBackend(t)
 	defer cleanup()
 	ctx := context.Background()
 	sid, err := backend.Connect(ctx, "")
@@ -116,7 +116,7 @@ func TestMCPRunCommand(t *testing.T) {
 
 // TestMCPListBreakpoints tests list_breakpoints via backend.
 func TestMCPListBreakpoints(t *testing.T) {
-	_, backend, cleanup := startDebuggerServerWithBackend(t)
+	backend, cleanup := startDebuggerServerWithBackend(t)
 	defer cleanup()
 	ctx := context.Background()
 	sid, err := backend.Connect(ctx, "")
@@ -135,7 +135,7 @@ func TestMCPListBreakpoints(t *testing.T) {
 
 // TestMCPListHooks tests list_hooks via backend.
 func TestMCPListHooks(t *testing.T) {
-	_, backend, cleanup := startDebuggerServerWithBackend(t)
+	backend, cleanup := startDebuggerServerWithBackend(t)
 	defer cleanup()
 	ctx := context.Background()
 	sid, err := backend.Connect(ctx, "")
@@ -152,7 +152,7 @@ func TestMCPListHooks(t *testing.T) {
 
 // TestMCPAddCHook tests add_c_hook via Execute (hook add); expect error (no bpf include dir).
 func TestMCPAddCHook(t *testing.T) {
-	_, backend, cleanup := startDebuggerServerWithBackend(t)
+	backend, cleanup := startDebuggerServerWithBackend(t)
 	defer cleanup()
 	ctx := context.Background()
 	sid, err := backend.Connect(ctx, "")

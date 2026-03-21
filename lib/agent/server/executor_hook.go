@@ -101,6 +101,8 @@ func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Sess
 
 // parseHookAddArgs returns point, code, sec, limit. Exactly one of code or sec must be set (mutually exclusive).
 // limit is 0 when --limit is not set (no auto-stop).
+//
+//nolint:gocyclo // parses many hook add flags in one loop
 func parseHookAddArgs(args []string) (point, code, sec string, limit int, err error) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {

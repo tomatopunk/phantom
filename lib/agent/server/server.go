@@ -99,7 +99,8 @@ func BuildServerConfig(cfg *Config) *serverConfig {
 	if cfg == nil {
 		return nil
 	}
-	if cfg.RateLimit <= 0 && cfg.MaxBreak == 0 && cfg.MaxTrace == 0 && cfg.MaxHooks == 0 && cfg.Audit == nil && cfg.BpfIncludeDir == "" && cfg.VmlinuxPath == "" {
+	if cfg.RateLimit <= 0 && cfg.MaxBreak == 0 && cfg.MaxTrace == 0 && cfg.MaxHooks == 0 &&
+		cfg.Audit == nil && cfg.BpfIncludeDir == "" && cfg.VmlinuxPath == "" {
 		return nil
 	}
 	// Build config so that BpfIncludeDir or other options are applied when only one is set.

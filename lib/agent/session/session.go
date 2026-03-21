@@ -281,14 +281,14 @@ func (s *Session) ListTraces() []*TraceState {
 }
 
 // AddHook stores a hook, starts an event pump reading from the hook's ringbuf, and returns its id.
-// When the hook is removed or the session stops, the pump is cancelled and detach is called.
+// When the hook is removed or the session stops, the pump is canceled and detach is called.
 // limit is 0 for no limit; when > 0 the hook auto-detaches after that many events.
 // opt may be nil.
 func (s *Session) AddHook(attachPoint string, detach func(), reader *ringbuf.Reader, limit int, opt *HookOpts) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := s.nextHookIDLocked()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel stored in HookState and called when hook is removed
 	hs := &HookState{ID: id, AttachPoint: attachPoint, Detach: detach, Cancel: cancel, Limit: limit}
 	if opt != nil {
 		hs.FilterExpr = opt.FilterExpr

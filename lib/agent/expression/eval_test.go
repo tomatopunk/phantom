@@ -25,8 +25,8 @@ import (
 func TestEvaluate(t *testing.T) {
 	ev := &runtime.Event{PID: 42, Tgid: 40, CPU: 2, ProbeID: 1, EventType: 1, TimestampNs: 1000}
 
-	if got := Evaluate(nil, "pid"); got != "(no event yet)" {
-		t.Errorf("Evaluate(nil, pid) = %q want (no event yet)", got)
+	if got := Evaluate(nil, "pid"); got != msgNoEventYet {
+		t.Errorf("Evaluate(nil, pid) = %q want %s", got, msgNoEventYet)
 	}
 	if got := Evaluate(ev, "pid"); got != "42" {
 		t.Errorf("Evaluate(ev, pid) = %q want 42", got)
@@ -46,8 +46,8 @@ func TestEvaluate(t *testing.T) {
 	if got := Evaluate(ev, "timestamp_ns"); got != "1000" {
 		t.Errorf("Evaluate(ev, timestamp_ns) = %q want 1000", got)
 	}
-	if got := Evaluate(ev, "unknown"); got != "(unknown expression)" {
-		t.Errorf("Evaluate(ev, unknown) = %q want (unknown expression)", got)
+	if got := Evaluate(ev, "unknown"); got != msgUnknownExpr {
+		t.Errorf("Evaluate(ev, unknown) = %q want %s", got, msgUnknownExpr)
 	}
 	// normalizes expr
 	if got := Evaluate(ev, "  PID  "); got != "42" {

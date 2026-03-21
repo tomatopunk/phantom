@@ -33,6 +33,8 @@ func tracepointRoots() []string {
 }
 
 // ListTracepoints returns names as "subsystem/event" from tracefs.
+//
+//nolint:gocyclo // scans multiple tracefs roots and event subdirectories
 func ListTracepoints(prefix string, maxEntries int) ([]string, error) {
 	if maxEntries <= 0 {
 		maxEntries = 50000

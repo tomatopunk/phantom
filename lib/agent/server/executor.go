@@ -36,7 +36,12 @@ type commandExecutor struct {
 	quota          *SessionQuota // optional: rollback hook slot on failed hook add; decrement on delete
 }
 
-func newCommandExecutor(hookIncludeDir, vmlinuxPath string, planner *probe.Planner, btfSpec *btf.Spec, quota *SessionQuota) *commandExecutor {
+func newCommandExecutor(
+	hookIncludeDir, vmlinuxPath string,
+	planner *probe.Planner,
+	btfSpec *btf.Spec,
+	quota *SessionQuota,
+) *commandExecutor {
 	if planner == nil {
 		planner = probe.NewPlanner()
 	}

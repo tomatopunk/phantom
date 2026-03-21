@@ -19,7 +19,6 @@
 package server
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -41,9 +40,9 @@ func TestVmlinuxBTFSearchCandidates_orderAndDedup(t *testing.T) {
 		}
 	}
 	wantSub := []string{
-		filepath.Join("/boot", "vmlinux-6.6.0-test"),
-		filepath.Join("/usr/lib/debug/boot", "vmlinux-6.6.0-test"),
-		filepath.Join("/lib/modules", "6.6.0-test", "build", "vmlinux"),
+		"/boot/vmlinux-6.6.0-test",
+		"/usr/lib/debug/boot/vmlinux-6.6.0-test",
+		"/lib/modules/6.6.0-test/build/vmlinux",
 	}
 	for _, w := range wantSub {
 		found := false

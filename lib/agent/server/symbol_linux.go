@@ -20,12 +20,15 @@ package server
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 )
+
+const defaultKernelDisasmBytes uint64 = 0x80
 
 // symbolAddressFromKallsyms returns the address of the given symbol from /proc/kallsyms, or error if not found.
 func symbolAddressFromKallsyms(symbol string) (uint64, error) {
@@ -53,9 +56,9 @@ func symbolAddressFromKallsyms(symbol string) (uint64, error) {
 
 // disasmSymbol runs objdump -d on vmlinux for the given address range and returns the disassembly (best-effort).
 // Returns empty string on any error (e.g. objdump not found, file missing); caller keeps kallsyms output only.
-func disasmSymbol(vmlinuxPath string, addr uint64, size uint64) string {
+func disasmSymbol(vmlinuxPath string, addr, size uint64) string {
 	if size == 0 {
-		size = 0x80 // default window for kernel symbol
+		size = defaultKernelDisasmBytes // default window for kernel symbol
 	}
 	if _, err := os.Stat(vmlinuxPath); err != nil {
 		return ""
@@ -67,7 +70,7 @@ func disasmSymbol(vmlinuxPath string, addr uint64, size uint64) string {
 			return ""
 		}
 	}
-	cmd := exec.Command(objdump, "-d",
+	cmd := exec.CommandContext(context.Background(), objdump, "-d",
 		"--start-address="+strconv.FormatUint(addr, 16),
 		"--stop-address="+strconv.FormatUint(addr+size, 16),
 		vmlinuxPath)
@@ -106,12 +109,12 @@ func listSymbolKernel(symbol string) (string, error) {
 		return "", nil
 	}
 	// Show a few lines before and after (e.g. 2 before, 2 after)
-	const context = 2
-	start := matchIdx - context
+	const kallsymsNeighborLines = 2
+	start := matchIdx - kallsymsNeighborLines
 	if start < 0 {
 		start = 0
 	}
-	end := matchIdx + context + 1
+	end := matchIdx + kallsymsNeighborLines + 1
 	if end > len(lines) {
 		end = len(lines)
 	}
@@ -132,7 +135,7 @@ func listSymbolKernelAndDisasm(symbol, vmlinuxPath string) (string, error) {
 	if err != nil {
 		return out, nil // keep kallsyms only on address lookup failure
 	}
-	disasm := disasmSymbol(vmlinuxPath, addr, 0x80)
+	disasm := disasmSymbol(vmlinuxPath, addr, defaultKernelDisasmBytes)
 	if disasm != "" {
 		out += "\n\nDisassembly:\n" + disasm
 	}

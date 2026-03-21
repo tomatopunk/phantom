@@ -34,7 +34,12 @@ func firstLineOf(s string) string {
 }
 
 // tryCompileAttachHook compiles full C on the agent (same as hook attach), then attaches. Compile must succeed before attach.
-func (e *commandExecutor) tryCompileAttachHook(ctx context.Context, sess *session.Session, source, attach, programName string, limit int) *proto.CompileAndAttachResponse {
+func (e *commandExecutor) tryCompileAttachHook(
+	ctx context.Context,
+	sess *session.Session,
+	source, attach, programName string,
+	limit int,
+) *proto.CompileAndAttachResponse {
 	source = strings.TrimSpace(source)
 	if source == "" {
 		return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: "empty source"}
@@ -71,6 +76,10 @@ func (e *commandExecutor) tryCompileAttachHook(ctx context.Context, sess *sessio
 	return &proto.CompileAndAttachResponse{Ok: true, HookId: id, AttachPoint: attach}
 }
 
-func (e *commandExecutor) compileAndAttach(ctx context.Context, sess *session.Session, req *proto.CompileAndAttachRequest) (*proto.CompileAndAttachResponse, error) {
-	return e.tryCompileAttachHook(ctx, sess, req.GetSource(), req.GetAttach(), req.GetProgramName(), 0), nil
+func (e *commandExecutor) compileAndAttach(
+	ctx context.Context,
+	sess *session.Session,
+	req *proto.CompileAndAttachRequest,
+) *proto.CompileAndAttachResponse {
+	return e.tryCompileAttachHook(ctx, sess, req.GetSource(), req.GetAttach(), req.GetProgramName(), 0)
 }

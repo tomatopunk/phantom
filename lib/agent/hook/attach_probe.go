@@ -75,7 +75,12 @@ func preferredProgramType(pa *ParsedAttach) ebpf.ProgramType {
 }
 
 // AttachProbeFromObject loads an ELF .o, picks a program, attaches per ParsedAttach, opens the first ringbuf map.
-func AttachProbeFromObject(objectPath string, pa *ParsedAttach, programName string, cleanup func()) (detach func(), reader *ringbuf.Reader, err error) {
+func AttachProbeFromObject(
+	objectPath string,
+	pa *ParsedAttach,
+	programName string,
+	cleanup func(),
+) (detach func(), reader *ringbuf.Reader, err error) {
 	spec, err := ebpf.LoadCollectionSpec(objectPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load spec: %w", err)

@@ -23,10 +23,13 @@ import (
 	"unicode"
 )
 
+// secOpOr is the keyword for logical OR in --sec expressions (token kind and binary op).
+const secOpOr = "or"
+
 // SecToSnippet converts a condition expression into a C snippet that returns 0 when the condition fails.
 // attachPoint is used to allow socket fields (sport, dport, saddr, daddr) only for kprobe:tcp_sendmsg and kprobe:tcp_recvmsg.
 // Supported: field==value, field!=value, <, <=, >, >=, and, or, not, parentheses.
-func SecToSnippet(sec string, attachPoint string) (string, error) {
+func SecToSnippet(sec, attachPoint string) (string, error) {
 	sec = strings.TrimSpace(sec)
 	if sec == "" {
 		return "", fmt.Errorf("--sec expression is empty")
@@ -104,7 +107,7 @@ func (n *binaryNode) toC() (string, error) {
 		return "", err
 	}
 	cOp := "&&"
-	if n.op == "or" {
+	if n.op == secOpOr {
 		cOp = "||"
 	}
 	return "(" + leftC + " " + cOp + " " + rightC + ")", nil
@@ -128,6 +131,7 @@ type token struct {
 	num  uint64
 }
 
+//nolint:gocyclo,funlen // single-pass lexer: one loop for all token kinds
 func lex(s string) ([]token, error) {
 	s = strings.TrimSpace(s)
 	var toks []token
@@ -181,8 +185,8 @@ func lex(s string) ([]token, error) {
 			switch word {
 			case "and":
 				toks = append(toks, token{kind: "and", val: "and"})
-			case "or":
-				toks = append(toks, token{kind: "or", val: "or"})
+			case secOpOr:
+				toks = append(toks, token{kind: secOpOr, val: secOpOr})
 			case "not":
 				toks = append(toks, token{kind: "not", val: "not"})
 			default:
@@ -271,13 +275,13 @@ func (p *secParser) parseOr() (secNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	for p.cur().kind == "or" {
+	for p.cur().kind == secOpOr {
 		p.advance()
 		right, err := p.parseAnd()
 		if err != nil {
 			return nil, err
 		}
-		left = &binaryNode{op: "or", left: left, right: right}
+		left = &binaryNode{op: secOpOr, left: left, right: right}
 	}
 	return left, nil
 }

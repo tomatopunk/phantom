@@ -36,7 +36,8 @@ func main() {
 	health := flag.String("health", os.Getenv("PHANTOM_HEALTH"), "optional health HTTP address (e.g. :8080)")
 	metrics := flag.String("metrics", os.Getenv("PHANTOM_METRICS"), "optional Prometheus metrics HTTP address (e.g. :9091)")
 	kprobe := flag.String("kprobe", os.Getenv("PHANTOM_KPROBE"), "path to kprobe .o for real break/trace (Linux)")
-	vmlinux := flag.String("vmlinux", os.Getenv("PHANTOM_VMLINUX"), "vmlinux ELF: list disasm + BTF fallback if /sys/kernel/btf/vmlinux missing (self-built kernels); see docs/vmlinux.md")
+	vmlinux := flag.String("vmlinux", os.Getenv("PHANTOM_VMLINUX"),
+		"vmlinux ELF: list disasm + BTF fallback if /sys/kernel/btf/vmlinux missing (self-built kernels); see docs/vmlinux.md")
 	bpfInclude := flag.String("bpf-include", os.Getenv("PHANTOM_BPF_INCLUDE"), "path to bpf/include for C hook compile")
 	enableMCP := flag.Bool("mcp", false, "run MCP server on stdio instead of gRPC")
 	flag.Parse()

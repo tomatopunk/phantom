@@ -31,6 +31,17 @@ import (
 	"github.com/tomatopunk/phantom/test/e2e/grpcclient"
 )
 
+const (
+	// LinuxGOOS is runtime.GOOS on Linux targets (e2e skips elsewhere).
+	LinuxGOOS = "linux"
+
+	e2eStreamAttachDelay = 300 * time.Millisecond
+	e2ePollInterval      = 50 * time.Millisecond
+	e2eHTTPReadBuf       = 4096
+	e2eRawTCPReadBuf     = 256
+	httpMethodGETSpace   = "GET "
+)
+
 // FindRepoRoot returns the repository root (directory containing go.mod).
 func FindRepoRoot(t *testing.T) string {
 	t.Helper()
@@ -93,7 +104,7 @@ func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpf
 	if v := os.Getenv("E2E_VMLINUX"); v != "" {
 		args = append(args, "-vmlinux", v)
 	}
-	cmd := exec.Command(agentBin, args...)
+	cmd := exec.CommandContext(context.Background(), agentBin, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -101,6 +112,14 @@ func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpf
 	}
 	time.Sleep(1 * time.Second)
 	return cmd
+}
+
+// StopAgentProcess kills an agent process started by StartAgent*; errors are ignored.
+func StopAgentProcess(cmd *exec.Cmd) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+	_ = cmd.Process.Kill()
 }
 
 // WaitForBreakHits starts StreamEvents, runs trigger, and waits until at least minHits
@@ -139,7 +158,7 @@ func WaitForBreakHits(
 	}()
 
 	// Allow stream to attach
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(e2eStreamAttachDelay)
 	trigger()
 
 	deadline := time.Now().Add(timeout)
@@ -155,7 +174,7 @@ func WaitForBreakHits(
 			mu.Unlock()
 			return n, out
 		}
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(e2ePollInterval)
 	}
 	streamCancel()
 	<-done
@@ -176,10 +195,10 @@ func ServeHTTP10(t *testing.T, lis net.Listener) {
 		}
 		go func(c net.Conn) {
 			defer c.Close()
-			b := make([]byte, 4096)
+			b := make([]byte, e2eHTTPReadBuf)
 			n, _ := c.Read(b)
-			if n > 0 && len(b) >= 4 && string(b[:4]) == "GET " {
-				c.Write([]byte("HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n"))
+			if n > 0 && len(b) >= 4 && string(b[:4]) == httpMethodGETSpace {
+				_, _ = c.Write([]byte("HTTP/1.0 200 OK\r\nContent-Length: 0\r\n\r\n"))
 			}
 		}(conn)
 	}
@@ -195,10 +214,10 @@ func ServeHTTP11(t *testing.T, lis net.Listener) {
 		}
 		go func(c net.Conn) {
 			defer c.Close()
-			b := make([]byte, 4096)
+			b := make([]byte, e2eHTTPReadBuf)
 			n, _ := c.Read(b)
-			if n > 0 && len(b) >= 4 && string(b[:4]) == "GET " {
-				c.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: keep-alive\r\n\r\n"))
+			if n > 0 && len(b) >= 4 && string(b[:4]) == httpMethodGETSpace {
+				_, _ = c.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: keep-alive\r\n\r\n"))
 			}
 		}(conn)
 	}
@@ -214,7 +233,7 @@ func ServeRawTCP(t *testing.T, lis net.Listener) {
 		}
 		go func(c net.Conn) {
 			defer c.Close()
-			b := make([]byte, 256)
+			b := make([]byte, e2eRawTCPReadBuf)
 			_, _ = c.Read(b)
 		}(conn)
 	}

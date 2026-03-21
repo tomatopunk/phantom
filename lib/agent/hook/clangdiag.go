@@ -28,6 +28,9 @@ import (
 // Examples: program.c:12:3: error: expected ';' after expression
 var clangDiagLine = regexp.MustCompile(`^(.+):(\d+):(\d+):\s+(error|warning|note|fatal error|remark):\s+(.+)$`)
 
+// clangDiagSubmatches is path, line, col, severity, message (full match + 5 groups).
+const clangDiagSubmatches = 6
+
 // ParseClangDiagnostics extracts structured diagnostics from clang stderr.
 // Lines that do not match (caret lines, include stacks) are skipped as primary rows
 // but preserved in compiler_output on the wire.
@@ -39,7 +42,7 @@ func ParseClangDiagnostics(stderr string) []*proto.CompileDiagnostic {
 			continue
 		}
 		m := clangDiagLine.FindStringSubmatch(line)
-		if len(m) != 6 {
+		if len(m) != clangDiagSubmatches {
 			continue
 		}
 		ln, _ := strconv.ParseInt(m[2], 10, 32)
@@ -53,8 +56,8 @@ func ParseClangDiagnostics(stderr string) []*proto.CompileDiagnostic {
 		}
 		out = append(out, &proto.CompileDiagnostic{
 			Path:     m[1],
-			Line:     int32(ln), //nolint:gosec // G115
-			Column:   int32(col), //nolint:gosec // G115
+			Line:     int32(ln),
+			Column:   int32(col),
 			Severity: sev,
 			Message:  m[5],
 		})

@@ -39,7 +39,7 @@ const e2eScenariosEnv = "E2E_SCENARIOS"
 
 func requireE2EScenarios(t *testing.T) (root, agentBin, kprobeObj, bpfInclude string) {
 	t.Helper()
-	if runtime.GOOS != "linux" {
+	if runtime.GOOS != LinuxGOOS {
 		t.Skip("e2e scenarios only on Linux")
 	}
 	if os.Getenv(e2eScenariosEnv) != "1" {
@@ -99,9 +99,9 @@ func serveHTTP10WithBody(t *testing.T, lis net.Listener) {
 		}
 		go func(c net.Conn) {
 			defer c.Close()
-			b := make([]byte, 4096)
+			b := make([]byte, e2eHTTPReadBuf)
 			n, _ := c.Read(b)
-			if n > 0 && len(b) >= 4 && string(b[:4]) == "GET " {
+			if n > 0 && len(b) >= 4 && string(b[:4]) == httpMethodGETSpace {
 				resp := fmt.Sprintf(
 					"HTTP/1.0 200 OK\r\nContent-Length: %d\r\n\r\n%s",
 					len(body), string(body),
@@ -114,12 +114,13 @@ func serveHTTP10WithBody(t *testing.T, lis net.Listener) {
 
 // TestTcpdumpStyleTcpRecvmsg asserts break hit on tcp_recvmsg when the client receives a response body.
 func TestTcpdumpStyleTcpRecvmsg(t *testing.T) {
-	_, agentBin, kprobeObj := requireE2ENetwork(t)
+	agentBin, kprobeObj := requireE2ENetwork(t)
 	agentAddr := "127.0.0.1:19097"
 	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
-	defer agentCmd.Process.Kill()
+	defer StopAgentProcess(agentCmd)
 
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	lis, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
@@ -134,14 +135,15 @@ func TestTcpdumpStyleTcpRecvmsg(t *testing.T) {
 		t.Fatalf("client: %v", err)
 	}
 	defer c.Close()
-	if _, err := c.Connect(ctx, ""); err != nil {
-		t.Fatalf("connect: %v", err)
+	if _, cerr := c.Connect(ctx, ""); cerr != nil {
+		t.Fatalf("connect: %v", cerr)
 	}
 	if _, err := c.Execute(ctx, "break tcp_recvmsg"); err != nil {
 		t.Fatalf("break tcp_recvmsg: %v", err)
 	}
 
 	trigger := func() {
+		//nolint:gosec // G204: URL uses localhost and port from this test's listener only
 		cmd := exec.CommandContext(ctx, "curl", "-s", "--http1.0", fmt.Sprintf("http://127.0.0.1:%d/", port))
 		_ = cmd.Run()
 	}
@@ -157,7 +159,7 @@ func TestE2EOpenBreak(t *testing.T) {
 	sym := pickOpenKprobeSymbol(t)
 	agentAddr := "127.0.0.1:19098"
 	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
-	defer agentCmd.Process.Kill()
+	defer StopAgentProcess(agentCmd)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -166,8 +168,8 @@ func TestE2EOpenBreak(t *testing.T) {
 		t.Fatalf("client: %v", err)
 	}
 	defer c.Close()
-	if _, err := c.Connect(ctx, ""); err != nil {
-		t.Fatalf("connect: %v", err)
+	if _, cerr := c.Connect(ctx, ""); cerr != nil {
+		t.Fatalf("connect: %v", cerr)
 	}
 	resp, err := c.Execute(ctx, "break "+sym)
 	if err != nil {
@@ -200,7 +202,7 @@ func TestE2EForkTracepoint(t *testing.T) {
 	_, agentBin, kprobeObj, bpfInc := requireE2EScenarios(t)
 	agentAddr := "127.0.0.1:19099"
 	agentCmd := StartAgentWithBpfInclude(t, agentBin, kprobeObj, agentAddr, bpfInc)
-	defer agentCmd.Process.Kill()
+	defer StopAgentProcess(agentCmd)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
@@ -209,8 +211,8 @@ func TestE2EForkTracepoint(t *testing.T) {
 		t.Fatalf("client: %v", err)
 	}
 	defer c.Close()
-	if _, err := c.Connect(ctx, ""); err != nil {
-		t.Fatalf("connect: %v", err)
+	if _, cerr := c.Connect(ctx, ""); cerr != nil {
+		t.Fatalf("connect: %v", cerr)
 	}
 
 	line := "hook add --point tracepoint:sched:sched_process_fork --lang c --code (void)0; --limit 32"
@@ -246,7 +248,7 @@ func TestE2EUprobeMarker(t *testing.T) {
 
 	agentAddr := "127.0.0.1:19100"
 	agentCmd := StartAgentWithBpfInclude(t, agentBin, kprobeObj, agentAddr, bpfInc)
-	defer agentCmd.Process.Kill()
+	defer StopAgentProcess(agentCmd)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
@@ -255,8 +257,8 @@ func TestE2EUprobeMarker(t *testing.T) {
 		t.Fatalf("client: %v", err)
 	}
 	defer c.Close()
-	if _, err := c.Connect(ctx, ""); err != nil {
-		t.Fatalf("connect: %v", err)
+	if _, cerr := c.Connect(ctx, ""); cerr != nil {
+		t.Fatalf("connect: %v", cerr)
 	}
 
 	point := "uprobe:" + absHelper + ":phantom_e2e_marker"

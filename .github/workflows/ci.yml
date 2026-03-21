@@ -194,11 +194,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler clang libbpf-dev linux-headers-$(uname -r) curl build-essential libcap2-bin
       - name: Generate proto, BPF, agent; full MR e2e
+        env:
+          PHANTOM_STRICT_MEMLOCK: "1"
         run: |
           ulimit -l unlimited || true
           make proto
           make build-bpf
           make agent
           # Go e2e starts phantom-agent without sudo; file caps must be set before go test (shell scripts also setcap).
-          sudo setcap cap_sys_resource,cap_bpf+ep ./phantom-agent || true
+          sudo setcap cap_sys_resource,cap_bpf+ep ./phantom-agent
+          getcap ./phantom-agent
           make test-e2e-mr

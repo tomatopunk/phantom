@@ -23,6 +23,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/cilium/ebpf/rlimit"
@@ -44,7 +45,11 @@ func main() {
 	flag.Parse()
 
 	if err := rlimit.RemoveMemlock(); err != nil {
-		log.Printf("phantom: memlock rlimit: %v (eBPF may fail; try ulimit -l unlimited or sufficient capabilities)", err)
+		msg := "phantom: memlock rlimit: " + err.Error() + " (eBPF may fail; try ulimit -l unlimited or sufficient capabilities)"
+		if os.Getenv("PHANTOM_STRICT_MEMLOCK") == "1" && strings.TrimSpace(*kprobe) != "" {
+			log.Fatal(msg)
+		}
+		log.Print(msg)
 	}
 
 	cfg := server.DefaultConfig()

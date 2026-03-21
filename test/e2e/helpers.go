@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -145,7 +146,13 @@ func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpf
 		args = append(args, "-vmlinux", v)
 	}
 	var cmd *exec.Cmd
-	if e2eAgentUseSudo() {
+	if runtime.GOOS == "linux" && !e2eAgentUseSudo() {
+		// Go's Linux SysProcAttr has no memlock rlimit; raise soft memlock via bash before exec
+		// (matches scripts/e2e_linux_bpf_env.sh). exec replaces bash so cmd.Process targets the agent.
+		const bashPrelude = `ulimit -l unlimited 2>/dev/null || true; exec "$0" "$@"`
+		bashArgs := append([]string{"-c", bashPrelude, agentBin}, args...)
+		cmd = exec.CommandContext(context.Background(), "bash", bashArgs...) // #nosec G204
+	} else if e2eAgentUseSudo() {
 		t.Log("e2e: starting agent under sudo -n -E (E2E_AGENT_USE_SUDO=1)")
 		sudoArgs := append([]string{"-n", "-E", agentBin}, args...)
 		cmd = exec.CommandContext(context.Background(), "sudo", sudoArgs...) // #nosec G204

@@ -23,7 +23,7 @@
 # not /proc/self/mem, so cap_sys_ptrace is not required for scripted e2e.
 #
 # GitHub Actions: file caps are not always enough for BPF program load memlock; scripts run the agent
-# with sudo -n -E when GITHUB_ACTIONS is set (see phantom_e2e_agent_needs_sudo; -n avoids password wait on headless CI).
+# with sudo -n -E when GITHUB_ACTIONS is set (phantom_e2e_run_agent_sudo: bash ulimit -l then exec; -n avoids password wait on headless CI).
 
 phantom_e2e_agent_needs_sudo() {
   [ -n "${GITHUB_ACTIONS:-}" ] && sudo -n true 2>/dev/null
@@ -31,6 +31,14 @@ phantom_e2e_agent_needs_sudo() {
 
 phantom_e2e_soft_memlock() {
   ulimit -l unlimited 2>/dev/null || true
+}
+
+# Run agent as root with soft memlock raised before exec (CI: avoids inheriting a low locked-memory
+# soft limit from the parent shell despite sudo).
+phantom_e2e_run_agent_sudo() {
+  local agent_bin="$1"
+  shift
+  sudo -n -E bash -c 'ulimit -l unlimited 2>/dev/null || true; exec "$0" "$@"' "$agent_bin" "$@"
 }
 
 # File capabilities persist across exec; needed when hard memlock limit cannot be raised (CI runners).

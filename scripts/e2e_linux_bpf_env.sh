@@ -23,7 +23,7 @@
 # not /proc/self/mem, so cap_sys_ptrace is not required for scripted e2e.
 #
 # GitHub Actions: file caps are not always enough for BPF program load memlock; scripts run the agent
-# with sudo -E when GITHUB_ACTIONS is set (see phantom_e2e_agent_needs_sudo).
+# with sudo -n -E when GITHUB_ACTIONS is set (see phantom_e2e_agent_needs_sudo; -n avoids password wait on headless CI).
 
 phantom_e2e_agent_needs_sudo() {
   [ -n "${GITHUB_ACTIONS:-}" ] && sudo -n true 2>/dev/null

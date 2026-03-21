@@ -62,8 +62,8 @@ AGENT_ADDR="127.0.0.1:$AGENT_PORT"
 phantom_e2e_linux_bpf_env "$AGENT_BIN" "e2e_http10_generic"
 echo "e2e_http10_generic: starting agent at $AGENT_ADDR (kprobe=$BPF_KPROBE_OUT)..."
 if phantom_e2e_agent_needs_sudo; then
-  echo "e2e_http10_generic: agent under sudo -E (CI BPF memlock)" >&2
-  sudo -E "$AGENT_BIN" -listen "$AGENT_ADDR" -kprobe "$BPF_KPROBE_OUT" >"$AGENT_LOG" 2>&1 &
+  echo "e2e_http10_generic: agent under sudo -n -E (CI BPF memlock)" >&2
+  sudo -n -E "$AGENT_BIN" -listen "$AGENT_ADDR" -kprobe "$BPF_KPROBE_OUT" >"$AGENT_LOG" 2>&1 &
 else
   "$AGENT_BIN" -listen "$AGENT_ADDR" -kprobe "$BPF_KPROBE_OUT" >"$AGENT_LOG" 2>&1 &
 fi

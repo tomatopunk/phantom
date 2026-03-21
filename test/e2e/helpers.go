@@ -93,7 +93,8 @@ func SkipIfMissing(t *testing.T, paths ...string) {
 }
 
 // e2eAgentUseSudo matches scripts/e2e_linux_bpf_env.sh: on GitHub Actions, start the agent with
-// sudo -E when passwordless sudo works so BPF program loads are not blocked by RLIMIT_MEMLOCK.
+// sudo -n -E when passwordless sudo works so BPF program loads are not blocked by RLIMIT_MEMLOCK.
+// -n is required: without it, sudo may block forever waiting for a password on headless CI (no TTY).
 // Set E2E_AGENT_USE_SUDO=1 to force the same locally.
 func e2eAgentUseSudo() bool {
 	if os.Getenv("E2E_AGENT_USE_SUDO") == "1" {
@@ -124,8 +125,8 @@ func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpf
 	}
 	var cmd *exec.Cmd
 	if e2eAgentUseSudo() {
-		t.Log("e2e: starting agent under sudo -E (CI BPF memlock)")
-		sudoArgs := append([]string{"-E", agentBin}, args...)
+		t.Log("e2e: starting agent under sudo -n -E (CI BPF memlock)")
+		sudoArgs := append([]string{"-n", "-E", agentBin}, args...)
 		cmd = exec.CommandContext(context.Background(), "sudo", sudoArgs...) // #nosec G204
 	} else {
 		cmd = exec.CommandContext(context.Background(), agentBin, args...) // #nosec G204

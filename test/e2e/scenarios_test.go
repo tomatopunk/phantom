@@ -138,8 +138,12 @@ func TestTcpdumpStyleTcpRecvmsg(t *testing.T) {
 	if _, cerr := c.Connect(ctx, ""); cerr != nil {
 		t.Fatalf("connect: %v", cerr)
 	}
-	if _, err := c.Execute(ctx, "break tcp_recvmsg"); err != nil {
+	br, err := c.Execute(ctx, "break tcp_recvmsg")
+	if err != nil {
 		t.Fatalf("break tcp_recvmsg: %v", err)
+	}
+	if !br.GetOk() {
+		t.Fatalf("break tcp_recvmsg: %s", br.GetErrorMessage())
 	}
 
 	trigger := func() {
@@ -176,7 +180,7 @@ func TestE2EOpenBreak(t *testing.T) {
 		t.Fatalf("break: %v", err)
 	}
 	if !resp.GetOk() {
-		t.Skipf("break %s not attached: %s", sym, resp.GetErrorMessage())
+		t.Fatalf("break %s not attached: %s", sym, resp.GetErrorMessage())
 	}
 
 	tmp := filepath.Join(os.TempDir(), fmt.Sprintf("phantom-e2e-open-%d", os.Getpid()))
@@ -221,7 +225,7 @@ func TestE2EForkTracepoint(t *testing.T) {
 		t.Fatalf("hook add: %v", err)
 	}
 	if !resp.GetOk() {
-		t.Skipf("fork tracepoint hook: %s", resp.GetErrorMessage())
+		t.Fatalf("fork tracepoint hook: %s", resp.GetErrorMessage())
 	}
 
 	trigger := func() {
@@ -268,7 +272,7 @@ func TestE2EUprobeMarker(t *testing.T) {
 		t.Fatalf("hook add: %v", err)
 	}
 	if !resp.GetOk() {
-		t.Skipf("uprobe hook: %s", resp.GetErrorMessage())
+		t.Fatalf("uprobe hook: %s", resp.GetErrorMessage())
 	}
 
 	trigger := func() {

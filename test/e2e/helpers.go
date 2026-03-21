@@ -35,7 +35,8 @@ const (
 	// LinuxGOOS is runtime.GOOS on Linux targets (e2e skips elsewhere).
 	LinuxGOOS = "linux"
 
-	e2eStreamAttachDelay = 300 * time.Millisecond
+	// StreamEvents must be subscribed before traffic; CI runners need a bit more than local dev.
+	e2eStreamAttachDelay = 500 * time.Millisecond
 	e2ePollInterval      = 50 * time.Millisecond
 	e2eHTTPReadBuf       = 4096
 	e2eRawTCPReadBuf     = 256
@@ -88,6 +89,19 @@ func SkipIfMissing(t *testing.T, paths ...string) {
 	}
 }
 
+// e2eAgentUseSudo matches scripts/e2e_linux_bpf_env.sh: on GitHub Actions, start the agent with
+// sudo -E when passwordless sudo works so BPF program loads are not blocked by RLIMIT_MEMLOCK.
+// Set E2E_AGENT_USE_SUDO=1 to force the same locally.
+func e2eAgentUseSudo() bool {
+	if os.Getenv("E2E_AGENT_USE_SUDO") == "1" {
+		return true
+	}
+	if os.Getenv("GITHUB_ACTIONS") == "" {
+		return false
+	}
+	return exec.Command("sudo", "-n", "true").Run() == nil
+}
+
 // StartAgent starts the agent with kprobe; caller must kill the process when done.
 func StartAgent(t *testing.T, agentBin, kprobeObj, listenAddr string) *exec.Cmd {
 	t.Helper()
@@ -104,9 +118,16 @@ func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpf
 	if v := os.Getenv("E2E_VMLINUX"); v != "" {
 		args = append(args, "-vmlinux", v)
 	}
-	cmd := exec.CommandContext(context.Background(), agentBin, args...)
+	var cmd *exec.Cmd
+	if e2eAgentUseSudo() {
+		t.Log("e2e: starting agent under sudo -E (CI BPF memlock)")
+		cmd = exec.CommandContext(context.Background(), "sudo", append([]string{"-E", agentBin}, args...)...)
+	} else {
+		cmd = exec.CommandContext(context.Background(), agentBin, args...)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Env = os.Environ()
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start agent: %v", err)
 	}

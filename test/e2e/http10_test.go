@@ -68,8 +68,12 @@ func TestHttp10CaptureE2E(t *testing.T) {
 	if _, err := c.Connect(ctx, ""); err != nil {
 		t.Fatalf("connect: %v", err)
 	}
-	if _, err := c.Execute(ctx, "break tcp_sendmsg"); err != nil {
+	br, err := c.Execute(ctx, "break tcp_sendmsg")
+	if err != nil {
 		t.Fatalf("break tcp_sendmsg: %v", err)
+	}
+	if !br.GetOk() {
+		t.Fatalf("break tcp_sendmsg: %s", br.GetErrorMessage())
 	}
 
 	trigger := func() {

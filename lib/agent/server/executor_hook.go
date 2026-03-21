@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/tomatopunk/phantom/lib/agent/hook"
@@ -40,14 +42,24 @@ func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Sess
 	if err != nil {
 		return errResponse("hook add: " + err.Error()), nil
 	}
-	detach, hookReader, err := hook.AttachKprobeFromObject(cr.ObjectPath, cr.Symbol, cr.Cleanup)
+	if cr.ParsedAttach == nil {
+		return errResponse("hook add: internal: missing attach info"), nil
+	}
+	detach, hookReader, err := hook.AttachProbeFromObject(cr.ObjectPath, cr.ParsedAttach, hook.HookTemplateProgramName, cr.Cleanup)
 	if err != nil {
 		if cr.Cleanup != nil {
 			cr.Cleanup()
 		}
 		return errResponse("hook add: " + err.Error()), nil
 	}
-	id := sess.AddHook(plan.AttachPoint, detach, hookReader, plan.Limit)
+	opt := &session.HookOpts{}
+	if plan.Sec != "" {
+		opt.FilterExpr = plan.Sec
+		opt.Note = "hook add --sec"
+	} else {
+		opt.Note = "hook add --code"
+	}
+	id := sess.AddHook(plan.AttachPoint, detach, hookReader, plan.Limit, opt)
 	success = true
 	return &proto.ExecuteResponse{
 		Ok:     true,
@@ -113,12 +125,104 @@ func parseHookAddArgs(args []string) (point, code, sec string, limit int, err er
 	return point, code, sec, limit, nil
 }
 
+// parseHookAttachArgs returns attach point, inline source, file path, optional BPF program name.
+// Exactly one of source or file must be set (after parsing).
+func parseHookAttachArgs(args []string) (attach, source, file, program string, err error) {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--attach", "-a":
+			if i+1 >= len(args) {
+				return "", "", "", "", fmt.Errorf("--attach requires value")
+			}
+			attach = args[i+1]
+			i++
+		case "--file", "-f":
+			if i+1 >= len(args) {
+				return "", "", "", "", fmt.Errorf("--file requires value")
+			}
+			file = args[i+1]
+			i++
+		case "--source":
+			if i+1 >= len(args) {
+				return "", "", "", "", fmt.Errorf("--source requires value")
+			}
+			source = args[i+1]
+			i++
+		case "--program", "-P":
+			if i+1 >= len(args) {
+				return "", "", "", "", fmt.Errorf("--program requires value")
+			}
+			program = args[i+1]
+			i++
+		}
+	}
+	if attach == "" {
+		return "", "", "", "", fmt.Errorf("missing --attach (e.g. kprobe:do_sys_open)")
+	}
+	if file != "" && source != "" {
+		return "", "", "", "", fmt.Errorf("cannot use both --file and --source")
+	}
+	if file == "" && source == "" {
+		return "", "", "", "", fmt.Errorf("missing --file or --source")
+	}
+	return attach, source, file, program, nil
+}
+
+func (e *commandExecutor) executeHookAttach(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+	var success bool
+	defer func() {
+		if !success && e.quota != nil {
+			e.quota.RemoveHook(sess.ID)
+		}
+	}()
+	attach, inline, file, program, err := parseHookAttachArgs(args)
+	if err != nil {
+		return errResponse("hook attach: " + err.Error()), nil
+	}
+	var src string
+	if file != "" {
+		path := filepath.Clean(file)
+		if !filepath.IsAbs(path) {
+			return errResponse("hook attach: --file path must be absolute"), nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return errResponse("hook attach: read file: " + err.Error()), nil
+		}
+		if len(data) > hook.MaxRawSourceLen {
+			return errResponse(fmt.Sprintf("hook attach: file larger than %d bytes", hook.MaxRawSourceLen)), nil
+		}
+		src = string(data)
+	} else {
+		src = inline
+	}
+	r := e.tryCompileAttachHook(ctx, sess, src, attach, program, 0)
+	if !r.GetOk() {
+		return errResponse("hook attach: " + r.GetErrorMessage()), nil
+	}
+	success = true
+	return &proto.ExecuteResponse{
+		Ok:     true,
+		Output: "hook set at " + r.GetAttachPoint() + " (" + r.GetHookId() + ")",
+		Result: &proto.ExecuteResponse_Hook{
+			Hook: &proto.HookResult{HookId: r.GetHookId(), AttachPoint: r.GetAttachPoint(), Compiled: true},
+		},
+	}, nil
+}
+
 // executeHookList returns all hooks.
 func (*commandExecutor) executeHookList(_ context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
 	list := sess.ListHooks()
 	var lines []string
 	for _, h := range list {
-		lines = append(lines, fmt.Sprintf("%s  %s", h.ID, h.AttachPoint))
+		line := fmt.Sprintf("%s  %s", h.ID, h.AttachPoint)
+		if h.FilterExpr != "" {
+			line += fmt.Sprintf("  filter=%q", h.FilterExpr)
+		}
+		if h.Note != "" {
+			line += fmt.Sprintf("  note=%s", h.Note)
+		}
+		lines = append(lines, line)
 	}
 	output := "hooks:\n"
 	if len(lines) == 0 {
@@ -129,15 +233,17 @@ func (*commandExecutor) executeHookList(_ context.Context, sess *session.Session
 	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
 }
 
-// executeHook dispatches hook add/list/delete.
+// executeHook dispatches hook add/attach/list/delete.
 func (e *commandExecutor) executeHook(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
-		return errResponse("hook: usage hook add|list|delete ..."), nil
+		return errResponse("hook: usage hook add|attach|list|delete ..."), nil
 	}
 	sub := strings.ToLower(args[0])
 	switch sub {
 	case "add":
 		return e.executeHookAdd(ctx, sess, args[1:])
+	case "attach":
+		return e.executeHookAttach(ctx, sess, args[1:])
 	case "list":
 		return e.executeHookList(ctx, sess)
 	case "delete", "del":

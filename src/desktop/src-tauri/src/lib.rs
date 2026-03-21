@@ -112,11 +112,26 @@ fn execute_json(r: ExecuteResponse) -> Value {
 }
 
 fn compile_json(r: CompileAndAttachResponse) -> Value {
+    let diags: Vec<Value> = r
+        .diagnostics
+        .iter()
+        .map(|d| {
+            json!({
+                "path": d.path,
+                "line": d.line,
+                "column": d.column,
+                "severity": d.severity,
+                "message": d.message,
+            })
+        })
+        .collect();
     json!({
         "ok": r.ok,
         "error_message": r.error_message,
         "hook_id": r.hook_id,
         "attach_point": r.attach_point,
+        "diagnostics": diags,
+        "compiler_output": r.compiler_output,
     })
 }
 

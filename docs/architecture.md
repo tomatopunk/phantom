@@ -15,7 +15,7 @@
 3. User types commands; client sends `Execute(session_id, command_line)`.
 4. Agent resolves the session, applies rate limit and quota, runs the command executor (break/print/trace), and returns `ExecuteResponse`.
 5. Agent loads eBPF, attaches kprobe/uprobe, and streams `DebugEvent` via `StreamEvents`.
-6. Optional RPCs: **`CompileAndAttach`** (full C source compiled on agent), **`ListTracepoints`**, **`ListKprobeSymbols`**, **`ListUprobeSymbols`**, **`InspectELF`**.
+6. Optional RPCs: **`CompileAndAttach`** (full C source compiled on agent — same capability as REPL **`hook attach`**), **`ListTracepoints`**, **`ListKprobeSymbols`**, **`ListUprobeSymbols`**, **`InspectELF`**.
 
 ## Components
 
@@ -24,7 +24,7 @@
 | CLI         | Rust: [`src/cli`](../src/cli) (REPL, `discover` subcommands) |
 | Agent API   | Auth (Bearer token), session manager, Execute/StreamEvents/OpenSession/ListSessions/CloseSession, discovery + compile RPCs |
 | Discovery   | [`lib/agent/discovery`](../lib/agent/discovery): tracefs tracepoints, kallsyms, ELF uprobe symbols, ELF section names |
-| Hook compile | [`lib/agent/hook`](../lib/agent/hook): CO-RE `clang` flags (`-g`), `BPF_CORE_READ` prologues for socket fields |
+| Hook compile | [`lib/agent/hook`](../lib/agent/hook): CO-RE `clang` flags (`-g`), embedded template for REPL `hook add` (kprobe / tracepoint / uprobe / uretprobe), `CompileRaw` + `AttachProbeFromObject` for `hook attach` / `CompileAndAttach` |
 | Executor    | Parse command line, dispatch break/print/trace/continue, return proto result |
 | Session     | Per-session state; quota and rate limiter keyed by session ID |
 | Probe       | User-space symbol resolution (ELF) for uprobe |

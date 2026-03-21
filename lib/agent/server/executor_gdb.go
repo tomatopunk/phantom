@@ -242,6 +242,8 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
 			return &proto.ExecuteResponse{Ok: true, Output: "watch <expr>  emit event when expression value changes"}, nil
 		case "continue", "c":
 			return &proto.ExecuteResponse{Ok: true, Output: "continue  continue execution"}, nil
+		case "hook":
+			return &proto.ExecuteResponse{Ok: true, Output: "hook add ...  template kprobe/tracepoint/uprobe C snippet; hook attach ...  full C from --file or --source (custom SEC); hook list | hook delete <id>"}, nil
 		default:
 			return &proto.ExecuteResponse{Ok: true, Output: "help " + cmd + ": unknown command"}, nil
 		}
@@ -260,6 +262,7 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
   bt                    backtrace (kernel stack)
   watch <expr>          watch expression (emit on change)
   continue, c           continue
+  hook add|attach|list|delete  eBPF hooks (see docs/command-spec.md)
   help [cmd]
 `
 	return &proto.ExecuteResponse{Ok: true, Output: output}, nil

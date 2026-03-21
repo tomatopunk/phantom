@@ -35,11 +35,10 @@ func allowedFieldsForAttachPoint(attachPoint string) map[string]string {
 		"arg0": "arg0", "arg1": "arg1", "arg2": "arg2", "arg3": "arg3", "arg4": "arg4", "arg5": "arg5",
 		"ret": "ret",
 	}
-	_, symbol, err := ParseAttachPoint(attachPoint)
-	if err != nil {
+	symbol := strings.TrimSpace(strings.ToLower(AttachPrologueKey(attachPoint)))
+	if symbol == "" {
 		return base
 	}
-	symbol = strings.TrimSpace(strings.ToLower(symbol))
 	for _, f := range ExtraFieldsForSymbol(symbol) {
 		base[f] = f
 	}
@@ -175,6 +174,27 @@ func lex(s string) ([]token, error) {
 			}
 			continue
 		}
+		if s[i] == '0' && i+1 < len(s) && (s[i+1] == 'x' || s[i+1] == 'X') {
+			j := i + 2
+			if j >= len(s) {
+				return nil, fmt.Errorf("invalid hex literal")
+			}
+			start := j
+			for j < len(s) && isHexRune(rune(s[j])) {
+				j++
+			}
+			if j == start {
+				return nil, fmt.Errorf("invalid hex literal")
+			}
+			numStr := s[i:j]
+			num, err := strconv.ParseUint(numStr, 0, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid hex literal %q: %w", numStr, err)
+			}
+			toks = append(toks, token{kind: "number", val: numStr, num: num})
+			i = j - 1
+			continue
+		}
 		if unicode.IsDigit(rune(s[i])) {
 			j := i
 			for j < len(s) && unicode.IsDigit(rune(s[j])) {
@@ -300,7 +320,7 @@ func (p *secParser) parseCompare() (secNode, error) {
 		op := p.cur().val
 		p.advance()
 		if p.cur().kind != "number" {
-			return nil, fmt.Errorf("--sec value must be decimal integer, got %q", p.cur().val)
+			return nil, fmt.Errorf("--sec value must be an integer (decimal or 0x hex), got %q", p.cur().val)
 		}
 		value := p.cur().num
 		p.advance()
@@ -311,6 +331,10 @@ func (p *secParser) parseCompare() (secNode, error) {
 		expr = &compareNode{field: field, op: op, value: value, cExpr: cExpr}
 	}
 	return expr, nil
+}
+
+func isHexRune(r rune) bool {
+	return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
 }
 
 func sortedKeys(m map[string]string) []string {

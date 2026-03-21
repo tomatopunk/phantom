@@ -245,7 +245,11 @@ func checkQuota(q *SessionQuota, sessionID, line string) string {
 			return "quota: max traces reached"
 		}
 	case "hook":
-		if len(parts) < 2 || strings.ToLower(parts[1]) != "add" {
+		if len(parts) < 2 {
+			return ""
+		}
+		sub := strings.ToLower(parts[1])
+		if sub != "add" && sub != "attach" {
 			return ""
 		}
 		if !q.AllowHook(sessionID) {

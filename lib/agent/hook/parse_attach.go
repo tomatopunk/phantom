@@ -3,6 +3,7 @@ package hook
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // AttachKind identifies where to attach a BPF program.
@@ -49,7 +50,14 @@ func ParseFullAttachPoint(attach string) (*ParsedAttach, error) {
 		if len(sub) != 2 || sub[0] == "" || sub[1] == "" {
 			return nil, fmt.Errorf("tracepoint must be tracepoint:subsystem:event")
 		}
-		return &ParsedAttach{Kind: AttachTracepoint, TraceGroup: sub[0], TraceEvent: sub[1]}, nil
+		g, ev := strings.TrimSpace(sub[0]), strings.TrimSpace(sub[1])
+		if err := validateBPFTraceIdent(g, "subsystem"); err != nil {
+			return nil, err
+		}
+		if err := validateBPFTraceIdent(ev, "event"); err != nil {
+			return nil, err
+		}
+		return &ParsedAttach{Kind: AttachTracepoint, TraceGroup: g, TraceEvent: ev}, nil
 	case "uprobe", "uretprobe":
 		i := strings.LastIndex(rest, ":")
 		if i <= 0 || i == len(rest)-1 {
@@ -67,5 +75,36 @@ func ParseFullAttachPoint(attach string) (*ParsedAttach, error) {
 		return &ParsedAttach{Kind: k, UprobePath: path, UprobeSymbol: sym}, nil
 	default:
 		return nil, fmt.Errorf("unsupported attach type %q (use kprobe, tracepoint, uprobe, uretprobe)", typ)
+	}
+}
+
+func validateBPFTraceIdent(s, field string) error {
+	if s == "" {
+		return fmt.Errorf("empty tracepoint %s", field)
+	}
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+			continue
+		}
+		return fmt.Errorf("invalid tracepoint %s %q (only letters, digits, underscore)", field, s)
+	}
+	return nil
+}
+
+// AttachPrologueKey returns the symbol/event name used for RegisterPrologue / --sec extra fields.
+func AttachPrologueKey(attachPoint string) string {
+	pa, err := ParseFullAttachPoint(attachPoint)
+	if err != nil {
+		return ""
+	}
+	switch pa.Kind {
+	case AttachKprobe:
+		return strings.TrimSpace(pa.KprobeSymbol)
+	case AttachUprobe, AttachUretprobe:
+		return strings.TrimSpace(pa.UprobeSymbol)
+	case AttachTracepoint:
+		return strings.TrimSpace(pa.TraceEvent)
+	default:
+		return ""
 	}
 }

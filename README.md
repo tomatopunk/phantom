@@ -6,7 +6,7 @@ Remote, interactive **eBPF debugger**: a Go **agent** (gRPC server) loads kprobe
 
 - **gRPC API** — Sessions, `Execute` / `StreamEvents`, discovery and compile-and-attach RPCs ([architecture](docs/architecture.md)).
 - **REPL commands** — Break, trace, continue, hooks, watch, and more ([command reference](docs/command-spec.md)).
-- **eBPF** — Ring-buffer events from kernel and user-space probes ([`src/agent/bpf`](src/agent/bpf)).
+- **eBPF** — Ring-buffer events from kernel and user-space probes ([`src/agent/bpf`](src/agent/bpf)). REPL `hook add` uses a small C **template** (fixed handler name, `SEC(...)` chosen from `--point`). CLI **`--sec`** is a **filter expression** (converted to an `if` in C), not the ELF `SEC("…")` macro. For arbitrary `SEC` names, tracepoint layouts, and maps, use **`hook attach`** (full C from `--file` / `--source`) or the gRPC **`CompileAndAttach`** RPC — see [docs/command-spec.md](docs/command-spec.md) and [docs/ebpf-parameters.md](docs/ebpf-parameters.md).
 - **Hardening** — Optional Bearer token, per-session rate limits and quotas ([architecture](docs/architecture.md#security)).
 - **Desktop** — Tauri UI sharing the Rust [`phantom-client`](lib/phantom-client) crate ([`src/desktop/README.md`](src/desktop/README.md)).
 

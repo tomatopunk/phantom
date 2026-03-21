@@ -74,10 +74,31 @@
     "run": "Run"
   },
   "hook": {
-    "title": "compile_and_attach (advanced)",
+    "title": "eBPF C editor (compile & attach)",
     "attachPh": "attach",
     "progNamePh": "prog name",
     "compile": "Compile & attach"
+  },
+  "hookEditor": {
+    "presetPlaceholder": "Built-in preset…",
+    "loadPreset": "Load",
+    "applyTemplate": "Apply template (hook add)",
+    "compileAttach": "Compile & attach",
+    "hintSec": "BPF SEC(\"…\") here is the ELF section; REPL --sec is a filter DSL — see docs/command-spec.md",
+    "problems": "Problems",
+    "noProblems": "No issues",
+    "sourceLocal": "local"
+  },
+  "sessionPanel": {
+    "title": "Session probes",
+    "refresh": "Refresh",
+    "empty": "(none)",
+    "tab": {
+      "break": "Breakpoints",
+      "trace": "Traces",
+      "hook": "Hooks",
+      "watch": "Watches"
+    }
   },
   "events": {
     "panelTitle": "Events ({{filtered}} / buffer {{total}})"

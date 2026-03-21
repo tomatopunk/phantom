@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import * as api from "./api";
+import { HookEditorPanel } from "./components/HookEditorPanel";
+import { SessionProbesPanel } from "./components/SessionProbesPanel";
 import { GlossaryTip } from "./procGlossary";
 
 const MAX_EVENTS = 8000;
@@ -128,11 +130,7 @@ export default function App() {
 
   const [cmd, setCmd] = useState("help");
   const [cmdOut, setCmdOut] = useState("");
-
-  const [hookSrc, setHookSrc] = useState("// minimal hook\n");
-  const [hookAttach, setHookAttach] = useState("tracepoint:sched:sched_switch");
-  const [hookName, setHookName] = useState("");
-  const [hookOut, setHookOut] = useState("");
+  const [probeRefresh, setProbeRefresh] = useState(0);
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -317,16 +315,6 @@ export default function App() {
     }
   };
 
-  const runHook = async () => {
-    setHookOut(t("common.ellipsis"));
-    try {
-      const r = await api.compileHook(hookSrc, hookAttach, hookName);
-      setHookOut(JSON.stringify(r, null, 2));
-    } catch (e) {
-      setHookOut(String(e));
-    }
-  };
-
   const cpus = (metrics?.cpus as CpuJ[] | undefined) ?? [];
   const netDevs = (metrics?.net_devs as NetDev[] | undefined) ?? [];
   const hostname = String(metrics?.hostname ?? t("common.dash"));
@@ -461,7 +449,7 @@ export default function App() {
                 </button>
               ))}
             </div>
-            <div className="flex-1 overflow-auto p-2 text-xs space-y-2">
+            <div className="shrink-0 max-h-[34vh] overflow-auto p-2 text-xs space-y-2">
               {!connected && <p className="text-shell-muted">{t("metrics.hintDisconnected")}</p>}
               {connected && dimension === "host" && metrics && (
                 <div className="space-y-2">
@@ -624,7 +612,8 @@ export default function App() {
               )}
             </div>
 
-            <div className="border-t border-shell-border p-2 flex-1 min-h-[200px] flex flex-col max-h-[45vh]">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden border-t border-shell-border">
+            <div className="border-b border-shell-border p-2 shrink-0 flex flex-col max-h-[30vh] min-h-[120px]">
               <div className="flex gap-1 mb-1">
                 {(["tp", "kp", "up"] as const).map((k) => (
                   <button
@@ -677,7 +666,9 @@ export default function App() {
               </ul>
             </div>
 
-            <div className="border-t border-shell-border p-2 space-y-1">
+            <SessionProbesPanel connected={connected} refreshTrigger={probeRefresh} />
+
+            <div className="border-t border-shell-border p-2 space-y-1 shrink-0">
               <div className="text-xs text-shell-muted">{t("cmd.title")}</div>
               <div className="flex gap-1">
                 <input
@@ -700,38 +691,10 @@ export default function App() {
               </pre>
             </div>
 
-            <div className="border-t border-shell-border p-2 space-y-1">
-              <div className="text-xs text-shell-muted">{t("hook.title")}</div>
-              <textarea
-                className="w-full h-16 bg-black/40 border border-shell-border rounded p-1 font-mono-tight text-[10px]"
-                value={hookSrc}
-                onChange={(e) => setHookSrc(e.target.value)}
-              />
-              <div className="flex gap-1">
-                <input
-                  className="flex-1 bg-black/40 border border-shell-border rounded px-1 text-xs"
-                  value={hookAttach}
-                  onChange={(e) => setHookAttach(e.target.value)}
-                  placeholder={t("hook.attachPh")}
-                />
-                <input
-                  className="w-24 bg-black/40 border border-shell-border rounded px-1 text-xs"
-                  value={hookName}
-                  onChange={(e) => setHookName(e.target.value)}
-                  placeholder={t("hook.progNamePh")}
-                />
-                <button
-                  type="button"
-                  disabled={!connected}
-                  className="px-2 text-xs rounded border border-shell-border disabled:opacity-40"
-                  onClick={runHook}
-                >
-                  {t("hook.compile")}
-                </button>
-              </div>
-              <pre className="text-[10px] bg-black/30 rounded p-1 max-h-20 overflow-auto whitespace-pre-wrap">
-                {hookOut}
-              </pre>
+            <HookEditorPanel
+              connected={connected}
+              onProbesChanged={() => setProbeRefresh((n) => n + 1)}
+            />
             </div>
           </Panel>
 

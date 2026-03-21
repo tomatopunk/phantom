@@ -1,1 +1,1 @@
-{"root":["./src/app.tsx","./src/api.ts","./src/i18n.ts","./src/main.tsx","./src/procglossary.tsx","./src/vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/api.ts","./src/i18n.ts","./src/main.tsx","./src/procglossary.tsx","./src/vite-env.d.ts","./src/components/hookeditorpanel.tsx","./src/components/sessionprobespanel.tsx","./src/hook/locallint.ts","./src/presets/types.ts","./src/session/parseinfo.ts"],"version":"5.9.3"}

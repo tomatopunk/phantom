@@ -46,11 +46,23 @@ export function listUprobes(binaryPath: string, prefix: string, maxEntries: numb
   });
 }
 
+export type CompileDiagnostic = {
+  path: string;
+  line: number;
+  column: number;
+  severity: string;
+  message: string;
+};
+
+export type CompileHookResult = {
+  ok: boolean;
+  error_message: string;
+  hook_id: string;
+  attach_point: string;
+  diagnostics: CompileDiagnostic[];
+  compiler_output: string;
+};
+
 export function compileHook(source: string, attach: string, programName: string) {
-  return invoke<{
-    ok: boolean;
-    error_message: string;
-    hook_id: string;
-    attach_point: string;
-  }>("compile_hook", { source, attach, programName });
+  return invoke<CompileHookResult>("compile_hook", { source, attach, programName });
 }

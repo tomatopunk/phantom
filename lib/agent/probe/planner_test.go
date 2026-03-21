@@ -87,4 +87,22 @@ func TestPlanHook(t *testing.T) {
 	if err == nil {
 		t.Error("PlanHook invalid attach point: want error")
 	}
+	if err != nil && !strings.Contains(err.Error(), "attach point") {
+		t.Errorf("PlanHook invalid: want attach point error, got %q", err.Error())
+	}
+
+	// tracepoint and uprobe attach strings are accepted for template hook
+	for _, pt := range []string{
+		"tracepoint:sched:sched_process_fork",
+		"uprobe:/bin/true:main",
+		"uretprobe:/bin/true:main",
+	} {
+		plan, err := p.PlanHook(pt, "return 0;", "", 0)
+		if err != nil {
+			t.Fatalf("PlanHook(%q): %v", pt, err)
+		}
+		if plan.AttachPoint != pt {
+			t.Errorf("PlanHook: want AttachPoint %q, got %q", pt, plan.AttachPoint)
+		}
+	}
 }

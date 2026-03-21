@@ -25,6 +25,8 @@ type HookState struct {
 	Cancel      func() // cancels the hook's event pump context so reader is closed before detach
 	Limit       int    // 0 = no limit; when HitCount >= Limit the hook is auto-removed
 	HitCount    int    // incremented on each event; used when Limit > 0
+	FilterExpr  string // when set via hook add --sec (for info / UI)
+	Note        string // origin label e.g. CompileAndAttach
 }
 
 // WatchState holds one watch expression and its last value for change detection.

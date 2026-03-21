@@ -14,6 +14,7 @@ This document describes **directions we consider valuable**, not a fixed deliver
 ## Near-term (concrete follow-ups)
 
 - **Executor / REPL polish** — Clearer errors, help text, and edge cases around `break`, `trace`, `hook`, and session lifecycle.
+- **REPL ↔ gRPC parity** — `hook attach` aligns interactive use with `CompileAndAttach`; docs spell out `--sec` DSL vs BPF `SEC("…")` (see [ebpf-parameters.md](ebpf-parameters.md)).
 - **MCP** — Additional tools and tighter alignment with common agent workflows.
 - **Tests & docs** — Expand unit/integration coverage where brittle; keep [testing.md](testing.md) and command docs in sync with behavior.
 

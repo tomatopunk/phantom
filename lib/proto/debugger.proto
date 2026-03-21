@@ -117,11 +117,22 @@ message CompileAndAttachRequest {
   string program_name = 4;  // optional ELF section program name; if empty, first matching probe type is used
 }
 
+// CompileDiagnostic is one clang-style diagnostic line (parsed from compiler stderr).
+message CompileDiagnostic {
+  string path = 1;
+  int32 line = 2;
+  int32 column = 3;
+  string severity = 4;  // error, warning, note, fatal, remark
+  string message = 5;
+}
+
 message CompileAndAttachResponse {
   bool ok = 1;
   string error_message = 2;
   string hook_id = 3;
   string attach_point = 4;
+  repeated CompileDiagnostic diagnostics = 5;
+  string compiler_output = 6;  // full stderr for detail panel
 }
 
 message ListTracepointsRequest {

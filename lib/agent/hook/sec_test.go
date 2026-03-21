@@ -31,6 +31,8 @@ func TestSecToSnippet_BackwardCompat(t *testing.T) {
 		{"pid=123", attachGeneric, "", true},
 		{"unknown==1", attachGeneric, "", true},
 		{"pid==abc", attachGeneric, "", true},
+		{"arg0==0xff", attachGeneric, "if (!(arg0 == 255)) return 0;\n\t", false},
+		{"tgid==0X10", attachGeneric, "if (!(ev.tgid == 16)) return 0;\n\t", false},
 	}
 	for _, tt := range tests {
 		got, err := SecToSnippet(tt.sec, tt.point)
@@ -113,12 +115,12 @@ func TestSecToSnippet_AllowedFields(t *testing.T) {
 }
 
 func TestSecToSnippet_InvalidValue(t *testing.T) {
-	_, err := SecToSnippet("pid==0x10", attachGeneric)
+	_, err := SecToSnippet("pid==0x", attachGeneric)
 	if err == nil {
-		t.Error("SecToSnippet(pid==0x10): want error (hex not allowed)")
+		t.Error("SecToSnippet(pid==0x): want error (incomplete hex)")
 	}
-	// Parser may report unexpected token or invalid number
-	if err != nil && !strings.Contains(err.Error(), "number") && !strings.Contains(err.Error(), "integer") && !strings.Contains(err.Error(), "unexpected") {
-		t.Errorf("SecToSnippet(pid==0x10): want error about value, got %q", err.Error())
+	_, err = SecToSnippet("pid==abc", attachGeneric)
+	if err == nil {
+		t.Error("SecToSnippet(pid==abc): want error")
 	}
 }

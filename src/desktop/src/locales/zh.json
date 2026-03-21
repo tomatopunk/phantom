@@ -74,10 +74,31 @@
     "run": "运行"
   },
   "hook": {
-    "title": "compile_and_attach（高级）",
+    "title": "eBPF C 编辑器（编译并附加）",
     "attachPh": "attach",
     "progNamePh": "prog name",
     "compile": "编译附加"
+  },
+  "hookEditor": {
+    "presetPlaceholder": "内置预设…",
+    "loadPreset": "载入",
+    "applyTemplate": "应用模板 (hook add)",
+    "compileAttach": "编译并附加",
+    "hintSec": "此处 BPF SEC(\"…\") 为 ELF 段名；REPL 的 --sec 是过滤 DSL — 见 docs/command-spec.md",
+    "problems": "问题",
+    "noProblems": "无问题",
+    "sourceLocal": "本地"
+  },
+  "sessionPanel": {
+    "title": "会话探针",
+    "refresh": "刷新",
+    "empty": "(无)",
+    "tab": {
+      "break": "断点",
+      "trace": "跟踪",
+      "hook": "Hook",
+      "watch": "监视"
+    }
   },
   "events": {
     "panelTitle": "事件 ({{filtered}} / 缓冲 {{total}})"

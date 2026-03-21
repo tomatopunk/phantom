@@ -1,6 +1,10 @@
 package probe
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/tomatopunk/phantom/lib/agent/hook"
+)
 
 // BreakPlan describes attaching a kprobe at a kernel symbol.
 type BreakPlan struct {
@@ -55,21 +59,8 @@ func (p *Planner) PlanHook(attachPoint, code, sec string, limit int) (HookPlan, 
 	if limit < 0 {
 		return HookPlan{}, fmt.Errorf("--limit must be >= 0")
 	}
-	parts := splitAttachPoint(attachPoint)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return HookPlan{}, fmt.Errorf("attach point must be type:symbol (e.g. kprobe:do_sys_open)")
-	}
-	if parts[0] != "kprobe" {
-		return HookPlan{}, fmt.Errorf("only kprobe supported for C hook")
+	if _, err := hook.ParseFullAttachPoint(attachPoint); err != nil {
+		return HookPlan{}, err
 	}
 	return HookPlan{AttachPoint: attachPoint, Code: code, Sec: sec, Limit: limit}, nil
-}
-
-func splitAttachPoint(point string) []string {
-	for i := 0; i < len(point); i++ {
-		if point[i] == ':' {
-			return []string{point[:i], point[i+1:]}
-		}
-	}
-	return nil
 }

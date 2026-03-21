@@ -239,3 +239,34 @@ func TestExecuteHookAdd(t *testing.T) {
 		t.Errorf("hook add sport on do_sys_open: want 'allowed' or 'sport' in error, got %q", resp.GetErrorMessage())
 	}
 }
+
+func TestExecuteHookAttach(t *testing.T) {
+	exec := newCommandExecutor("", "", nil, nil, nil)
+	mgr := session.NewManager("")
+	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
+	ctx := context.Background()
+
+	resp, err := exec.execute(ctx, sess, "hook attach --attach kprobe:x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "missing --file or --source") {
+		t.Errorf("hook attach missing source: got ok=%v err=%q", resp.GetOk(), resp.GetErrorMessage())
+	}
+
+	resp, err = exec.execute(ctx, sess, "hook attach --source 'int x;' --file /tmp/a.c --attach kprobe:x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "cannot use both") {
+		t.Errorf("hook attach both file and source: want error, got %q", resp.GetErrorMessage())
+	}
+
+	resp, err = exec.execute(ctx, sess, "hook attach --attach kprobe:do_sys_open --source int x=0;")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "no bpf include dir") {
+		t.Errorf("hook attach compile path: want no bpf include dir, got %q", resp.GetErrorMessage())
+	}
+}

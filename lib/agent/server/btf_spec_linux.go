@@ -20,25 +20,76 @@ package server
 
 import (
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/cilium/ebpf/btf"
 )
 
-// loadExecutorBTF loads kernel BTF for CO-RE and optional type queries.
-// Tries /sys/kernel/btf/vmlinux first, then optional vmlinux ELF path.
-func loadExecutorBTF(vmlinuxPath string) *btf.Spec {
+// kernelRelease returns the running kernel release (e.g. "6.6.0-amd64"), or empty on error.
+func kernelRelease() string {
+	b, err := os.ReadFile("/proc/sys/kernel/osrelease")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// vmlinuxBTFSearchCandidates returns ordered paths to try for BTF embedded in a vmlinux ELF.
+// userPath is tried first (from -vmlinux / PHANTOM_VMLINUX); then common distro / self-build locations.
+func vmlinuxBTFSearchCandidates(userPath, release string) []string {
+	seen := make(map[string]struct{})
+	var out []string
+	add := func(p string) {
+		p = filepath.Clean(p)
+		if p == "" || p == "." {
+			return
+		}
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	add(userPath)
+	if release == "" {
+		release = kernelRelease()
+	}
+	if release != "" {
+		add(filepath.Join("/boot", "vmlinux-"+release))
+		add(filepath.Join("/usr/lib/debug/boot", "vmlinux-"+release))
+		add(filepath.Join("/lib/modules", release, "build", "vmlinux"))
+	}
+	return out
+}
+
+// loadExecutorBTF loads kernel BTF for CO-RE (hook compile) and optional type queries.
+// Order: (1) kernel BTF via btf.LoadKernelSpec() (/sys/kernel/btf/vmlinux), (2) -vmlinux path if set,
+// (3) well-known vmlinux ELF paths for the running release (self-built / debug packages).
+//
+// On success loading from an ELF file, the second return value is that path so the agent can use it
+// for `list` disassembly when the user did not pass -vmlinux explicitly.
+func loadExecutorBTF(vmlinuxPath string) (*btf.Spec, string) {
 	spec, err := btf.LoadKernelSpec()
 	if err == nil {
-		return spec
+		return spec, ""
 	}
-	log.Printf("phantom: kernel BTF unavailable (%v); CO-RE compile may fail on this host", err)
-	if vmlinuxPath == "" {
-		return nil
+	log.Printf("phantom: kernel BTF unavailable (%v); trying vmlinux ELF BTF fallback (see docs/vmlinux.md)", err)
+
+	for _, p := range vmlinuxBTFSearchCandidates(vmlinuxPath, kernelRelease()) {
+		if _, stErr := os.Stat(p); stErr != nil {
+			continue
+		}
+		fallback, lerr := btf.LoadSpec(p)
+		if lerr == nil {
+			log.Printf("phantom: loaded kernel BTF from %q", p)
+			return fallback, p
+		}
+		log.Printf("phantom: BTF load %q: %v", p, lerr)
 	}
-	fallback, err := btf.LoadSpec(vmlinuxPath)
-	if err != nil {
-		log.Printf("phantom: load BTF from vmlinux %q: %v", vmlinuxPath, err)
-		return nil
+	if vmlinuxPath != "" {
+		log.Printf("phantom: could not load BTF from -vmlinux %q or standard paths; hook CO-RE may fail", vmlinuxPath)
 	}
-	return fallback
+	return nil, ""
 }

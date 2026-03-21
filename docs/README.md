@@ -11,6 +11,7 @@ English technical docs for Phantom. **Scope and shipped baseline** are defined i
 | [mcp.md](mcp.md) | MCP stdio tools (same semantics as gRPC) |
 | [testing.md](testing.md) | Tests, e2e, BPF build notes |
 | [ops.md](ops.md) | Deploy and troubleshooting |
+| [vmlinux.md](vmlinux.md) | Kernel BTF, vmlinux path, self-built kernels, `list` disasm |
 | [coding-standards.md](coding-standards.md) | Contributor conventions |
 
 Project overview: [../README.md](../README.md).

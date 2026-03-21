@@ -14,6 +14,8 @@ RestartSec=5
 # Environment=PHANTOM_TOKEN=your-token
 # Optional: health check on :8080
 # Environment=PHANTOM_HEALTH=:8080
+# Optional: vmlinux ELF for BTF fallback (no /sys/kernel/btf/vmlinux) and list disasm — see docs/vmlinux.md
+# Environment=PHANTOM_VMLINUX=/usr/lib/debug/boot/vmlinux-6.6.0-amd64
 # Capabilities for eBPF load/attach (Linux)
 # CapabilityBoundingSet=CAP_BPF CAP_PERFMON CAP_SYS_ADMIN
 # AmbientCapabilities=CAP_BPF CAP_PERFMON CAP_SYS_ADMIN

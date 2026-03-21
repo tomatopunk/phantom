@@ -69,7 +69,11 @@ func Run(ctx context.Context, cfg *Config) error {
 func PrepareServerConfig(cfg *Config) *serverConfig {
 	if cfg == nil {
 		sc := &serverConfig{}
-		sc.btfSpec = loadExecutorBTF("")
+		spec, autoELF := loadExecutorBTF("")
+		sc.btfSpec = spec
+		if sc.vmlinuxPath == "" && autoELF != "" {
+			sc.vmlinuxPath = autoELF
+		}
 		return sc
 	}
 	sc := BuildServerConfig(cfg)
@@ -82,7 +86,11 @@ func PrepareServerConfig(cfg *Config) *serverConfig {
 	if sc.vmlinuxPath == "" {
 		sc.vmlinuxPath = cfg.VmlinuxPath
 	}
-	sc.btfSpec = loadExecutorBTF(sc.vmlinuxPath)
+	spec, autoELF := loadExecutorBTF(sc.vmlinuxPath)
+	sc.btfSpec = spec
+	if sc.vmlinuxPath == "" && autoELF != "" {
+		sc.vmlinuxPath = autoELF
+	}
 	return sc
 }
 

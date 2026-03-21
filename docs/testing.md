@@ -79,6 +79,8 @@ E2E_HTTP10=1 E2E_NETWORK=1 E2E_SCENARIOS=1 go test -v ./test/e2e/ -run 'Test(Htt
 
 Requires Linux, built `phantom-agent`, and `minikprobe.o` at the default path (or set `E2E_AGENT_BIN` / `E2E_KPROBE` / `PHANTOM_KPROBE` — see [`test/e2e/helpers.go`](../test/e2e/helpers.go)). Some scenarios skip if attach/compile fails (kernel variance).
 
+**Custom kernel without sysfs BTF:** set **`E2E_VMLINUX`** to a vmlinux ELF path so the agent gets **`-vmlinux`** (BTF fallback for hooks). See [vmlinux.md](vmlinux.md).
+
 ## E2E: full MR target (shell + Go)
 
 Runs Rust `phantom-cli`, both shell scripts, then `test-e2e-ci`:

@@ -90,6 +90,9 @@ func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpf
 	if bpfIncludeDir != "" {
 		args = append(args, "-bpf-include", bpfIncludeDir)
 	}
+	if v := os.Getenv("E2E_VMLINUX"); v != "" {
+		args = append(args, "-vmlinux", v)
+	}
 	cmd := exec.Command(agentBin, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

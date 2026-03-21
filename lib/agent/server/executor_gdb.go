@@ -227,13 +227,13 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
 		case infoSubTrace, "t":
 			return &proto.ExecuteResponse{Ok: true, Output: "trace <expr...>  trace expressions"}, nil
 		case cmdDelete:
-			return &proto.ExecuteResponse{Ok: true, Output: "delete <id>  delete breakpoint, trace, or watch"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "delete <id>  delete breakpoint, trace, or watch (hooks: hook delete <id>)"}, nil
 		case "enable", "disable":
 			return &proto.ExecuteResponse{Ok: true, Output: cmd + " <bp_id>  enable or disable breakpoint"}, nil
 		case "condition":
 			return &proto.ExecuteResponse{Ok: true, Output: "condition <bp_id> <expr>  set breakpoint condition"}, nil
 		case "info":
-			return &proto.ExecuteResponse{Ok: true, Output: "info break|trace|watch|session  list state"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "info break|trace|watch|hook|session  list state"}, nil
 		case cmdList:
 			return &proto.ExecuteResponse{Ok: true, Output: "list [symbol]  list kernel symbol(s) from /proc/kallsyms"}, nil
 		case "bt":
@@ -253,11 +253,11 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
   tbreak <symbol>       temporary breakpoint
   print, p <expr>       print expression
   trace, t <expr...>    trace expressions
-  delete <id>           delete breakpoint/trace/watch
+  delete <id>           delete breakpoint/trace/watch (hooks: hook delete)
   enable <id>           enable breakpoint
   disable <id>          disable breakpoint
   condition <id> <expr> set condition
-  info break|trace|watch|session
+  info break|trace|watch|hook|session
   list [symbol]         list kernel symbol(s)
   bt                    backtrace (kernel stack)
   watch <expr>          watch expression (emit on change)

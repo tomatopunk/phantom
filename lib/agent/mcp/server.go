@@ -201,6 +201,47 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 			cmd = "hook add --point " + point + " --lang c --sec " + sec
 		}
 		return ExecuteCommandLine(ctx, s.backend, sid, cmd)
+	case "compile_and_attach":
+		sid := str("session_id")
+		if sid == "" {
+			return "", fmt.Errorf("session_id required")
+		}
+		source := str("source")
+		if source == "" {
+			return "", fmt.Errorf("source required")
+		}
+		attach := str("attach")
+		if attach == "" {
+			return "", fmt.Errorf("attach required")
+		}
+		programName := str("program_name")
+		resp, err := s.backend.CompileAndAttach(ctx, sid, source, attach, programName)
+		if err != nil {
+			return "", err
+		}
+		return MarshalCompileAndAttachResult(resp)
+	case "list_tracepoints":
+		prefix := str("prefix")
+		maxEnt, err := uint32FromArgs(args, "max_entries", 5000)
+		if err != nil {
+			return "", err
+		}
+		names, err := s.backend.ListTracepoints(ctx, prefix, maxEnt)
+		if err != nil {
+			return "", err
+		}
+		return strings.Join(names, "\n"), nil
+	case "list_kprobe_symbols":
+		prefix := str("prefix")
+		maxEnt, err := uint32FromArgs(args, "max_entries", 5000)
+		if err != nil {
+			return "", err
+		}
+		syms, err := s.backend.ListKprobeSymbols(ctx, prefix, maxEnt)
+		if err != nil {
+			return "", err
+		}
+		return strings.Join(syms, "\n"), nil
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}

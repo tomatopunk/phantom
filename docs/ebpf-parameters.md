@@ -1,6 +1,6 @@
 # eBPF hooks: parameters and extension strategies
 
-This document records how **user-visible “parameters”** reach BPF programs in Phantom, and how to extend them without mixing up two different meanings of “sec”.
+How **user-visible parameters** reach BPF programs, and how **`hook add --sec`** differs from BPF **`SEC("…")`**. REPL syntax: [command-spec.md](command-spec.md).
 
 ## Two meanings of “sec”
 
@@ -22,6 +22,7 @@ This document records how **user-visible “parameters”** reach BPF programs i
 - You write **`SEC("…")`**, maps, CO-RE reads, and any constants in C.
 - **REPL:** `hook attach --attach <point> --file /abs/path.c [--program name]` or `--source '…'`.
 - **gRPC:** `CompileAndAttach` with `source`, `attach`, optional `program_name`.
+- **MCP:** `compile_and_attach` — same pipeline as gRPC ([mcp.md](mcp.md)).
 - **Best for:** Custom sections, tracepoint-specific `ctx` layout, BPF maps, and production-style programs.
 
 ### 3. Runtime tunables (future / optional)
@@ -38,8 +39,3 @@ Template compilation now supports:
 - `uretprobe:/absolute/path:symbol`
 
 Tracepoint templates use `void *ctx` and zero `arg0`…`arg5` unless your `--code` reads from `ctx`. Kprobe/uprobe templates use `struct pt_regs *ctx` and `PT_REGS_PARM*`.
-
-## See also
-
-- [command-spec.md](command-spec.md) — exact REPL syntax
-- [architecture.md](architecture.md) — data flow and components

@@ -9,7 +9,10 @@ import (
 )
 
 type fakeMCPBackend struct {
-	executeFn func(ctx context.Context, sessionID, commandLine string) (*proto.ExecuteResponse, error)
+	executeFn           func(ctx context.Context, sessionID, commandLine string) (*proto.ExecuteResponse, error)
+	compileAndAttachFn  func(ctx context.Context, sessionID, source, attach, programName string) (*proto.CompileAndAttachResponse, error)
+	listTracepointsFn   func(ctx context.Context, prefix string, maxEntries uint32) ([]string, error)
+	listKprobeSymbolsFn func(ctx context.Context, prefix string, maxEntries uint32) ([]string, error)
 }
 
 func (f *fakeMCPBackend) Connect(ctx context.Context, sessionID string) (string, error) {
@@ -33,6 +36,29 @@ func (*fakeMCPBackend) ListBreakpoints(context.Context, string) (string, error) 
 
 func (*fakeMCPBackend) ListHooks(context.Context, string) (string, error) {
 	return "", nil
+}
+
+func (f *fakeMCPBackend) CompileAndAttach(
+	ctx context.Context, sessionID, source, attach, programName string,
+) (*proto.CompileAndAttachResponse, error) {
+	if f.compileAndAttachFn != nil {
+		return f.compileAndAttachFn(ctx, sessionID, source, attach, programName)
+	}
+	return &proto.CompileAndAttachResponse{Ok: true, HookId: "h1", AttachPoint: attach}, nil
+}
+
+func (f *fakeMCPBackend) ListTracepoints(ctx context.Context, prefix string, maxEntries uint32) ([]string, error) {
+	if f.listTracepointsFn != nil {
+		return f.listTracepointsFn(ctx, prefix, maxEntries)
+	}
+	return []string{prefix + ":tp"}, nil
+}
+
+func (f *fakeMCPBackend) ListKprobeSymbols(ctx context.Context, prefix string, maxEntries uint32) ([]string, error) {
+	if f.listKprobeSymbolsFn != nil {
+		return f.listKprobeSymbolsFn(ctx, prefix, maxEntries)
+	}
+	return []string{prefix + "_sym"}, nil
 }
 
 func TestRunCommandToolFailsLikeSetBreakpoint(t *testing.T) {
@@ -65,6 +91,75 @@ func TestSetBreakpointToolPropagatesExecuteError(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "missing symbol") {
 		t.Fatalf("set_breakpoint: want missing symbol error, got %v", err)
+	}
+}
+
+func TestCompileAndAttachToolSuccessJSON(t *testing.T) {
+	s := NewServer(&fakeMCPBackend{})
+	out, err := s.runTool(context.Background(), "compile_and_attach", map[string]any{
+		"session_id": "s1",
+		"source":     "int x;",
+		"attach":     "kprobe:foo",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, `"ok":true`) || !strings.Contains(out, "h1") {
+		t.Fatalf("want JSON with ok and hook id, got %q", out)
+	}
+}
+
+func TestCompileAndAttachToolLogicalError(t *testing.T) {
+	s := NewServer(&fakeMCPBackend{
+		compileAndAttachFn: func(_ context.Context, _, _, _, _ string) (*proto.CompileAndAttachResponse, error) {
+			return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: "compile bad"}, nil
+		},
+	})
+	_, err := s.runTool(context.Background(), "compile_and_attach", map[string]any{
+		"session_id": "s1",
+		"source":     "bad",
+		"attach":     "kprobe:x",
+	})
+	if err == nil || !strings.Contains(err.Error(), "compile bad") {
+		t.Fatalf("want compile error, got %v", err)
+	}
+}
+
+func TestListTracepointsTool(t *testing.T) {
+	s := NewServer(&fakeMCPBackend{
+		listTracepointsFn: func(_ context.Context, prefix string, max uint32) ([]string, error) {
+			if max != 100 {
+				t.Fatalf("max_entries: want 100 got %d", max)
+			}
+			return []string{prefix + "a", prefix + "b"}, nil
+		},
+	})
+	out, err := s.runTool(context.Background(), "list_tracepoints", map[string]any{
+		"prefix":       "sched",
+		"max_entries":  float64(100),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "scheda\nschedb" {
+		t.Fatalf("got %q", out)
+	}
+}
+
+func TestListKprobeSymbolsTool(t *testing.T) {
+	s := NewServer(&fakeMCPBackend{
+		listKprobeSymbolsFn: func(_ context.Context, prefix string, _ uint32) ([]string, error) {
+			return []string{prefix + "open"}, nil
+		},
+	})
+	out, err := s.runTool(context.Background(), "list_kprobe_symbols", map[string]any{
+		"prefix": "do_sys_",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "do_sys_open" {
+		t.Fatalf("got %q", out)
 	}
 }
 

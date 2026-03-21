@@ -4,50 +4,45 @@
 
 **Phantom** is a remote eBPF debugger.
 
-- **Agent**: gRPC server that manages debug sessions, executes commands (break/print/trace), and (when wired) loads eBPF programs and streams events from a ring buffer.
-- **CLI**: **Rust** client (`cargo build -p phantom-cli` in [`src/cli`](../src/cli)); talks gRPC to the agent.
-- **Desktop UI**: Tauri app under [`src/desktop`](../src/desktop) uses the shared [`lib/phantom-client`](../lib/phantom-client) crate.
+- **Agent**: gRPC server managing sessions, executing commands (break / print / trace / hooks), loading eBPF, streaming ring-buffer events.
+- **CLI**: Rust (`cargo build -p phantom-cli` in `src/cli`); talks gRPC to the agent.
+- **Desktop**: Tauri app under `src/desktop` using shared `lib/phantom-client`.
 
 ## Data flow
 
-1. Client starts with agent address and optional token.
-2. Client calls **`OpenSession`** to get or create a session ID (renamed from `Connect` so Rust `tonic` clients do not clash with `connect()`).
-3. User types commands; client sends `Execute(session_id, command_line)`.
-4. Agent resolves the session, applies rate limit and quota, runs the command executor (break/print/trace), and returns `ExecuteResponse`.
-5. Agent loads eBPF, attaches kprobe/uprobe, and streams `DebugEvent` via `StreamEvents`.
-6. Optional RPCs: **`CompileAndAttach`** (full C source compiled on agent — same capability as REPL **`hook attach`**), **`ListTracepoints`**, **`ListKprobeSymbols`**, **`ListUprobeSymbols`**, **`InspectELF`**.
+1. Client connects with agent address and optional token.
+2. **`OpenSession`** returns a session id.
+3. User commands go through **`Execute(session_id, command_line)`**.
+4. Agent applies rate limit and quota, runs the executor, returns **`ExecuteResponse`**.
+5. eBPF loads attach kprobe/uprobe; **`StreamEvents`** delivers **`DebugEvent`**.
+6. Other RPCs include **`CompileAndAttach`**, **`ListTracepoints`**, **`ListKprobeSymbols`**, **`ListUprobeSymbols`**, **`InspectELF`** (discovery and full-C hooks).
 
 ## Components
 
-| Layer        | Responsibility |
-|-------------|----------------|
-| CLI         | Rust: [`src/cli`](../src/cli) (REPL, `discover` subcommands) |
-| Agent API   | Auth (Bearer token), session manager, Execute/StreamEvents/OpenSession/ListSessions/CloseSession, discovery + compile RPCs |
-| Discovery   | [`lib/agent/discovery`](../lib/agent/discovery): tracefs tracepoints, kallsyms, ELF uprobe symbols, ELF section names |
-| Hook compile | [`lib/agent/hook`](../lib/agent/hook): CO-RE `clang` flags (`-g`), embedded template for REPL `hook add` (kprobe / tracepoint / uprobe / uretprobe), `CompileRaw` + `AttachProbeFromObject` for `hook attach` / `CompileAndAttach` |
-| Executor    | Parse command line, dispatch break/print/trace/continue, return proto result |
-| Session     | Per-session state; quota and rate limiter keyed by session ID |
-| Probe       | User-space symbol resolution (ELF) for uprobe |
-| Runtime     | Load eBPF from .o file, attach kprobe/uprobe, ring buffer reader, decode events |
+| Layer | Role |
+|-------|------|
+| CLI | REPL and `discover` in `src/cli` |
+| Agent API | Auth, sessions, Execute, streams, discovery, compile/attach |
+| Discovery | `lib/agent/discovery`: tracefs, kallsyms, ELF symbols |
+| Hook compile | `lib/agent/hook`: clang CO-RE, templates for `hook add`, `CompileRaw` + attach for `hook attach` / `CompileAndAttach` |
+| Executor | Parse line, dispatch verbs, return proto result |
+| Session | Per-session state; quota and rate limiter |
+| Probe | User-space ELF resolution for uprobes |
+| Runtime | Load `.o`, attach probes, ring buffer, decode events |
 
 ## Security
 
-- **Auth**: Optional Bearer token in gRPC metadata; interceptor validates on every RPC.
-- **Rate limit**: Per-session requests per second (configurable).
-- **Quota**: Max breakpoints, traces, and hooks per session.
-- **Audit**: Optional log of each Execute (session, command, ok/err).
-- **Health**: Optional HTTP endpoint (e.g. `:8080/health`) for load balancers.
+- Optional **Bearer** token on gRPC metadata.
+- **Rate limit** and **quota** per session (breakpoints, traces, hooks).
+- Optional **audit** log of each Execute.
+- Optional **HTTP health** endpoint for load balancers.
 
 ## eBPF
 
-- **Kprobe**: One program in `src/agent/bpf/probes/kernel/minikprobe.c`; runtime attaches it to a kernel symbol (e.g. `do_sys_open`).
-- **Uprobe**: One program in `src/agent/bpf/probes/user/uprobe.c`; runtime attaches via cilium/ebpf `OpenExecutable` + `Uprobe(symbol)`.
-- **Events**: Both use a ring buffer map and `event_header` (timestamp, session_id, event_type, pid, tgid, cpu, probe_id). User space decodes with `runtime.DecodeEvent`.
+- **Kprobe** — `src/agent/bpf/probes/kernel/minikprobe.c`.
+- **Uprobe** — `src/agent/bpf/probes/user/uprobe.c`.
+- **Events** — Ring buffer + shared `event_header`; decoded in user space via `runtime.DecodeEvent`.
 
-## Coding standards
+## Roadmap
 
-See [docs/coding-standards.md](coding-standards.md): English comments at key points, one function one responsibility, clear naming, layer boundaries.
-
-## Further improvements
-
-High-level directions (conditions, persistence, MCP, packaging, and more) are tracked in [roadmap.md](roadmap.md). The sections above remain the reference for where to extend the codebase today.
+Larger themes (persistence, packaging, etc.) are in [roadmap.md](roadmap.md). Code style: [coding-standards.md](coding-standards.md).

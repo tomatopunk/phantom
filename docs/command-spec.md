@@ -54,7 +54,11 @@ Example (program on the agent filesystem):
 hook attach --attach kprobe:do_sys_open --file /tmp/myhook.c --program my_handler
 ```
 
-Errors include `hook attach: empty source`, `hook attach: --file path must be absolute`, `hook attach: read file: …`, and compile/attach failures from clang or the loader.
+Errors include `hook attach: empty source`, `hook attach: --file path must be absolute`, `hook attach: read file: …`, and compile/attach failures from clang or the loader. After successful compilation, **attach** failures are reported as `hook attach: attach failed: …` (same underlying message as gRPC `CompileAndAttach`).
+
+## MCP
+
+stdio JSON-RPC tools use the same command strings and attach semantics; see [mcp.md](mcp.md).
 
 ## Expressions (print / trace)
 
@@ -70,4 +74,6 @@ Built-in names: `pid`, `tgid`, `comm`, `cpu`, `arg0` … `arg5`, `ret`. Values a
 - `hook add: missing --code or --sec` — neither `--code` nor `--sec` was given.
 - `hook add: cannot use both --code and --sec (use one)` — both were given.
 - `hook attach: missing --file or --source` — neither input source was provided.
+- `hook attach: attach failed: …` — compile succeeded but loader could not attach (same situation as gRPC `CompileAndAttach` / MCP `compile_and_attach`).
+- `quota: max hooks reached` — session hook quota exceeded (`CompileAndAttach` / `hook add` / `hook attach`).
 - `unknown command: <verb>` — verb not recognized.

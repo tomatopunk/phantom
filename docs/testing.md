@@ -12,6 +12,14 @@ go test ./...
 
 The e2e package includes in-process gRPC tests that always run; BPF-heavy tests **skip** unless environment variables are set (see below).
 
+### MCP and debugger server (pure Go)
+
+Packages [`lib/agent/mcp`](../lib/agent/mcp) and [`lib/agent/server`](../lib/agent/server) (REPL dispatch, hooks). Focused run:
+
+```bash
+go test ./lib/agent/mcp/... ./lib/agent/server/...
+```
+
 ## Building eBPF objects (Linux)
 
 Required for real kprobe tests and scripted e2e:
@@ -110,5 +118,3 @@ phantom> hook add --point kprobe:tcp_recvmsg --lang c --sec "sport==22 or dport=
 ```bash
 E2E_NETWORK=1 go test -v ./test/e2e/ -run TestTcpdumpStyle
 ```
-
-See [command-spec.md](command-spec.md) for full command syntax.

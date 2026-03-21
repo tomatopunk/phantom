@@ -39,3 +39,36 @@ func (a *mcpBackendAdapter) ListBreakpoints(ctx context.Context, sessionID strin
 func (a *mcpBackendAdapter) ListHooks(ctx context.Context, sessionID string) (string, error) {
 	return a.s.ListHooksBackend(ctx, sessionID)
 }
+
+func (a *mcpBackendAdapter) CompileAndAttach(
+	ctx context.Context, sessionID, source, attach, programName string,
+) (*proto.CompileAndAttachResponse, error) {
+	return a.s.CompileAndAttach(ctx, &proto.CompileAndAttachRequest{
+		SessionId:     sessionID,
+		Source:        source,
+		Attach:        attach,
+		ProgramName:   programName,
+	})
+}
+
+func (a *mcpBackendAdapter) ListTracepoints(ctx context.Context, prefix string, maxEntries uint32) ([]string, error) {
+	r, err := a.s.ListTracepoints(ctx, &proto.ListTracepointsRequest{
+		Prefix:     prefix,
+		MaxEntries: maxEntries,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.GetNames(), nil
+}
+
+func (a *mcpBackendAdapter) ListKprobeSymbols(ctx context.Context, prefix string, maxEntries uint32) ([]string, error) {
+	r, err := a.s.ListKprobeSymbols(ctx, &proto.ListKprobeSymbolsRequest{
+		Prefix:     prefix,
+		MaxEntries: maxEntries,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.GetSymbols(), nil
+}

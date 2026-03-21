@@ -1,37 +1,43 @@
 # Roadmap
 
-This document describes **directions we consider valuable**, not a fixed delivery schedule. Priorities change with contributors and use cases.
+This describes **directions we care about**, not a fixed schedule. Priorities change with contributors and use cases.
 
-**Maturity:** Many Near-term capabilities already exist in tree, but **presence is not the same as production-ready usability**—interactive flows, error clarity, parity across REPL / gRPC / MCP, and tests still need active iteration. See [near-maturity-inventory.md](near-maturity-inventory.md) for a prioritized view of those gaps.
+## What exists today
 
-## Current (what exists today)
+- **Agent** — gRPC: sessions, `Execute`, optional Bearer auth, rate limits, quotas, audit hooks; discovery and `CompileAndAttach`; event stream.
+- **Rust CLI** — `phantom-cli`: same command lines as the agent REPL, `discover` helpers, shared `lib/phantom-client`.
+- **Desktop** — Tauri app using the same Rust client (shared success/failure semantics with CLI).
+- **eBPF** — Kprobe/uprobe objects under `src/agent/bpf`; load/attach and ring-buffer events.
+- **MCP** — Debugger over stdio JSON-RPC (`tools/call`); see [mcp.md](mcp.md).
+- **CI** — Lint, Go/Rust tests and coverage, eBPF build checks, Linux-oriented Go e2e; tagged releases.
 
-- **Agent** — Go gRPC server: sessions, command execution, optional Bearer auth, rate limits, quotas, audit hooks.
-- **Rust CLI** — `phantom-cli`: REPL-style commands, `discover` helpers, shared [`lib/phantom-client`](../lib/phantom-client).
-- **Desktop** — Tauri + web frontend using the same Rust client crate (early UX; shares client semantics with CLI).
-- **eBPF** — Kprobe and uprobe object files under [`src/agent/bpf`](../src/agent/bpf); runtime load/attach and ring-buffer events.
-- **MCP** — Debugger backend exposed for tool-style integrations (contract aligned with `Execute` / sessions).
-- **CI** — Lint, tests, coverage (Go + Rust), eBPF build checks, Linux BPF-oriented Go e2e; release workflow for tagged versions.
+## Near-term baseline (delivered)
 
-## Near-term (baseline maturity & usability)
+Goal: **one consistent story** for command behavior and errors across REPL, gRPC, MCP, and clients—not a pile of one-off paths.
 
-Focus: **stabilize and clarify** what already ships—predictable command behavior, useful errors, and one story across REPL, gRPC, MCP, and clients—not only new features.
+**Included in this baseline:**
 
-- **Executor / REPL** — Table-driven dispatch and shared hook-quota lifecycle; continue tightening errors, help text, and edge cases around `break`, `trace`, `hook`, and session lifecycle.
-- **REPL ↔ gRPC parity** — `hook attach` and `CompileAndAttach` share compile/attach paths; keep docs explicit on `--sec` DSL vs BPF `SEC("…")` ([ebpf-parameters.md](ebpf-parameters.md)).
-- **MCP** — Same success/failure semantics as `Execute` for command-style tools; then additional tools aligned with common agent workflows.
-- **Tests & docs** — Expand coverage on brittle paths (executor, hooks, sessions); keep [testing.md](testing.md) and [command-spec.md](command-spec.md) in sync with behavior.
+| Area | What shipped |
+|------|----------------|
+| **Executor / REPL** | Table-driven dispatch, shared hook quota, help aligned with [command-spec.md](command-spec.md). |
+| **REPL ↔ gRPC** | Shared compile/attach path for hooks; attach failures use an `attach failed:` style message (see command-spec and [ebpf-parameters.md](ebpf-parameters.md)). |
+| **MCP** | `ExecuteCommandLine` parity with `Execute` (`ok: false` → tool error); tools `compile_and_attach`, `list_tracepoints`, `list_kprobe_symbols`, plus session/command helpers in [mcp.md](mcp.md). |
+| **Tests & docs** | e.g. `go test ./lib/agent/mcp/...`; [testing.md](testing.md) covers MCP-related packages. |
 
-## Mid-term (larger pieces)
+**Maintenance:** Keep docs and tests in step when behavior changes. New MCP tools or REPL edge cases belong here unless they are clearly **Mid-term**-sized features.
 
-- **Session persistence** — Optional recovery or export of session state across agent restarts (design TBD).
+**Residual (optional, non-blocking):** further refactors inside the hook compile/attach path; on non-Linux, `list` may return an informational message with `ok: true` instead of failing—documented behavior, not a near-term gap.
+
+## Mid-term
+
+- **Session persistence** — Optional recovery or export across agent restarts (design TBD).
 - **Conditions & watchpoints** — Richer `condition` / `watch` behavior and validation.
-- **Packaging** — First-class install paths (distro packages, container images) beyond ad-hoc binaries.
+- **Packaging** — Distro packages, container images beyond ad-hoc binaries.
 
-## Long-term / ideas (exploratory)
+## Long-term / exploratory
 
-- **Broader probe models** — More attach types, safer defaults, and clearer resource limits per environment.
-- **Multi-node / federation** — Optional coordination across agents (very early concept only).
-- **Observability** — Deeper metrics and tracing around RPC and eBPF attach paths.
+- Broader probe models and safer defaults per environment.
+- Multi-node / federation (early concept).
+- Deeper metrics and tracing around RPC and eBPF attach.
 
-For how components fit together, see [architecture.md](architecture.md).
+Component layout: [architecture.md](architecture.md).

@@ -1,16 +1,16 @@
 # Documentation
 
-English-language technical docs for Phantom.
+English technical docs for Phantom. **Scope and shipped baseline** are defined in [roadmap.md](roadmap.md).
 
-| Document | Description |
-|----------|-------------|
-| [architecture.md](architecture.md) | System overview, data flow, components, security, eBPF layout. |
-| [command-spec.md](command-spec.md) | REPL commands: `hook add`, `hook attach`, and other verbs. |
-| [ebpf-parameters.md](ebpf-parameters.md) | `--sec` DSL vs BPF `SEC`, parameter strategies, attach kinds. |
-| [coding-standards.md](coding-standards.md) | Comment language, structure, naming, and layer boundaries. |
-| [ops.md](ops.md) | Deployment (systemd), configuration knobs, troubleshooting. |
-| [testing.md](testing.md) | End-to-end and integration tests, Make targets, CI alignment. |
-| [roadmap.md](roadmap.md) | Planned directions and ideas (not a committed schedule). |
-| [near-maturity-inventory.md](near-maturity-inventory.md) | Prioritized gaps for Near-term quality vs raw feature presence. |
+| Document | Purpose |
+|----------|---------|
+| [roadmap.md](roadmap.md) | What exists today, near-term baseline (delivered), later directions |
+| [architecture.md](architecture.md) | Components and data flow |
+| [command-spec.md](command-spec.md) | REPL / `Execute` commands |
+| [ebpf-parameters.md](ebpf-parameters.md) | `--sec` DSL vs BPF `SEC`, attach kinds |
+| [mcp.md](mcp.md) | MCP stdio tools (same semantics as gRPC) |
+| [testing.md](testing.md) | Tests, e2e, BPF build notes |
+| [ops.md](ops.md) | Deploy and troubleshooting |
+| [coding-standards.md](coding-standards.md) | Contributor conventions |
 
-The root [README.md](../README.md) is the short project entry point; start there, then dive into the files above as needed.
+Project overview: [../README.md](../README.md).

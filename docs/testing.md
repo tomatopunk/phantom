@@ -12,6 +12,18 @@ go test ./...
 
 The e2e package includes in-process gRPC tests that always run; BPF-heavy tests **skip** unless environment variables are set (see below).
 
+### CI parity: lint (run before push)
+
+GitHub Actions runs **golangci-lint on both Ubuntu and macOS** without setting `GOOS`. A target that only uses `GOOS=linux` (to typecheck `//go:build linux` files) does **not** reproduce the macOS job: non-Linux stubs such as [`lib/agent/server/btf_spec_stub.go`](../lib/agent/server/btf_spec_stub.go) are analyzed only when `GOOS=darwin` (or `windows`, etc.).
+
+From the repo root, match the `lint` + `rust-lint` workflow jobs:
+
+```bash
+make ci-lint
+```
+
+This runs `make proto`, license headers, **two** golangci passes (`linux/amd64` and `darwin` with `CI_DARWIN_ARCH`, default `arm64`), then `cargo fmt` / `cargo clippy` on `phantom-cli` and `phantom-client`. Install **golangci-lint v2.11.3** (same as CI) and **protoc** locally.
+
 ### MCP and debugger server (pure Go)
 
 Packages [`lib/agent/mcp`](../lib/agent/mcp) and [`lib/agent/server`](../lib/agent/server) (REPL dispatch, hooks). Focused run:

@@ -20,6 +20,6 @@ package server
 
 import "github.com/cilium/ebpf/btf"
 
-func loadExecutorBTF(_ string) (*btf.Spec, string) {
+func loadExecutorBTF(_ string) (spec *btf.Spec, elfPath string) {
 	return nil, ""
 }

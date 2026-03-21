@@ -25,6 +25,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/tomatopunk/phantom/lib/agent/mcp"
 	"github.com/tomatopunk/phantom/lib/agent/server"
 	"github.com/tomatopunk/phantom/lib/agent/session"
@@ -41,6 +42,10 @@ func main() {
 	bpfInclude := flag.String("bpf-include", os.Getenv("PHANTOM_BPF_INCLUDE"), "path to bpf/include for C hook compile")
 	enableMCP := flag.Bool("mcp", false, "run MCP server on stdio instead of gRPC")
 	flag.Parse()
+
+	if err := rlimit.RemoveMemlock(); err != nil {
+		log.Printf("phantom: memlock rlimit: %v (eBPF may fail; try ulimit -l unlimited or sufficient capabilities)", err)
+	}
 
 	cfg := server.DefaultConfig()
 	cfg.ListenAddr = *listen

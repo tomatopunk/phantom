@@ -29,6 +29,9 @@ if [ "$(uname -s)" != "Linux" ]; then
   exit 0
 fi
 
+# CI runners and minimal environments often ship a low RLIMIT_MEMLOCK; BPF map creation needs locked memory.
+ulimit -l unlimited 2>/dev/null || true
+
 # Paths: only kprobe object (minikprobe.o), no http uprobe
 BPF_KPROBE_OUT="${BPF_KPROBE_OUT:-$ROOT_DIR/src/agent/bpf/probes/kernel/minikprobe.o}"
 AGENT_BIN="${AGENT_BIN:-$ROOT_DIR/phantom-agent}"

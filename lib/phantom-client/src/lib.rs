@@ -245,25 +245,31 @@ mod execute_response_tests {
 
     #[test]
     fn into_result_success() {
-        let mut r = ExecuteResponse::default();
-        r.ok = true;
-        r.output = "out".to_string();
+        let r = ExecuteResponse {
+            ok: true,
+            output: "out".to_string(),
+            ..Default::default()
+        };
         assert_eq!(r.into_result().unwrap(), "out");
     }
 
     #[test]
     fn into_result_failure_trims_message() {
-        let mut r = ExecuteResponse::default();
-        r.ok = false;
-        r.error_message = "  boom  ".to_string();
+        let r = ExecuteResponse {
+            ok: false,
+            error_message: "  boom  ".to_string(),
+            ..Default::default()
+        };
         assert_eq!(r.into_result().unwrap_err(), "boom");
     }
 
     #[test]
     fn into_result_failure_empty_message() {
-        let mut r = ExecuteResponse::default();
-        r.ok = false;
-        r.error_message = "  ".to_string();
+        let r = ExecuteResponse {
+            ok: false,
+            error_message: "  ".to_string(),
+            ..Default::default()
+        };
         assert!(r.into_result().unwrap_err().contains("command failed"));
     }
 }

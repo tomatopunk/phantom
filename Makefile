@@ -1,5 +1,5 @@
 # Phantom — build and CI
-.PHONY: all build proto test fmt vet lint lint-go-linux clean agent cli rust-cli rust-workspace build-bpf build-uprobe-e2e-helper test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-ci test-e2e-mr test-e2e-all desktop-install desktop-dev desktop-build license-add license-check
+.PHONY: all build proto test fmt vet lint lint-go-linux lint-go-ubuntu lint-go-macos lint-go-ci rust-lint-ci ci-lint clean agent cli rust-cli rust-workspace build-bpf build-uprobe-e2e-helper test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-ci test-e2e-mr test-e2e-all desktop-install desktop-dev desktop-build license-add license-check
 
 BINARY_AGENT := phantom-agent
 DESKTOP_DIR  := src/desktop
@@ -100,12 +100,36 @@ vet:
 lint: fmt vet license-check
 	@which staticcheck >/dev/null 2>&1 && staticcheck ./... || true
 
-# Go lint matching Linux CI: GOOS=linux typechecks //go:build linux code paths (same as ubuntu job). Safe on macOS.
-# Note: do not combine GOOS=linux with `go test` on macOS (tests build as Linux ELF and fail with "exec format error").
-# Full Linux run: start Docker, then e.g. docker run --rm -v "$$PWD":/w -w /w golang:1.25-bookworm bash -lc 'apt-get update && apt-get install -y protobuf-compiler && curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b /usr/local/bin v2.11.3 && make lint-go-linux && go test ./...'
-lint-go-linux: proto license-check
-	@command -v golangci-lint >/dev/null 2>&1 || { echo "golangci-lint not found (CI uses v2.11.3)"; exit 1; }
+# --- golangci-lint: match .github/workflows/ci.yml `lint` job (ubuntu + macos matrix) ---
+# CI does NOT set GOOS; ubuntu workers analyze linux/amd64, macos workers analyze darwin (arm64 on Apple runners).
+# Running only GOOS=linux locally misses //go:build !linux files (e.g. btf_spec_stub.go) that macOS CI still checks.
+GOLANGCI_VERSION_EXPECT := v2.11.3
+
+lint-go-ubuntu:
+	@command -v golangci-lint >/dev/null 2>&1 || { echo "install golangci-lint $(GOLANGCI_VERSION_EXPECT) (see CI golangci-lint-action)"; exit 1; }
 	GOOS=linux GOARCH=amd64 golangci-lint run ./...
+
+# macOS CI uses arm64; override on Intel: make lint-go-macos CI_DARWIN_ARCH=amd64
+CI_DARWIN_ARCH ?= arm64
+
+lint-go-macos:
+	@command -v golangci-lint >/dev/null 2>&1 || { echo "install golangci-lint $(GOLANGCI_VERSION_EXPECT) (see CI golangci-lint-action)"; exit 1; }
+	GOOS=darwin GOARCH=$(CI_DARWIN_ARCH) golangci-lint run ./...
+
+lint-go-ci: proto license-check
+	@$(MAKE) lint-go-ubuntu
+	@$(MAKE) lint-go-macos
+
+# Back-compat name: linux/amd64 only (does not cover the macOS CI matrix leg).
+lint-go-linux: proto license-check lint-go-ubuntu
+
+# --- Rust: match .github/workflows/ci.yml `rust-lint` job ---
+rust-lint-ci:
+	cargo fmt -p phantom-cli -p phantom-client -- --check
+	cargo clippy -p phantom-cli -p phantom-client --all-targets -- -D warnings
+
+# Static checks equivalent to CI `lint` + `rust-lint` (no go test / e2e). Run before every push.
+ci-lint: lint-go-ci rust-lint-ci
 
 # Add Apache-2.0 + SPDX file headers (see scripts/license-addlicense.sh for ignores).
 # Override: make license-add LICENSE_COPYRIGHT="Your Name" LICENSE_YEAR=2025

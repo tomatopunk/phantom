@@ -31,6 +31,8 @@ if [ "$(uname -s)" != "Linux" ]; then
   exit 0
 fi
 
+ulimit -l unlimited 2>/dev/null || true
+
 BPF_KPROBE_OUT="${BPF_KPROBE_OUT:-$ROOT_DIR/src/agent/bpf/probes/kernel/minikprobe.o}"
 AGENT_BIN="${AGENT_BIN:-$ROOT_DIR/phantom-agent}"
 CLI_BIN="${CLI_BIN:-$ROOT_DIR/target/release/phantom-cli}"

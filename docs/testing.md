@@ -56,6 +56,9 @@ sudo apt install -y libbpf-dev
 - **linux-headers-$(uname -r)** — Headers for the running kernel (compile + load kprobes).
 - **clang** — Compiles eBPF C (`make build-bpf`).
 - **libbpf-dev** — libbpf headers for loaders.
+- **linux-libc-dev** — glibc/kernel UAPI headers (`linux/*.h`, multiarch `asm/*.h`) for CO-RE clang in tests.
+
+On Linux, **`go test ./...`** includes [`TestCompile_COReHook`](../lib/agent/hook/compile_linux_test.go), which invokes **clang** with the same include layout as **`make build-bpf`**; without **libbpf-dev** / **linux-libc-dev**, you will see missing **`bpf/bpf_helpers.h`** or **`asm/types.h`**.
 
 ## E2E: HTTP/1.0 (generic kprobe)
 
@@ -102,6 +105,8 @@ make test-e2e-mr
 ```
 
 Requires Linux, `clang`, kernel headers, `libbpf`, `curl`, `python3`, **Rust** (`make cli`), and `make build-bpf` / `phantom-agent` (the Makefile recipe builds the uprobe helper on Linux automatically).
+
+**Hardened / CI hosts:** [`scripts/e2e_linux_bpf_env.sh`](../scripts/e2e_linux_bpf_env.sh) applies **`setcap`** on `phantom-agent` when passwordless **sudo** is available: **memlock** and BPF maps (**cap_sys_resource**), **BPF** (**cap_bpf**), and **vDSO kernel-version detection** used by **cilium/ebpf** when loading kprobes (**cap_sys_ptrace**, for `/proc/self/mem`).
 
 ## Tcpdump-style observation (commands only)
 

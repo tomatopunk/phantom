@@ -1,5 +1,5 @@
 # Phantom — build and CI
-.PHONY: all build proto test fmt vet lint clean agent cli rust-cli rust-workspace build-bpf test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-ci test-e2e-all desktop-install desktop-dev desktop-build license-add license-check
+.PHONY: all build proto test fmt vet lint clean agent cli rust-cli rust-workspace build-bpf build-uprobe-e2e-helper test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-ci test-e2e-mr test-e2e-all desktop-install desktop-dev desktop-build license-add license-check
 
 BINARY_AGENT := phantom-agent
 DESKTOP_DIR  := src/desktop
@@ -71,9 +71,22 @@ test-e2e-tcpdump-style-cli:
 test-e2e-network:
 	E2E_NETWORK=1 $(GO) test -v ./test/e2e/ -run 'TestTcpdumpStyle'
 
-# Go e2e used by CI: HTTP/1.0 + tcpdump-style (needs Linux, agent, minikprobe.o, E2E_* env).
+# Go e2e: HTTP/1.0 + tcpdump-style + scenario tests (recv, open, fork, uprobe) when E2E_SCENARIOS=1.
+# Needs Linux, agent, minikprobe.o, optional uprobe helper from build-uprobe-e2e-helper.
 test-e2e-ci:
-	E2E_HTTP10=1 E2E_NETWORK=1 $(GO) test -v ./test/e2e/ -run 'Test(Http10Capture|TcpdumpStyle)'
+	E2E_HTTP10=1 E2E_NETWORK=1 E2E_SCENARIOS=1 $(GO) test -v ./test/e2e/ -run 'Test(Http10Capture|TcpdumpStyle|E2E)'
+
+# Build tiny C binary for uprobe e2e (Linux cc; no-op on other uname in recipe).
+build-uprobe-e2e-helper:
+	@if [ "$$(uname -s)" = Linux ]; then \
+		cc -g -O0 -o test/e2e/uprobe_helper/uprobe_helper test/e2e/uprobe_helper/main.c; \
+	fi
+
+# MR/CI full BPF e2e: Rust CLI + shell scripts + extended Go e2e.
+test-e2e-mr: cli build-uprobe-e2e-helper
+	./scripts/e2e_http10_generic.sh
+	./scripts/e2e_tcpdump_style_cli.sh
+	$(MAKE) test-e2e-ci
 
 # Run all e2e: CLI script + HTTP/1.0 script + Go e2e (network tests skip on non-Linux).
 test-e2e-all: test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network

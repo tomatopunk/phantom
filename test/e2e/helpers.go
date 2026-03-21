@@ -80,13 +80,22 @@ func SkipIfMissing(t *testing.T, paths ...string) {
 // StartAgent starts the agent with kprobe; caller must kill the process when done.
 func StartAgent(t *testing.T, agentBin, kprobeObj, listenAddr string) *exec.Cmd {
 	t.Helper()
-	cmd := exec.Command(agentBin, "-listen", listenAddr, "-kprobe", kprobeObj)
+	return StartAgentWithBpfInclude(t, agentBin, kprobeObj, listenAddr, "")
+}
+
+// StartAgentWithBpfInclude starts the agent with kprobe and optional -bpf-include (needed for hook add / tracepoint / uprobe compile).
+func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpfIncludeDir string) *exec.Cmd {
+	t.Helper()
+	args := []string{"-listen", listenAddr, "-kprobe", kprobeObj}
+	if bpfIncludeDir != "" {
+		args = append(args, "-bpf-include", bpfIncludeDir)
+	}
+	cmd := exec.Command(agentBin, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start agent: %v", err)
 	}
-	// Brief wait for listen
 	time.Sleep(1 * time.Second)
 	return cmd
 }
@@ -118,7 +127,7 @@ func WaitForBreakHits(
 				close(done)
 				return
 			}
-			if ev != nil && ev.GetEventType().String() == "EVENT_TYPE_BREAK_HIT" {
+			if ev != nil && ev.GetEventType() == proto.EventType_EVENT_TYPE_BREAK_HIT {
 				mu.Lock()
 				hits = append(hits, ev)
 				mu.Unlock()

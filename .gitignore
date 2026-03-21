@@ -31,3 +31,6 @@ src/desktop/dist/
 
 # Rust (workspace at repo root)
 /target/
+
+# e2e uprobe helper (built by make build-uprobe-e2e-helper)
+test/e2e/uprobe_helper/uprobe_helper

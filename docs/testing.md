@@ -56,9 +56,9 @@ make test-e2e-http10-generic
 
 Requires Linux, CAP_BPF (or root), built agent, Rust CLI (per script), and `make build-bpf`.
 
-## E2E: CI subset (Go)
+## E2E: CI / MR Go subset
 
-Same Go test subset as GitHub Actions (`E2E_HTTP10` + `E2E_NETWORK`):
+Same Go e2e as the `e2e-bpf` job’s Go step (inside `make test-e2e-mr`): `E2E_HTTP10`, `E2E_NETWORK`, and **`E2E_SCENARIOS`** for extra BPF scenarios.
 
 ```bash
 make test-e2e-ci
@@ -67,10 +67,27 @@ make test-e2e-ci
 Equivalent:
 
 ```bash
-E2E_HTTP10=1 E2E_NETWORK=1 go test -v ./test/e2e/ -run 'Test(Http10Capture|TcpdumpStyle)'
+E2E_HTTP10=1 E2E_NETWORK=1 E2E_SCENARIOS=1 go test -v ./test/e2e/ -run 'Test(Http10Capture|TcpdumpStyle|E2E)'
 ```
 
-Requires Linux, built `phantom-agent`, and `minikprobe.o` at the default path (or set `E2E_AGENT_BIN` / `E2E_KPROBE` / `PHANTOM_KPROBE` — see [`test/e2e/helpers.go`](../test/e2e/helpers.go)).
+**Scenarios covered (Linux only; `scenarios_test.go` is `//go:build linux`):**
+
+- **Network:** `tcp_sendmsg` (HTTP/1.0, HTTP/1.1, raw TCP) and **`tcp_recvmsg`** (client receives a response body).
+- **Files:** kprobe break on **`do_sys_open` / `do_sys_openat2`** (best-effort symbol from kallsyms) plus a local `Open`.
+- **Process:** **`tracepoint:sched:sched_process_fork`** via `hook add` (needs agent `-bpf-include`); triggers a child process.
+- **User space:** **`uprobe`** on `phantom_e2e_marker` in [`test/e2e/uprobe_helper`](../test/e2e/uprobe_helper) (build with `make build-uprobe-e2e-helper`, or set `E2E_UPROBE_HELPER` to the binary path).
+
+Requires Linux, built `phantom-agent`, and `minikprobe.o` at the default path (or set `E2E_AGENT_BIN` / `E2E_KPROBE` / `PHANTOM_KPROBE` — see [`test/e2e/helpers.go`](../test/e2e/helpers.go)). Some scenarios skip if attach/compile fails (kernel variance).
+
+## E2E: full MR target (shell + Go)
+
+Runs Rust `phantom-cli`, both shell scripts, then `test-e2e-ci`:
+
+```bash
+make test-e2e-mr
+```
+
+Requires Linux, `clang`, kernel headers, `libbpf`, `curl`, `python3`, **Rust** (`make cli`), and `make build-bpf` / `phantom-agent` (the Makefile recipe builds the uprobe helper on Linux automatically).
 
 ## Tcpdump-style observation (commands only)
 
@@ -83,7 +100,8 @@ Without the system `tcpdump`, you can treat `break tcp_sendmsg` as a trigger and
 ```bash
 make test-e2e-tcpdump-style-cli   # CLI script: break / trace / info / delete lifecycle
 make test-e2e-network             # Go e2e: HTTP/1.0, HTTP/1.1, raw TCP
-make test-e2e-all                 # Scripts + test-e2e-http10-generic + network Go e2e
+make test-e2e-all                 # Scripts + test-e2e-http10-generic + network Go e2e (no E2E_SCENARIOS)
+make test-e2e-mr                  # CLI + scripts + full Go e2e (matches CI e2e-bpf)
 ```
 
 **Example REPL flow:**

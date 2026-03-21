@@ -177,14 +177,14 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+      - uses: dtolnay/rust-toolchain@stable
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler clang libbpf-dev linux-headers-$(uname -r)
-      - name: Generate proto, BPF, agent
+          sudo apt-get install -y protobuf-compiler clang libbpf-dev linux-headers-$(uname -r) curl build-essential
+      - name: Generate proto, BPF, agent; full MR e2e
         run: |
           make proto
           make build-bpf
           make agent
-      - name: Go e2e (HTTP/1.0 + tcpdump-style)
-        run: make test-e2e-ci
+          make test-e2e-mr

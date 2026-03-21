@@ -46,7 +46,8 @@ make build-bpf                # Linux: compile .o files under src/agent/bpf/
 
 ```bash
 go test ./...                 # Default; e2e BPF tests skip unless env is set
-make test-e2e-ci              # Linux + BPF: same subset as CI
+make test-e2e-ci              # Linux + BPF: extended Go e2e (see docs/testing.md)
+make test-e2e-mr              # Linux: CLI + shell scripts + test-e2e-ci (same as CI e2e-bpf)
 ```
 
 Full matrix, scripts, and environment variables: **[docs/testing.md](docs/testing.md)**.

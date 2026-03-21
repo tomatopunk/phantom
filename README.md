@@ -1,4 +1,5 @@
 # Phantom
+[![.github/workflows/ci.yml](https://github.com/tomatopunk/phantom/actions/workflows/ci.yml/badge.svg)](https://github.com/tomatopunk/phantom/actions/workflows/ci.yml)
 
 Remote, interactive **eBPF debugger**: a Go **agent** (gRPC server) loads kprobes/uprobes and streams events; a Rust **CLI** (and optional **Tauri desktop** client) sends GDB-style commands over the network.
 

@@ -5,7 +5,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/tomatopunk/phantom/pkg/api/proto"
+	"github.com/tomatopunk/phantom/lib/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -89,11 +89,11 @@ func TestGrpcListSessions(t *testing.T) {
 	defer conn.Close()
 	debug := proto.NewDebuggerServiceClient(conn)
 
-	_, err = debug.Connect(ctx, &proto.ConnectRequest{SessionId: ""})
+	_, err = debug.OpenSession(ctx, &proto.OpenSessionRequest{SessionId: ""})
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp2, err := debug.Connect(ctx, &proto.ConnectRequest{SessionId: "custom-id"})
+	resp2, err := debug.OpenSession(ctx, &proto.OpenSessionRequest{SessionId: "custom-id"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestGrpcCloseSession(t *testing.T) {
 	defer conn.Close()
 	debug := proto.NewDebuggerServiceClient(conn)
 
-	connectResp, err := debug.Connect(ctx, &proto.ConnectRequest{SessionId: ""})
+	connectResp, err := debug.OpenSession(ctx, &proto.OpenSessionRequest{SessionId: ""})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,230 @@
+syntax = "proto3";
+
+package phantom.api;
+
+option go_package = "github.com/tomatopunk/phantom/lib/proto;proto";
+
+// DebuggerService is the main gRPC API for the remote eBPF debugger agent.
+service DebuggerService {
+  rpc OpenSession(OpenSessionRequest) returns (OpenSessionResponse);
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+  rpc StreamEvents(StreamEventsRequest) returns (stream DebugEvent);
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
+  rpc CompileAndAttach(CompileAndAttachRequest) returns (CompileAndAttachResponse);
+  rpc ListTracepoints(ListTracepointsRequest) returns (ListTracepointsResponse);
+  rpc ListKprobeSymbols(ListKprobeSymbolsRequest) returns (ListKprobeSymbolsResponse);
+  rpc ListUprobeSymbols(ListUprobeSymbolsRequest) returns (ListUprobeSymbolsResponse);
+  rpc InspectELF(InspectELFRequest) returns (InspectELFResponse);
+  // Host-wide and /proc-derived metrics (agent runs on the traced machine).
+  rpc GetHostMetrics(GetHostMetricsRequest) returns (GetHostMetricsResponse);
+  // Threads/tasks sharing TGID (traditional PID): /proc/<tgid>/task + per-TID status.
+  rpc GetTaskTree(GetTaskTreeRequest) returns (GetTaskTreeResponse);
+}
+
+message OpenSessionRequest {
+  string session_id = 1;
+}
+
+message OpenSessionResponse {
+  string session_id = 1;
+  string message = 2;
+}
+
+message ExecuteRequest {
+  string session_id = 1;
+  string command_line = 2;  // e.g. "break do_sys_open", "print pid"
+}
+
+message ExecuteResponse {
+  bool ok = 1;
+  string output = 2;
+  string error_message = 3;
+  oneof result {
+    BreakpointResult breakpoint = 4;
+    PrintResult print = 5;
+    TraceResult trace = 6;
+    HookResult hook = 7;
+  }
+}
+
+message BreakpointResult {
+  string breakpoint_id = 1;
+  string symbol = 2;
+  bool enabled = 3;
+}
+
+message PrintResult {
+  string expression = 1;
+  string value = 2;
+}
+
+message TraceResult {
+  string trace_id = 1;
+  repeated string expressions = 2;
+}
+
+message HookResult {
+  string hook_id = 1;
+  string attach_point = 2;
+  bool compiled = 3;
+  string error_message = 4;
+}
+
+message StreamEventsRequest {
+  string session_id = 1;
+}
+
+message DebugEvent {
+  int64 timestamp_ns = 1;
+  string session_id = 2;
+  EventType event_type = 3;
+  uint32 pid = 4;
+  uint32 tgid = 5;
+  uint32 cpu = 6;
+  string probe_id = 7;
+  bytes payload = 8;  // event-type-specific data
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_BREAK_HIT = 1;
+  EVENT_TYPE_TRACE_SAMPLE = 2;
+  EVENT_TYPE_ERROR = 3;
+  EVENT_TYPE_STATE_CHANGE = 4;
+}
+
+message ListSessionsRequest {}
+
+message ListSessionsResponse {
+  repeated string session_ids = 1;
+}
+
+message CloseSessionRequest {
+  string session_id = 1;
+}
+
+message CloseSessionResponse {
+  bool ok = 1;
+}
+
+// CompileAndAttachRequest compiles full eBPF C source on the agent and attaches one program.
+// attach format: "kprobe:symbol" | "tracepoint:subsystem:event" | "uprobe:/abs/path:symbol"
+message CompileAndAttachRequest {
+  string session_id = 1;
+  string source = 2;
+  string attach = 3;
+  string program_name = 4;  // optional ELF section program name; if empty, first matching probe type is used
+}
+
+message CompileAndAttachResponse {
+  bool ok = 1;
+  string error_message = 2;
+  string hook_id = 3;
+  string attach_point = 4;
+}
+
+message ListTracepointsRequest {
+  string prefix = 1;
+  uint32 max_entries = 2;
+}
+
+message ListTracepointsResponse {
+  repeated string names = 1;  // "subsystem/event_name"
+}
+
+message ListKprobeSymbolsRequest {
+  string prefix = 1;
+  uint32 max_entries = 2;
+}
+
+message ListKprobeSymbolsResponse {
+  repeated string symbols = 1;
+}
+
+message ListUprobeSymbolsRequest {
+  string binary_path = 1;
+  string prefix = 2;
+  uint32 max_entries = 3;
+}
+
+message ListUprobeSymbolsResponse {
+  repeated string symbols = 1;
+}
+
+message InspectELFRequest {
+  bytes elf_data = 1;
+}
+
+message InspectELFResponse {
+  repeated string section_names = 1;
+}
+
+message GetHostMetricsRequest {}
+
+// Parsed from /proc/loadavg, /proc/stat, /proc/meminfo, /proc/net/dev.
+message GetHostMetricsResponse {
+  string hostname = 1;
+  double loadavg_one = 2;
+  double loadavg_five = 3;
+  double loadavg_fifteen = 4;
+  int64 mem_total_kb = 5;
+  int64 mem_available_kb = 6;
+  int64 mem_buffers_kb = 7;
+  int64 mem_cached_kb = 8;
+  int64 mem_swap_total_kb = 9;
+  int64 mem_swap_free_kb = 10;
+  repeated CpuJiffies cpus = 11;
+  repeated NetDevRow net_devs = 12;
+  string error_message = 13; // partial data may still be filled
+}
+
+// One line from /proc/stat: "cpu" aggregate or "cpuN".
+message CpuJiffies {
+  string label = 1; // "cpu", "cpu0", ...
+  uint64 user = 2;
+  uint64 nice = 3;
+  uint64 system = 4;
+  uint64 idle = 5;
+  uint64 iowait = 6;
+  uint64 irq = 7;
+  uint64 softirq = 8;
+  uint64 steal = 9;
+  uint64 guest = 10;
+  uint64 guest_nice = 11;
+}
+
+// One row from /proc/net/dev (loopback and physical interfaces).
+message NetDevRow {
+  string name = 1;
+  uint64 rx_bytes = 2;
+  uint64 tx_bytes = 3;
+  uint64 rx_packets = 4;
+  uint64 tx_packets = 5;
+  uint64 rx_errors = 6;
+  uint64 tx_errors = 7;
+  uint64 rx_dropped = 8;
+  uint64 tx_dropped = 9;
+}
+
+message GetTaskTreeRequest {
+  uint32 tgid = 1;
+}
+
+message GetTaskTreeResponse {
+  uint32 tgid = 1;
+  repeated TaskInfo tasks = 2;
+  string error_message = 3;
+}
+
+// Subset of /proc/<tid>/status fields.
+message TaskInfo {
+  uint32 tid = 1;
+  string name = 2; // Name: field (comm)
+  string state = 3;
+  int64 vm_peak_kb = 4;
+  int64 vm_size_kb = 5;
+  int64 vm_rss_kb = 6;
+  int64 vm_hwm_kb = 7;
+  int32 threads_count = 8; // "Threads:" in status (process-wide; often same for all TIDs)
+}

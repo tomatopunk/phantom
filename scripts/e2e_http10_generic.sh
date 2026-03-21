@@ -14,9 +14,9 @@ if [ "$(uname -s)" != "Linux" ]; then
 fi
 
 # Paths: only kprobe object (minikprobe.o), no http uprobe
-BPF_KPROBE_OUT="${BPF_KPROBE_OUT:-$ROOT_DIR/bpf/probes/kernel/minikprobe.o}"
+BPF_KPROBE_OUT="${BPF_KPROBE_OUT:-$ROOT_DIR/src/agent/bpf/probes/kernel/minikprobe.o}"
 AGENT_BIN="${AGENT_BIN:-$ROOT_DIR/phantom-agent}"
-CLI_BIN="${CLI_BIN:-$ROOT_DIR/phantom-cli}"
+CLI_BIN="${CLI_BIN:-$ROOT_DIR/target/release/phantom-cli}"
 EVENTS_LOG="$(mktemp)"
 AGENT_LOG="$(mktemp)"
 SERVER_LOG="$(mktemp)"
@@ -27,10 +27,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "e2e_http10_generic: building (agent, cli, kprobe only)..."
+echo "e2e_http10_generic: building (agent, Rust cli, kprobe only)..."
 make -s proto agent cli 2>/dev/null || true
 if [ ! -f "$AGENT_BIN" ] || [ ! -f "$CLI_BIN" ]; then
-  make agent cli
+  make proto agent cli
 fi
 if [ ! -f "$BPF_KPROBE_OUT" ]; then
   echo "e2e_http10_generic: building kprobe (requires clang and kernel headers)..."
@@ -71,7 +71,7 @@ echo "e2e_http10_generic: setting break on tcp_sendmsg and sending HTTP/1.0 requ
   curl -s --http1.0 "http://127.0.0.1:$HTTP_PORT/" -o /dev/null || true
   sleep 0.5
   echo "quit"
-) | timeout 10 "$CLI_BIN" -agent "$AGENT_ADDR" 2>/dev/null >"$EVENTS_LOG" || true
+) | timeout 10 "$CLI_BIN" --agent "$AGENT_ADDR" 2>/dev/null >"$EVENTS_LOG" || true
 
 # Assert we got at least one break hit (generic event, no HTTP parsing)
 if grep -q 'type=EVENT_TYPE_BREAK_HIT' "$EVENTS_LOG" && grep -q 'pid=' "$EVENTS_LOG"; then

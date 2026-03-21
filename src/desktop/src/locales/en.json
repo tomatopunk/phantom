@@ -1,0 +1,131 @@
+{
+  "common": {
+    "dash": "—",
+    "ellipsis": "…",
+    "yes": "Yes",
+    "no": "No",
+    "emptyOutput": "(empty)",
+    "errorOutput": "error"
+  },
+  "header": {
+    "brand": "Phantom",
+    "agent": "Agent",
+    "token": "Token",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "startCapture": "Start capture",
+    "stopCapture": "Stop capture",
+    "displayFilter": "Display filter",
+    "filterPlaceholder": "Substring; space means match all tokens…",
+    "clearEvents": "Clear events",
+    "exportJsonl": "Export JSONL",
+    "exportTitle": "Ctrl/Cmd+E",
+    "langZh": "中文",
+    "langEn": "English"
+  },
+  "breadcrumb": {
+    "prefix": "Path:",
+    "nic": "NIC {{name}}",
+    "tgid": "TGID {{id}}"
+  },
+  "dimension": {
+    "host": "Host",
+    "nic": "NIC",
+    "threads": "Threads"
+  },
+  "metrics": {
+    "hintDisconnected": "Connect to pull /proc metrics from the machine where the agent runs.",
+    "memBarCaption": "Memory (rough): (total−avail)/total",
+    "statTableCaption": "/proc/stat jiffies (aggregate + per-CPU)",
+    "cpuCol": "CPU",
+    "rowsTotal": "… {{count}} rows total",
+    "nicHint": "/proc/net/dev (click to select context NIC)",
+    "load1m": "Load 1m",
+    "load5m": "Load 5m",
+    "memTotal": "Mem total",
+    "memAvail": "Mem avail",
+    "rxLabel": "rx",
+    "txLabel": "tx",
+    "byteAbbr": "B",
+    "colUser": "user",
+    "colSys": "sys",
+    "colIdle": "idle",
+    "colIow": "iow"
+  },
+  "tasks": {
+    "loadTask": "Load /proc/…/task",
+    "invalidTgid": "Invalid TGID",
+    "colTgid": "TGID",
+    "colTid": "TID",
+    "colName": "Name",
+    "colRss": "RSS kb",
+    "filter": "Filter"
+  },
+  "discover": {
+    "tracepoint": "Tracepoint",
+    "kprobe": "Kprobe",
+    "uprobe": "Uprobe",
+    "prefixPh": "prefix",
+    "binaryPh": "binary",
+    "list": "List"
+  },
+  "cmd": {
+    "title": "Command (execute)",
+    "run": "Run"
+  },
+  "hook": {
+    "title": "compile_and_attach (advanced)",
+    "attachPh": "attach",
+    "progNamePh": "prog name",
+    "compile": "Compile & attach"
+  },
+  "events": {
+    "panelTitle": "Events ({{filtered}} / buffer {{total}})"
+  },
+  "detail": {
+    "jsonTitle": "Detail JSON",
+    "pickRow": "Select an event row"
+  },
+  "hex": {
+    "title": "Hex (payload)",
+    "truncated": " — truncated"
+  },
+  "footer": {
+    "session": "Session:",
+    "connected": "Connected:",
+    "capture": "Capture:",
+    "capturing": "running",
+    "stopped": "stopped",
+    "metricsRefresh": "Metrics refresh:",
+    "shortcutExport": "Shortcut: ⌘/Ctrl+E export JSONL"
+  },
+  "glossary": {
+    "loadavg_one": "/proc/loadavg field 1: 1-minute load average (runnable + uninterruptible tasks, interpret per CPU count).",
+    "loadavg_five": "/proc/loadavg field 2: 5-minute load average.",
+    "loadavg_fifteen": "/proc/loadavg field 3: 15-minute load average.",
+    "mem_total_kb": "/proc/meminfo MemTotal: total physical memory reported by the kernel (kB).",
+    "mem_available_kb": "/proc/meminfo MemAvailable: estimate of memory available for new workloads without swapping (includes reclaimable cache).",
+    "mem_buffers_kb": "/proc/meminfo Buffers: raw block I/O cache (usually small).",
+    "mem_cached_kb": "/proc/meminfo Cached: page cache and reclaimable slab; large values are often normal.",
+    "mem_swap_total_kb": "/proc/meminfo SwapTotal: total swap space.",
+    "mem_swap_free_kb": "/proc/meminfo SwapFree: unused swap.",
+    "cpu_user": "/proc/stat: time in user mode for non-niced processes (jiffies).",
+    "cpu_nice": "/proc/stat: user mode for niced processes (jiffies).",
+    "cpu_system": "/proc/stat: system/kernel mode jiffies (excluding some interrupt accounting).",
+    "cpu_idle": "/proc/stat: idle jiffies.",
+    "cpu_iowait": "/proc/stat: time waiting for I/O (may be zero on some kernels/setups).",
+    "rx_bytes": "/proc/net/dev: received bytes on the interface (since boot, cumulative).",
+    "tx_bytes": "/proc/net/dev: transmitted bytes.",
+    "rx_errors": "/proc/net/dev: receive errors (hardware/driver hints).",
+    "tx_errors": "/proc/net/dev: transmit errors.",
+    "rx_dropped": "/proc/net/dev: receive drops (e.g. buffer full).",
+    "tx_dropped": "/proc/net/dev: transmit drops.",
+    "vm_size_kb": "/proc/<tid>/status VmSize: virtual address space size (VSZ), includes unmapped pages.",
+    "vm_rss_kb": "/proc/<tid>/status VmRSS: resident set size mapped to physical memory (approx. RSS).",
+    "vm_peak_kb": "/proc/<tid>/status VmPeak: peak VmSize.",
+    "vm_hwm_kb": "/proc/<tid>/status VmHWM: peak RSS (high water mark).",
+    "threads_count": "/proc/<tid>/status Threads: number of tasks in the thread group (often identical on each TID line).",
+    "tid": "Thread ID (kernel task id). TGID is the POSIX process ID; TIDs sharing a TGID are threads in one process.",
+    "tgid": "Thread group ID: the traditional PID; matches tgid in BPF events."
+  }
+}

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tomatopunk/phantom/pkg/cli/client"
+	"github.com/tomatopunk/phantom/test/e2e/grpcclient"
 )
 
 // TestHttp10CaptureE2E runs a generic HTTP/1.0 traffic e2e when E2E_HTTP10=1 on Linux:
@@ -43,7 +43,7 @@ func TestHttp10CaptureE2E(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	c, err := client.New(ctx, agentAddr, "")
+	c, err := grpcclient.New(ctx, agentAddr, "")
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}

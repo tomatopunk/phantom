@@ -1,0 +1,20 @@
+[package]
+name = "phantom-desktop"
+version = "0.1.0"
+description = "Phantom debugger desktop (Tauri)"
+edition = "2021"
+
+[lib]
+name = "phantom_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+phantom-client = { path = "../../../lib/phantom-client" }
+hex = "0.4"

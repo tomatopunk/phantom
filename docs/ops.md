@@ -29,9 +29,9 @@ Agent is configured via code (see `server.DefaultConfig()` and `server.Config`).
 
 ## Troubleshooting
 
-### CLI: "missing -agent"
+### CLI: "missing -agent" / connection errors
 
-Pass the agent address: `phantom-cli -agent host:9090`.
+Pass the agent address: `phantom-cli --agent host:9090` (or `-a host:9090`).
 
 ### CLI: "connect: ... connection refused"
 
@@ -41,7 +41,7 @@ Pass the agent address: `phantom-cli -agent host:9090`.
 ### CLI: "session not found"
 
 - Session was closed (e.g. `CloseSession` or agent restart).
-- Reconnect and call `Connect` again to get a new session.
+- Reconnect and call `OpenSession` again to get a new session.
 
 ### Agent: "listen ... address already in use"
 

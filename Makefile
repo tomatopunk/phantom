@@ -1,18 +1,18 @@
 # Phantom — build and CI
-.PHONY: all build proto test fmt vet lint clean agent cli build-bpf test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-all
+.PHONY: all build proto test fmt vet lint clean agent cli rust-cli rust-workspace build-bpf test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-ci test-e2e-all
 
 BINARY_AGENT := phantom-agent
-BINARY_CLI   := phantom-cli
+BINARY_RUST_CLI := target/release/phantom-cli
 GO           := go
-PROTO_DIR    := pkg/api/proto
+PROTO_DIR    := lib/proto
 PROTO_SRC    := $(PROTO_DIR)/debugger.proto
-BPF_INCLUDE  := $(CURDIR)/bpf/include
+BPF_INCLUDE  := $(CURDIR)/src/agent/bpf/include
 BPF_SYSINC   := /usr/include/$(shell uname -m)-linux-gnu
 # /usr/include for libbpf headers (bpf/bpf_helpers.h, bpf/bpf_tracing.h) on Linux
 BPF_LIBBPF_INC := /usr/include
-BPF_KPROBE   := bpf/probes/kernel/minikprobe
-BPF_UPROBE   := bpf/probes/user/uprobe
-BPF_EVENTS   := bpf/core/events
+BPF_KPROBE   := src/agent/bpf/probes/kernel/minikprobe
+BPF_UPROBE   := src/agent/bpf/probes/user/uprobe
+BPF_EVENTS   := src/agent/bpf/core/events
 BPF_OUT      := $(BPF_KPROBE).o
 BPF_UPROBE_OUT := $(BPF_UPROBE).o
 BPF_EVENTS_OUT := $(BPF_EVENTS).o
@@ -21,13 +21,20 @@ CLANG_FLAGS  := -target bpf -O2 -g -I $(BPF_INCLUDE) -I $(BPF_SYSINC) -I $(BPF_L
 
 all: fmt vet proto build test
 
-build: agent cli
+# Agent only by default (CI-friendly). Use `make cli` for the Rust REPL binary.
+build: agent
 
 agent:
-	$(GO) build -o $(BINARY_AGENT) ./cmd/agent
+	$(GO) build -o $(BINARY_AGENT) ./src/agent
 
-cli:
-	$(GO) build -o $(BINARY_CLI) ./cmd/cli
+# Rust REPL + discover (preferred CLI)
+cli: rust-cli
+
+rust-cli:
+	cargo build -p phantom-cli --release
+
+rust-workspace:
+	cargo build --workspace
 
 proto: $(PROTO_SRC)
 	$(GO) install google.golang.org/protobuf/cmd/protoc-gen-go@latest
@@ -40,7 +47,7 @@ test:
 	$(GO) test ./...
 
 # E2E test for HTTP/1.0 traffic using only generic eBPF (kprobe + break tcp_sendmsg).
-# Requires: agent, cli, bpf/probes/kernel/minikprobe.o
+# Requires: agent, phantom-cli (Rust), bpf/probes/kernel/minikprobe.o
 test-e2e-http10-generic:
 	./scripts/e2e_http10_generic.sh
 
@@ -51,6 +58,10 @@ test-e2e-tcpdump-style-cli:
 # E2E Go tests for network scenarios (HTTP/1.0, HTTP/1.1, raw TCP). Requires Linux, agent, kprobe.
 test-e2e-network:
 	E2E_NETWORK=1 $(GO) test -v ./test/e2e/ -run 'TestTcpdumpStyle'
+
+# Go e2e used by CI: HTTP/1.0 + tcpdump-style (needs Linux, agent, minikprobe.o, E2E_* env).
+test-e2e-ci:
+	E2E_HTTP10=1 E2E_NETWORK=1 $(GO) test -v ./test/e2e/ -run 'Test(Http10Capture|TcpdumpStyle)'
 
 # Run all e2e: CLI script + HTTP/1.0 script + Go e2e (network tests skip on non-Linux).
 test-e2e-all: test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network
@@ -70,6 +81,7 @@ build-bpf:
 	$(CLANG) $(CLANG_FLAGS) $(BPF_EVENTS).c -o $(BPF_EVENTS_OUT)
 
 clean:
-	rm -f $(BINARY_AGENT) $(BINARY_CLI) $(BPF_OUT) $(BPF_UPROBE_OUT) $(BPF_EVENTS_OUT)
+	rm -f $(BINARY_AGENT) $(BPF_OUT) $(BPF_UPROBE_OUT) $(BPF_EVENTS_OUT)
+	rm -f $(BINARY_RUST_CLI)
 	$(GO) clean -cache -testcache
-	find bpf -name '*.o' -o -name '*.bpf.o' -o -name '*.skel.h' 2>/dev/null | xargs rm -f 2>/dev/null || true
+	find src/agent/bpf -name '*.o' -o -name '*.bpf.o' -o -name '*.skel.h' 2>/dev/null | xargs rm -f 2>/dev/null || true

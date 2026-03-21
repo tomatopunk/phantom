@@ -1,0 +1,131 @@
+{
+  "common": {
+    "dash": "—",
+    "ellipsis": "…",
+    "yes": "是",
+    "no": "否",
+    "emptyOutput": "(空)",
+    "errorOutput": "错误"
+  },
+  "header": {
+    "brand": "Phantom",
+    "agent": "Agent",
+    "token": "Token",
+    "connect": "连接",
+    "disconnect": "断开",
+    "startCapture": "开始捕获",
+    "stopCapture": "停止捕获",
+    "displayFilter": "显示过滤",
+    "filterPlaceholder": "子串，空格表示同时匹配…",
+    "clearEvents": "清空事件",
+    "exportJsonl": "导出 JSONL",
+    "exportTitle": "Ctrl/Cmd+E",
+    "langZh": "中文",
+    "langEn": "English"
+  },
+  "breadcrumb": {
+    "prefix": "面包屑：",
+    "nic": "网卡 {{name}}",
+    "tgid": "TGID {{id}}"
+  },
+  "dimension": {
+    "host": "主机",
+    "nic": "网卡",
+    "threads": "线程树"
+  },
+  "metrics": {
+    "hintDisconnected": "连接后可拉取 agent 所在机器的 /proc 指标。",
+    "memBarCaption": "内存占用（粗估：(total−avail)/total）",
+    "statTableCaption": "/proc/stat jiffies（聚合 cpu + 每核）",
+    "cpuCol": "CPU",
+    "rowsTotal": "… 共 {{count}} 行",
+    "nicHint": "/proc/net/dev（点击选择上下文网卡）",
+    "load1m": "Load 1m",
+    "load5m": "Load 5m",
+    "memTotal": "Mem total",
+    "memAvail": "Mem avail",
+    "rxLabel": "rx",
+    "txLabel": "tx",
+    "byteAbbr": "B",
+    "colUser": "user",
+    "colSys": "sys",
+    "colIdle": "idle",
+    "colIow": "iow"
+  },
+  "tasks": {
+    "loadTask": "加载 /proc/…/task",
+    "invalidTgid": "无效 TGID",
+    "colTgid": "TGID",
+    "colTid": "TID",
+    "colName": "Name",
+    "colRss": "RSS kb",
+    "filter": "过滤"
+  },
+  "discover": {
+    "tracepoint": "Tracepoint",
+    "kprobe": "Kprobe",
+    "uprobe": "Uprobe",
+    "prefixPh": "prefix",
+    "binaryPh": "binary",
+    "list": "列出"
+  },
+  "cmd": {
+    "title": "命令 (execute)",
+    "run": "运行"
+  },
+  "hook": {
+    "title": "compile_and_attach（高级）",
+    "attachPh": "attach",
+    "progNamePh": "prog name",
+    "compile": "编译附加"
+  },
+  "events": {
+    "panelTitle": "事件 ({{filtered}} / 缓冲 {{total}})"
+  },
+  "detail": {
+    "jsonTitle": "详情 JSON",
+    "pickRow": "选择一行事件"
+  },
+  "hex": {
+    "title": "Hex（payload）",
+    "truncated": " — 已截断"
+  },
+  "footer": {
+    "session": "会话:",
+    "connected": "连接:",
+    "capture": "捕获:",
+    "capturing": "运行中",
+    "stopped": "停止",
+    "metricsRefresh": "指标刷新:",
+    "shortcutExport": "快捷键: ⌘/Ctrl+E 导出 JSONL"
+  },
+  "glossary": {
+    "loadavg_one": "/proc/loadavg 第 1 列：过去 1 分钟平均负载（可运行+不可中断睡眠的任务数，按 CPU 核数理解）。",
+    "loadavg_five": "/proc/loadavg 第 2 列：过去 5 分钟平均负载。",
+    "loadavg_fifteen": "/proc/loadavg 第 3 列：过去 15 分钟平均负载。",
+    "mem_total_kb": "/proc/meminfo MemTotal：内核报告的总物理内存（kB）。",
+    "mem_available_kb": "/proc/meminfo MemAvailable：在不换页的情况下，估算可分配给新应用的内存（含可回收 cache，优于 free 的「可用」口径）。",
+    "mem_buffers_kb": "/proc/meminfo Buffers：块设备原始页缓存（相对较小）。",
+    "mem_cached_kb": "/proc/meminfo Cached：页缓存与 slab 中可回收部分等（大数值通常正常）。",
+    "mem_swap_total_kb": "/proc/meminfo SwapTotal：交换分区/文件总大小。",
+    "mem_swap_free_kb": "/proc/meminfo SwapFree：尚未使用的 swap。",
+    "cpu_user": "/proc/stat：CPU 在用户态运行非 niced 进程的时间（jiffies）。",
+    "cpu_nice": "/proc/stat：用户态 niced 进程占用的 jiffies。",
+    "cpu_system": "/proc/stat：内核态 jiffies（不含中断里单独统计的部分）。",
+    "cpu_idle": "/proc/stat：空闲 jiffies。",
+    "cpu_iowait": "/proc/stat：等待 I/O 完成的时间（部分内核版本/场景下为 0）。",
+    "rx_bytes": "/proc/net/dev：接口接收字节总数（自开机累计）。",
+    "tx_bytes": "/proc/net/dev：接口发送字节总数。",
+    "rx_errors": "/proc/net/dev：接收错误计数（硬件/驱动问题线索）。",
+    "tx_errors": "/proc/net/dev：发送错误计数。",
+    "rx_dropped": "/proc/net/dev：接收丢包（缓冲区满等）。",
+    "tx_dropped": "/proc/net/dev：发送丢包。",
+    "vm_size_kb": "/proc/<tid>/status VmSize：虚拟地址空间大小（VSZ，含未映射物理页）。",
+    "vm_rss_kb": "/proc/<tid>/status VmRSS：当前映射到物理内存的页（常驻集，近似 RSS）。",
+    "vm_peak_kb": "/proc/<tid>/status VmPeak：进程/任务曾达到的 VmSize 峰值。",
+    "vm_hwm_kb": "/proc/<tid>/status VmHWM：RSS 历史峰值（High Water Mark）。",
+    "threads_count": "/proc/<tid>/status Threads：该 TGID 下任务数（各 TID 行通常相同）。",
+    "tid": "线程 ID（内核任务 id）；TGID 为传统「进程 PID」，同 TGID 的 TID 为同进程内线程。",
+    "tgid": "线程组 ID：POSIX 语义下的进程 ID；BPF 事件里的 tgid 与此一致。"
+  }
+}

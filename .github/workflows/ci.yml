@@ -32,11 +32,47 @@ jobs:
       - name: Install protoc (macOS)
         if: matrix.os == 'macos-latest'
         run: brew install protobuf
-      - name: Generate proto (pkg/api/proto)
+      - name: Generate proto (lib/proto)
         run: make proto
       - uses: golangci/golangci-lint-action@v9.2.0
         with:
           version: v2.11.3
+
+  rust-lint:
+    name: Rust fmt + clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt -p phantom-cli -p phantom-client -- --check
+      - run: cargo clippy -p phantom-cli -p phantom-client --all-targets -- -D warnings
+
+  rust-coverage:
+    name: Rust test (llvm-cov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - run: cargo llvm-cov test -p phantom-cli -p phantom-client --codecov --output-path rust-codecov.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rust-codecov
+          path: rust-codecov.json
+      - name: Upload Rust coverage to Codecov
+        if: ${{ secrets.CODECOV_TOKEN }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: rust-codecov.json
+          flags: rust
+          name: rust-codecov
 
   test-and-build:
     name: Test and Build (${{ matrix.os }})
@@ -57,12 +93,49 @@ jobs:
       - name: Install protoc (macOS)
         if: matrix.os == 'macos-latest'
         run: brew install protobuf
-      - name: Generate proto (pkg/api/proto)
+      - name: Generate proto (lib/proto)
         run: make proto
       - run: go build ./...
       - run: go vet ./...
-      - run: go test ./...
+      - name: Go test (with coverage on Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Upload Go coverage artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-coverage
+          path: coverage.out
+      - name: Upload Go coverage to Codecov
+        if: ${{ matrix.os == 'ubuntu-latest' && secrets.CODECOV_TOKEN }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.out
+          flags: go
+          name: go-coverage
+      - name: Go test (macOS)
+        if: matrix.os == 'macos-latest'
+        run: go test ./...
       - run: make build
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.os == 'ubuntu-latest'
+      - name: Rust (phantom-cli)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo build -p phantom-cli
+      - uses: actions/setup-node@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          node-version: "20"
+      - name: Phantom desktop (Vite + TypeScript)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cd src/desktop
+          npm install
+          npm run build
+      - name: Rust (phantom-desktop lib)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo build -p phantom-desktop
       - name: Build eBPF (Linux only)
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -70,3 +143,30 @@ jobs:
           sudo apt-get install -y clang libbpf-dev linux-headers-$(uname -r)
           ls -la /usr/include/bpf/
           make build-bpf
+      - name: Verify eBPF artifacts
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          test -f src/agent/bpf/probes/kernel/minikprobe.o
+          test -f src/agent/bpf/probes/user/uprobe.o
+          test -f src/agent/bpf/core/events.o
+
+  e2e-bpf:
+    name: E2E (Linux + BPF)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler clang libbpf-dev linux-headers-$(uname -r)
+      - name: Generate proto, BPF, agent
+        run: |
+          make proto
+          make build-bpf
+          make agent
+      - name: Go e2e (HTTP/1.0 + tcpdump-style)
+        run: make test-e2e-ci

@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = [
+    "lib/phantom-client",
+    "src/cli",
+    "src/desktop/src-tauri",
+]
+default-members = ["lib/phantom-client", "src/cli"]

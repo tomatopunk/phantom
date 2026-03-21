@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tomatopunk/phantom/pkg/agent/mcp"
-	"github.com/tomatopunk/phantom/pkg/agent/server"
-	"github.com/tomatopunk/phantom/pkg/agent/session"
-	"github.com/tomatopunk/phantom/pkg/api/proto"
+	"github.com/tomatopunk/phantom/lib/agent/mcp"
+	"github.com/tomatopunk/phantom/lib/agent/server"
+	"github.com/tomatopunk/phantom/lib/agent/session"
+	"github.com/tomatopunk/phantom/lib/proto"
 	"google.golang.org/grpc"
 )
 

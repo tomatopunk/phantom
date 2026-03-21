@@ -6,7 +6,7 @@ Remote, interactive eBPF debugger with an **agent** (server) and **cli** (client
 
 - **Go**: Version must satisfy `go.mod` (currently Go 1.25+). Ensure Go is installed and `GOROOT`/`GOPATH` are set before building.
 - **Dependencies**: Managed with Go Modules. From the repo root run `go mod download` or `go build ./...` to fetch dependencies; no need to install third-party packages by hand.
-- **Regenerating proto** (optional): If you change `pkg/api/proto/*.proto`, install `protoc` and the Go plugins `protoc-gen-go` and `protoc-gen-go-grpc`, then run `make proto`.
+- **Regenerating proto** (optional): If you change `lib/proto/*.proto`, install `protoc` and the Go plugins `protoc-gen-go` and `protoc-gen-go-grpc`, then run `make proto`.
 - **Building eBPF** (optional, Linux only): Requires `clang`, kernel headers, and libbpf for `make build-bpf` to produce `minikprobe.o`; you can skip this if you are not running real kprobes.
 
 ### Environment requirements (Ubuntu)
@@ -31,8 +31,9 @@ sudo apt install -y libbpf-dev
 **Build (see requirements above):**
 
 ```bash
-make build
-# Or: go build -o phantom-agent ./cmd/agent && go build -o phantom-cli ./cmd/cli
+make build          # Go agent only
+make cli            # Rust REPL: target/release/phantom-cli
+# Or: go build -o phantom-agent ./src/agent
 ```
 
 **Run agent (Linux; optional token):**
@@ -43,13 +44,17 @@ make build
 # Listen on custom port: ./phantom-agent -listen :9090
 ```
 
-**Run CLI:**
+**Run CLI (Rust):**
 
 ```bash
-./phantom-cli -agent localhost:9090
-# With token: ./phantom-cli -agent localhost:9090 -token secret
-# Script mode: ./phantom-cli -agent localhost:9090 -x script.txt  (exits non-zero on first command failure)
+cargo build -p phantom-cli --release
+./target/release/phantom-cli --agent localhost:9090
+# Token: --token secret
+# Script: -x script.txt
+# Discovery: ./target/release/phantom-cli --agent localhost:9090 tracepoints --prefix sched
 ```
+
+**Desktop (Tauri):** see [src/desktop/README.md](src/desktop/README.md) (`cd src/desktop`, then `npm install` and `npm run tauri dev`).
 
 **Example REPL:**
 
@@ -65,6 +70,10 @@ continue
 phantom> quit
 ```
 
+## CI and contributing
+
+GitHub Actions runs on pushes and pull requests to `main` / `master`: Go `golangci-lint`, `go test` with coverage on Linux (workflow artifact `go-coverage`; optional [Codecov](https://codecov.io/) via repository secret `CODECOV_TOKEN`), Rust `fmt` / `clippy` and `cargo llvm-cov` for `phantom-cli` + `phantom-client`, matrix build on Ubuntu and macOS (including eBPF objects and desktop frontend on Ubuntu), Linux BPF Go e2e via `make test-e2e-ci`, and a Conventional Commits check on PR titles. See [CONTRIBUTING.md](CONTRIBUTING.md) for branch protection suggestions and release tagging.
+
 ## Building eBPF programs (Linux)
 
 To load real kprobes/uprobes, build the eBPF objects on a Linux host with clang and kernel headers:
@@ -73,7 +82,7 @@ To load real kprobes/uprobes, build the eBPF objects on a Linux host with clang 
 make build-bpf
 ```
 
-This produces `bpf/probes/kernel/minikprobe.o` and `bpf/probes/user/uprobe.o`. The agent can then load them via the runtime API.
+This produces `src/agent/bpf/probes/kernel/minikprobe.o` and `src/agent/bpf/probes/user/uprobe.o`. The agent can then load them via the runtime API.
 
 ## E2E test (HTTP/1.0 traffic)
 
@@ -86,17 +95,17 @@ make test-e2e-http10-generic
 
 This starts the agent with `-kprobe` (minikprobe.o), sets `break tcp_sendmsg`, sends `curl --http1.0`, and asserts that at least one break hit event is received. Requires Linux, CAP_BPF (or root), and `make build-bpf`.
 
-**Go e2e (for CI):**
+**Go e2e (same subset as CI, Linux + agent + `minikprobe.o`):**
 
 ```bash
-E2E_HTTP10=1 go test -v ./test/e2e/ -run TestHttp10CaptureE2E
+make test-e2e-ci
 ```
 
 ## tcpdump-style observation (using existing commands)
 
 Without using the system `tcpdump`, you can combine debugger commands to get L3/L4-style metadata: use `break tcp_sendmsg` as the trigger and inspect the event stream for `timestamp`, `pid`, `tgid`, `event_type`, `symbol`, etc.
 
-**Prerequisites:** Linux, CAP_BPF (or root), and built agent/cli plus `bpf/probes/kernel/minikprobe.o`.
+**Prerequisites:** Linux, CAP_BPF (or root), and built agent/cli plus `src/agent/bpf/probes/kernel/minikprobe.o`.
 
 **Make targets:**
 
@@ -138,18 +147,15 @@ E2E_NETWORK=1 go test -v ./test/e2e/ -run TestTcpdumpStyle
 
 ## Project layout
 
-- `cmd/agent` — gRPC server (sessions, execute, stream events)
-- `cmd/cli` — REPL client
-- `pkg/agent/server` — RPC handlers, auth, rate limit, quota, audit, health
-- `pkg/agent/session` — Session lifecycle
-- `pkg/agent/probe` — Symbol resolution (user-space)
-- `pkg/agent/runtime` — eBPF load/attach, ring buffer events
-- `pkg/api/proto` — gRPC protocol
-- `pkg/cli/client` — gRPC client
-- `pkg/cli/repl` — REPL, flags, script mode, background event stream
-- `pkg/agent/hook` — C hook compile and attach
-- `pkg/agent/mcp` — MCP server (stdio) for AI/IDE tools
-- `bpf/` — eBPF C sources and includes
+- [`src/agent`](src/agent) — Agent **入口**（`main`）；eBPF C 在 `src/agent/bpf/`
+- [`src/cli`](src/cli) — Rust `phantom-cli`（REPL、`discover`）
+- [`src/desktop`](src/desktop) — Tauri 桌面 UI
+- [`lib/proto`](lib/proto) — gRPC 协议与 Go 生成代码
+- [`lib/agent`](lib/agent) — Agent **核心库**（server、session、runtime、hook、MCP、discovery…）
+- [`lib/phantom-client`](lib/phantom-client) — Rust gRPC 客户端（CLI 与桌面共用）
+- [`test/e2e`](test/e2e) — Go 端到端测试（含 `grpcclient`）
+
+详见 [`src/README.md`](src/README.md) 与 [`lib/README.md`](lib/README.md)。
 
 See [docs/architecture.md](docs/architecture.md) and [docs/command-spec.md](docs/command-spec.md).
 

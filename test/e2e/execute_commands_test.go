@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tomatopunk/phantom/pkg/agent/server"
-	"github.com/tomatopunk/phantom/pkg/agent/session"
-	"github.com/tomatopunk/phantom/pkg/api/proto"
-	"github.com/tomatopunk/phantom/pkg/cli/client"
+	"github.com/tomatopunk/phantom/lib/agent/server"
+	"github.com/tomatopunk/phantom/lib/agent/session"
+	"github.com/tomatopunk/phantom/lib/proto"
+	"github.com/tomatopunk/phantom/test/e2e/grpcclient"
 	"google.golang.org/grpc"
 )
 
@@ -29,10 +29,10 @@ func startInProcessServer(t *testing.T) (addr string, cleanup func()) {
 	return addr, cleanup
 }
 
-func connectClient(t *testing.T, addr string) (*client.Client, func()) {
+func connectClient(t *testing.T, addr string) (*grpcclient.Client, func()) {
 	t.Helper()
 	ctx := context.Background()
-	c, err := client.New(ctx, addr, "")
+	c, err := grpcclient.New(ctx, addr, "")
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}

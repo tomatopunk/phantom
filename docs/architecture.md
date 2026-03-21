@@ -5,22 +5,26 @@
 **Phantom** is a remote eBPF debugger.
 
 - **Agent**: gRPC server that manages debug sessions, executes commands (break/print/trace), and (when wired) loads eBPF programs and streams events from a ring buffer.
-- **CLI**: Connects to the agent, opens a session, and runs a REPL that sends command lines and prints responses.
+- **CLI**: **Rust** client (`cargo build -p phantom-cli` in [`src/cli`](../src/cli)); talks gRPC to the agent.
+- **Desktop UI**: Tauri app under [`src/desktop`](../src/desktop) uses the shared [`lib/phantom-client`](../lib/phantom-client) crate.
 
 ## Data flow
 
-1. CLI starts with `-agent <addr>` and `-token` (optional).
-2. CLI calls `Connect` to get or create a session ID.
-3. User types commands; CLI sends `Execute(session_id, command_line)`.
+1. Client starts with agent address and optional token.
+2. Client calls **`OpenSession`** to get or create a session ID (renamed from `Connect` so Rust `tonic` clients do not clash with `connect()`).
+3. User types commands; client sends `Execute(session_id, command_line)`.
 4. Agent resolves the session, applies rate limit and quota, runs the command executor (break/print/trace), and returns `ExecuteResponse`.
 5. Agent loads eBPF, attaches kprobe/uprobe, and streams `DebugEvent` via `StreamEvents`.
+6. Optional RPCs: **`CompileAndAttach`** (full C source compiled on agent), **`ListTracepoints`**, **`ListKprobeSymbols`**, **`ListUprobeSymbols`**, **`InspectELF`**.
 
 ## Components
 
 | Layer        | Responsibility |
 |-------------|----------------|
-| CLI         | Flags, gRPC client, REPL loop, script mode (`-x file`) |
-| Agent API   | Auth (Bearer token), session manager, Execute/StreamEvents/ListSessions/CloseSession |
+| CLI         | Rust: [`src/cli`](../src/cli) (REPL, `discover` subcommands) |
+| Agent API   | Auth (Bearer token), session manager, Execute/StreamEvents/OpenSession/ListSessions/CloseSession, discovery + compile RPCs |
+| Discovery   | [`lib/agent/discovery`](../lib/agent/discovery): tracefs tracepoints, kallsyms, ELF uprobe symbols, ELF section names |
+| Hook compile | [`lib/agent/hook`](../lib/agent/hook): CO-RE `clang` flags (`-g`), `BPF_CORE_READ` prologues for socket fields |
 | Executor    | Parse command line, dispatch break/print/trace/continue, return proto result |
 | Session     | Per-session state; quota and rate limiter keyed by session ID |
 | Probe       | User-space symbol resolution (ELF) for uprobe |
@@ -36,8 +40,8 @@
 
 ## eBPF
 
-- **Kprobe**: One program in `bpf/probes/kernel/minikprobe.c`; runtime attaches it to a kernel symbol (e.g. `do_sys_open`).
-- **Uprobe**: One program in `bpf/probes/user/uprobe.c`; runtime attaches via cilium/ebpf `OpenExecutable` + `Uprobe(symbol)`.
+- **Kprobe**: One program in `src/agent/bpf/probes/kernel/minikprobe.c`; runtime attaches it to a kernel symbol (e.g. `do_sys_open`).
+- **Uprobe**: One program in `src/agent/bpf/probes/user/uprobe.c`; runtime attaches via cilium/ebpf `OpenExecutable` + `Uprobe(symbol)`.
 - **Events**: Both use a ring buffer map and `event_header` (timestamp, session_id, event_type, pid, tgid, cpu, probe_id). User space decodes with `runtime.DecodeEvent`.
 
 ## Coding standards

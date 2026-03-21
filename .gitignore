@@ -24,3 +24,9 @@ bpf/*.skel.h
 # Builder
 phantom-agent
 phantom-cli
+
+# Node / npm (e.g. src/desktop) — do not commit; run npm install locally / in CI
+node_modules/
+
+# Rust (workspace at repo root)
+/target/

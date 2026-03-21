@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tomatopunk/phantom/pkg/cli/client"
+	"github.com/tomatopunk/phantom/test/e2e/grpcclient"
 )
 
 const e2eNetworkEnv = "E2E_NETWORK"
@@ -47,7 +47,7 @@ func TestTcpdumpStyleHttp10(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	c, err := client.New(ctx, agentAddr, "")
+	c, err := grpcclient.New(ctx, agentAddr, "")
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestTcpdumpStyleHttp11(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	c, err := client.New(ctx, agentAddr, "")
+	c, err := grpcclient.New(ctx, agentAddr, "")
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestTcpdumpStyleRawTcp(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	c, err := client.New(ctx, agentAddr, "")
+	c, err := grpcclient.New(ctx, agentAddr, "")
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}

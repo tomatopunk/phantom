@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tomatopunk/phantom/pkg/api/proto"
-	"github.com/tomatopunk/phantom/pkg/cli/client"
+	"github.com/tomatopunk/phantom/lib/proto"
+	"github.com/tomatopunk/phantom/test/e2e/grpcclient"
 )
 
 // FindRepoRoot returns the repository root (directory containing go.mod).
@@ -46,7 +46,7 @@ func E2EConfig(t *testing.T, root string) (agentBin, kprobeObj string) {
 		kprobeObj = os.Getenv("PHANTOM_KPROBE")
 	}
 	if kprobeObj == "" {
-		kprobeObj = filepath.Join(root, "bpf", "probes", "kernel", "minikprobe.o")
+		kprobeObj = filepath.Join(root, "src", "agent", "bpf", "probes", "kernel", "minikprobe.o")
 	}
 	return agentBin, kprobeObj
 }
@@ -79,7 +79,7 @@ func StartAgent(t *testing.T, agentBin, kprobeObj, listenAddr string) *exec.Cmd 
 // EVENT_TYPE_BREAK_HIT events are seen or timeout. Returns count and collected events (for L3/L4 asserts).
 func WaitForBreakHits(
 	ctx context.Context,
-	c *client.Client,
+	c *grpcclient.Client,
 	minHits int,
 	timeout time.Duration,
 	trigger func(),

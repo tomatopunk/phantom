@@ -15,9 +15,9 @@ if [ "$(uname -s)" != "Linux" ]; then
   exit 0
 fi
 
-BPF_KPROBE_OUT="${BPF_KPROBE_OUT:-$ROOT_DIR/bpf/probes/kernel/minikprobe.o}"
+BPF_KPROBE_OUT="${BPF_KPROBE_OUT:-$ROOT_DIR/src/agent/bpf/probes/kernel/minikprobe.o}"
 AGENT_BIN="${AGENT_BIN:-$ROOT_DIR/phantom-agent}"
-CLI_BIN="${CLI_BIN:-$ROOT_DIR/phantom-cli}"
+CLI_BIN="${CLI_BIN:-$ROOT_DIR/target/release/phantom-cli}"
 EVENTS_LOG="$(mktemp)"
 AGENT_LOG="$(mktemp)"
 SERVER_LOG="$(mktemp)"
@@ -28,10 +28,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "e2e_tcpdump_style_cli: building (agent, cli, kprobe)..."
+echo "e2e_tcpdump_style_cli: building (agent, Rust cli, kprobe)..."
 make -s proto agent cli 2>/dev/null || true
 if [ ! -f "$AGENT_BIN" ] || [ ! -f "$CLI_BIN" ]; then
-  make agent cli
+  make proto agent cli
 fi
 if [ ! -f "$BPF_KPROBE_OUT" ]; then
   echo "e2e_tcpdump_style_cli: building kprobe..."
@@ -95,7 +95,7 @@ echo "e2e_tcpdump_style_cli: running break/trace/info/continue, then traffic..."
   echo "info break"
   sleep 0.2
   echo "quit"
-) | timeout 15 "$CLI_BIN" -agent "$AGENT_ADDR" 2>/dev/null >"$EVENTS_LOG" || true
+) | timeout 15 "$CLI_BIN" --agent "$AGENT_ADDR" 2>/dev/null >"$EVENTS_LOG" || true
 
 # Assert: at least one break hit with L3/L4-style metadata
 if ! grep -q 'type=EVENT_TYPE_BREAK_HIT' "$EVENTS_LOG"; then

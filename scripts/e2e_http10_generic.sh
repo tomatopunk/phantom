@@ -29,8 +29,8 @@ if [ "$(uname -s)" != "Linux" ]; then
   exit 0
 fi
 
-# CI runners and minimal environments often ship a low RLIMIT_MEMLOCK; BPF map creation needs locked memory.
-ulimit -l unlimited 2>/dev/null || true
+# shellcheck source=e2e_linux_bpf_env.sh
+source "$SCRIPT_DIR/e2e_linux_bpf_env.sh"
 
 # Paths: only kprobe object (minikprobe.o), no http uprobe
 BPF_KPROBE_OUT="${BPF_KPROBE_OUT:-$ROOT_DIR/src/agent/bpf/probes/kernel/minikprobe.o}"
@@ -59,6 +59,7 @@ fi
 # Start agent with generic kprobe only (no -http-uprobe)
 AGENT_PORT="${AGENT_PORT:-19092}"
 AGENT_ADDR="127.0.0.1:$AGENT_PORT"
+phantom_e2e_linux_bpf_env "$AGENT_BIN" "e2e_http10_generic"
 echo "e2e_http10_generic: starting agent at $AGENT_ADDR (kprobe=$BPF_KPROBE_OUT)..."
 "$AGENT_BIN" -listen "$AGENT_ADDR" -kprobe "$BPF_KPROBE_OUT" >"$AGENT_LOG" 2>&1 &
 AGENT_PID=$!

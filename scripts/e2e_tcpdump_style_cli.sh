@@ -31,7 +31,8 @@ if [ "$(uname -s)" != "Linux" ]; then
   exit 0
 fi
 
-ulimit -l unlimited 2>/dev/null || true
+# shellcheck source=e2e_linux_bpf_env.sh
+source "$SCRIPT_DIR/e2e_linux_bpf_env.sh"
 
 BPF_KPROBE_OUT="${BPF_KPROBE_OUT:-$ROOT_DIR/src/agent/bpf/probes/kernel/minikprobe.o}"
 AGENT_BIN="${AGENT_BIN:-$ROOT_DIR/phantom-agent}"
@@ -58,6 +59,7 @@ fi
 
 AGENT_PORT="${AGENT_PORT:-19093}"
 AGENT_ADDR="127.0.0.1:$AGENT_PORT"
+phantom_e2e_linux_bpf_env "$AGENT_BIN" "e2e_tcpdump_style_cli"
 echo "e2e_tcpdump_style_cli: starting agent at $AGENT_ADDR..."
 "$AGENT_BIN" -listen "$AGENT_ADDR" -kprobe "$BPF_KPROBE_OUT" >"$AGENT_LOG" 2>&1 &
 AGENT_PID=$!

@@ -185,7 +185,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler clang libbpf-dev linux-headers-$(uname -r) curl build-essential
+          sudo apt-get install -y protobuf-compiler clang libbpf-dev linux-headers-$(uname -r) curl build-essential libcap2-bin
       - name: Generate proto, BPF, agent; full MR e2e
         run: |
           ulimit -l unlimited || true

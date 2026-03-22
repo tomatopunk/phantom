@@ -59,7 +59,6 @@ export function HookEditorPanel({
   const [src, setSrc] = useState(
     '#include <linux/bpf.h>\n#include <bpf/bpf_helpers.h>\n\nchar LICENSE[] SEC("license") = "Dual BSD/GPL";\n',
   );
-  const [attach, setAttach] = useState("tracepoint:sched:sched_switch");
   const [programName, setProgramName] = useState("");
   const [presetId, setPresetId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -72,10 +71,10 @@ export function HookEditorPanel({
   const modelRef = useRef<Monaco.editor.ITextModel | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const applyLocalMarkers = useCallback((text: string, att: string, monaco: typeof Monaco) => {
+  const applyLocalMarkers = useCallback((text: string, monaco: typeof Monaco) => {
     const model = modelRef.current;
     if (!model) return;
-    const local = runLocalLint(text, att);
+    const local = runLocalLint(text, "");
     const markers: Monaco.editor.IMarkerData[] = local.map((p) => ({
       severity: monaco.MarkerSeverity.Warning,
       startLineNumber: Math.max(1, p.line),
@@ -110,21 +109,21 @@ export function HookEditorPanel({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       clearAgentDiagnostics();
-      applyLocalMarkers(src, attach, monaco);
+      applyLocalMarkers(src, monaco);
     }, 250);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [src, attach, applyLocalMarkers, clearAgentDiagnostics]);
+  }, [src, applyLocalMarkers, clearAgentDiagnostics]);
 
   const onMount: OnMount = useCallback(
     (editor, monaco) => {
       editorRef.current = editor;
       monacoRef.current = monaco;
       modelRef.current = editor.getModel();
-      applyLocalMarkers(editor.getValue(), attach, monaco);
+      applyLocalMarkers(editor.getValue(), monaco);
     },
-    [attach, applyLocalMarkers],
+    [applyLocalMarkers],
   );
 
   const selectedPreset = useMemo(
@@ -134,7 +133,6 @@ export function HookEditorPanel({
 
   const applyPreset = () => {
     if (!selectedPreset) return;
-    setAttach(selectedPreset.attach);
     if (selectedPreset.cTemplate) {
       setSrc(selectedPreset.cTemplate);
     }
@@ -147,7 +145,7 @@ export function HookEditorPanel({
     setBusy(true);
     clearAgentDiagnostics();
     try {
-      const r = await api.compileHook(src, attach, programName, 0);
+      const r = await api.compileHook(src, programName, 0);
       if (r.ok) {
         if (monaco && model) monaco.editor.setModelMarkers(model, "agent", []);
         onProbesChanged?.();
@@ -244,13 +242,7 @@ export function HookEditorPanel({
       </div>
       <div className="flex flex-wrap gap-2 shrink-0">
         <input
-          className="input-app flex-1 min-w-[8rem] text-xs font-mono-tight"
-          value={attach}
-          onChange={(e) => setAttach(e.target.value)}
-          placeholder={t("hook.attachPh")}
-        />
-        <input
-          className="input-app w-28 text-xs font-mono-tight"
+          className="input-app w-36 text-xs font-mono-tight"
           value={programName}
           onChange={(e) => setProgramName(e.target.value)}
           placeholder={t("hook.progNamePh")}

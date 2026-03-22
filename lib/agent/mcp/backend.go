@@ -48,7 +48,7 @@ type Backend interface {
 	ListSessions(ctx context.Context) ([]string, error)
 	ListBreakpoints(ctx context.Context, sessionID string) (string, error)
 	ListHooks(ctx context.Context, sessionID string) (string, error)
-	CompileAndAttach(ctx context.Context, sessionID, source, attach, programName string, limit uint32) (*proto.CompileAndAttachResponse, error)
+	CompileAndAttach(ctx context.Context, sessionID, source, programName string, limit uint32) (*proto.CompileAndAttachResponse, error)
 	ListTracepoints(ctx context.Context, prefix string, maxEntries uint32) ([]string, error)
 	ListKprobeSymbols(ctx context.Context, prefix string, maxEntries uint32) ([]string, error)
 }

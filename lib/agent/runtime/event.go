@@ -18,7 +18,10 @@ package runtime
 
 // Event type constants; match bpf/include/common.h and proto.
 const (
-	EventTypeBreakHit = 1
+	EventTypeBreakHit    = 1
+	EventTypeWatchArg    = 2
+	EventTypeError       = 3
+	EventTypeStateChange = 4
 )
 
 // Event is a single debug event from the eBPF ring buffer (matches event_header; optional Args/Ret/Comm from payload).
@@ -35,4 +38,10 @@ type Event struct {
 	Args [6]uint64
 	Ret  uint64
 	Comm string
+	// SourceKind is break | watch | hook for UI/stream attribution.
+	SourceKind string
+	BreakID    string
+	HookID     string
+	// TemplateProbeID is the break template catalog id when applicable.
+	TemplateProbeID string
 }

@@ -9,10 +9,12 @@ import { useEffect, useMemo, useState } from "react";
 import * as api from "../api";
 import {
   buildProbeRunLines,
-  defaultBreakOptsForDiscoveryKprobe,
-  defaultHookSourceForAttach,
+  catalogProbeIdForDiscoveryRow,
+  defaultHookSourceForKprobe,
+  defaultHookSourceForProbePoint,
+  escapeForShellDoubleQuotes,
   type ProbeRunDraft,
-  templateAttachPointForPreview,
+  templateProbePointHintForDraft,
 } from "../app/discoverCommands";
 import { technicalInputProps } from "../app/technicalInputProps";
 
@@ -37,20 +39,14 @@ export function ProbeRunPanel({
   setCmd,
   openConsole,
 }: Props) {
-  const [breakAttach, setBreakAttach] = useState("");
-  const [breakProgram, setBreakProgram] = useState("");
-  const [breakUserSource, setBreakUserSource] = useState(
-    '/* User eBPF: define SEC("...") and ringbuf map per agent docs */\n#include <linux/bpf.h>\n#include <bpf/bpf_helpers.h>\n',
-  );
-  const [hookAttach, setHookAttach] = useState("");
+  const [probeId, setProbeId] = useState("");
+  const [breakFilter, setBreakFilter] = useState("");
+  const [breakLimit, setBreakLimit] = useState("");
+  const [watchArgs, setWatchArgs] = useState("");
   const [hookProgram, setHookProgram] = useState("");
   const [hookUserSource, setHookUserSource] = useState("");
-  const [traceExprs, setTraceExprs] = useState("pid tgid comm");
-  const [watchExpr, setWatchExpr] = useState("pid");
   const [cmdLine, setCmdLine] = useState("");
   const [editorTab, setEditorTab] = useState<EditorTab>("command");
-  const [breakValidate, setBreakValidate] = useState<api.ValidateCompileSourceResult | null>(null);
-  const [breakValidateBusy, setBreakValidateBusy] = useState(false);
   const [hookValidate, setHookValidate] = useState<api.ValidateCompileSourceResult | null>(null);
   const [hookValidateBusy, setHookValidateBusy] = useState(false);
   const [runOut, setRunOut] = useState("");
@@ -58,86 +54,51 @@ export function ProbeRunPanel({
 
   useEffect(() => {
     if (!draft) return;
-    const row = draft.line.trim();
-    setBreakAttach(draft.tab === "kp" && row ? `kprobe:${row}` : "");
-    setBreakProgram("");
-    if (draft.kind === "break" && draft.tab === "kp" && row) {
-      const d = defaultBreakOptsForDiscoveryKprobe(draft.line);
-      setBreakUserSource(d.breakUserSource ?? "");
-    } else {
-      setBreakUserSource(
-        '/* User eBPF: define SEC("...") and ringbuf map per agent docs */\n#include <linux/bpf.h>\n#include <bpf/bpf_helpers.h>\n',
-      );
-    }
-    const attach = templateAttachPointForPreview(draft) ?? "";
-    setHookAttach(attach);
+    const pid = catalogProbeIdForDiscoveryRow(draft.tab, draft.line) ?? "";
+    setProbeId(pid);
+    setBreakFilter("");
+    setBreakLimit("");
+    setWatchArgs("");
     setHookProgram("");
-    setHookUserSource(attach ? defaultHookSourceForAttach(attach) : "");
-    setTraceExprs(draft.tab === "kp" ? "pid tgid comm" : "pid tgid");
-    setWatchExpr("pid");
-    setCmdLine(
-      buildProbeRunLines(
-        draft,
-        draft.kind === "break" && draft.tab === "kp" && row ? defaultBreakOptsForDiscoveryKprobe(draft.line) : {},
-      ).join("\n\n"),
-    );
-    setBreakValidate(null);
+    const hint = templateProbePointHintForDraft(draft);
+    setHookUserSource(hint ? defaultHookSourceForProbePoint(hint) : defaultHookSourceForKprobe("do_nanosleep"));
+    setCmdLine(buildProbeRunLines(draft, {}).join("\n\n"));
     setHookValidate(null);
     setRunOut("");
     setEditorTab("command");
   }, [draft]);
 
-  const cmdFromForm = useMemo(
-    () =>
-      draft
-        ? buildProbeRunLines(draft, {
-            traceExprs,
-            watchExpr,
-            breakUserSource,
-            breakAttach,
-            breakProgram,
-          }).join("\n\n") || null
-        : null,
-    [draft, traceExprs, watchExpr, breakUserSource, breakAttach, breakProgram],
-  );
-
-  const needsHookCompile =
-    !!draft && (draft.kind === "hook" || draft.kind === "trace" || draft.kind === "watch");
-  const hookCompileReady =
-    connected && hookAttach.trim() !== "" && (hookUserSource ?? "").trim() !== "";
-
-  useEffect(() => {
-    if (!(draft?.kind === "break" && editorTab === "compile" && connected)) {
-      setBreakValidate(null);
-      setBreakValidateBusy(false);
-      return;
+  const cmdFromForm = useMemo(() => {
+    if (!draft) return null;
+    const limStr = breakLimit.trim();
+    let lim: number | undefined;
+    if (limStr !== "") {
+      const n = parseInt(limStr, 10);
+      if (Number.isFinite(n) && n >= 0) lim = n;
     }
-    let cancelled = false;
-    const tid = window.setTimeout(() => {
-      void (async () => {
-        setBreakValidateBusy(true);
-        try {
-          const r = await api.validateCompileSource(breakUserSource);
-          if (!cancelled) setBreakValidate(r);
-        } catch (e) {
-          if (!cancelled) {
-            setBreakValidate({
-              ok: false,
-              error_message: String(e),
-              diagnostics: [],
-              compiler_output: "",
-            });
-          }
-        } finally {
-          if (!cancelled) setBreakValidateBusy(false);
-        }
-      })();
-    }, 450);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(tid);
-    };
-  }, [draft?.kind, editorTab, connected, breakUserSource]);
+    if (draft.kind === "break" && probeId.trim()) {
+      let cmd = `break ${probeId.trim()}`;
+      const f = breakFilter.trim();
+      if (f) cmd += ` --filter "${escapeForShellDoubleQuotes(f)}"`;
+      if (lim !== undefined) cmd += ` --limit ${lim}`;
+      return cmd;
+    }
+    if (draft.kind === "watch" && probeId.trim()) {
+      let cmd = `watch --sec ${probeId.trim()}`;
+      const wa = watchArgs.trim();
+      if (wa) cmd += ` --args ${wa}`;
+      return cmd;
+    }
+    const lines = buildProbeRunLines(draft, {
+      breakFilter: breakFilter.trim() || undefined,
+      breakLimit: lim,
+      watchArgs: watchArgs.trim() || undefined,
+    });
+    return lines.join("\n\n") || null;
+  }, [draft, probeId, breakFilter, breakLimit, watchArgs]);
+
+  const needsHookCompile = !!draft && draft.kind === "hook";
+  const hookCompileReady = connected && (hookUserSource ?? "").trim() !== "";
 
   useEffect(() => {
     if (!(needsHookCompile && editorTab === "compile" && connected)) {
@@ -182,7 +143,7 @@ export function ProbeRunPanel({
           return;
         }
         setBusy(true);
-        const r = await api.compileHook(hookUserSource, hookAttach, hookProgram, 0);
+        const r = await api.compileHook(hookUserSource, hookProgram, 0);
         setBusy(false);
         if (!r.ok) {
           setRunOut(r.error_message || t("probeRun.compile.fail"));
@@ -191,39 +152,14 @@ export function ProbeRunPanel({
         setRunOut(t("probeRun.ranOk"));
         return;
       }
-      if (draft.kind === "trace" || draft.kind === "watch") {
-        if (!connected || !hookCompileReady) {
-          setRunOut(t("probeRun.needConnect"));
-          return;
-        }
-        setBusy(true);
-        const r = await api.compileHook(hookUserSource, hookAttach, hookProgram, 0);
-        setBusy(false);
-        if (!r.ok) {
-          setRunOut(r.error_message || t("probeRun.compile.fail"));
-          return;
-        }
-        const lines = cmdLine
-          .split(/\r?\n/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        for (const ln of lines) {
-          await runCommandLine(ln);
-        }
-        setRunOut(t("probeRun.ranOk"));
-        return;
-      }
-      const lines = cmdLine
-        .split(/\r?\n/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (lines.length === 0) {
+      const line = (cmdLine || cmdFromForm || "").trim();
+      if (!line) {
         setRunOut("");
         return;
       }
-      for (const ln of lines) {
-        await runCommandLine(ln);
-      }
+      setBusy(true);
+      await runCommandLine(line);
+      setBusy(false);
       setRunOut(t("probeRun.ranOk"));
     } catch (e) {
       setBusy(false);
@@ -265,21 +201,11 @@ export function ProbeRunPanel({
     );
   }
 
-  const attachForHook = templateAttachPointForPreview(draft);
   const kindLabel = t(`discover.quick.${draft.kind}`);
-  const sourceText =
-    draft.kind === "break" && draft.tab === "kp" ? breakUserSource : needsHookCompile ? hookUserSource : "";
-  const onSourceChange =
-    draft.kind === "break" && draft.tab === "kp"
-      ? setBreakUserSource
-      : needsHookCompile
-        ? setHookUserSource
-        : () => {};
+  const probeHint = templateProbePointHintForDraft(draft);
 
   const runDisabled =
-    draft.kind === "hook" || draft.kind === "trace" || draft.kind === "watch"
-      ? !connected || busy || !hookCompileReady
-      : !connected || !cmdLine.trim();
+    draft.kind === "hook" ? !connected || busy || !hookCompileReady : !connected || busy || !(cmdLine.trim() || cmdFromForm);
 
   return (
     <div className="flex flex-1 min-h-0 flex-col gap-2 p-3 overflow-hidden">
@@ -301,17 +227,60 @@ export function ProbeRunPanel({
         {draft.kind === "hook" ? (
           <p className="text-app-secondary/90 leading-snug m-0">{t("probeRun.hookVsBreakHint")}</p>
         ) : null}
-        {needsHookCompile ? (
+
+        {(draft.kind === "break" || draft.kind === "watch") && (
+          <label className="flex flex-col gap-0.5">
+            <span className="text-app-secondary">{t("probeRun.probeId")}</span>
+            <input
+              className="w-full rounded border border-app-separator bg-app-bg px-1.5 py-1 font-mono-tight text-app-label"
+              value={probeId}
+              onChange={(e) => setProbeId(e.target.value)}
+              placeholder="kprobe.do_sys_open"
+              {...technicalInputProps}
+            />
+          </label>
+        )}
+
+        {draft.kind === "break" && (
           <>
             <label className="flex flex-col gap-0.5">
-              <span className="text-app-secondary">{t("probeRun.hookAttach")}</span>
+              <span className="text-app-secondary">{t("probeRun.breakFilter")}</span>
               <input
                 className="w-full rounded border border-app-separator bg-app-bg px-1.5 py-1 font-mono-tight text-app-label"
-                value={hookAttach}
-                onChange={(e) => setHookAttach(e.target.value)}
+                value={breakFilter}
+                onChange={(e) => setBreakFilter(e.target.value)}
+                placeholder='pid==1'
                 {...technicalInputProps}
               />
             </label>
+            <label className="flex flex-col gap-0.5">
+              <span className="text-app-secondary">{t("probeRun.breakLimit")}</span>
+              <input
+                className="w-full rounded border border-app-separator bg-app-bg px-1.5 py-1 font-mono-tight text-app-label"
+                value={breakLimit}
+                onChange={(e) => setBreakLimit(e.target.value)}
+                placeholder="0"
+                {...technicalInputProps}
+              />
+            </label>
+          </>
+        )}
+
+        {draft.kind === "watch" && (
+          <label className="flex flex-col gap-0.5">
+            <span className="text-app-secondary">{t("probeRun.watchArgs")}</span>
+            <input
+              className="w-full rounded border border-app-separator bg-app-bg px-1.5 py-1 font-mono-tight text-app-label"
+              value={watchArgs}
+              onChange={(e) => setWatchArgs(e.target.value)}
+              placeholder="2,3,4"
+              {...technicalInputProps}
+            />
+          </label>
+        )}
+
+        {draft.kind === "hook" && (
+          <>
             <label className="flex flex-col gap-0.5">
               <span className="text-app-secondary">{t("probeRun.hookProgram")}</span>
               <input
@@ -323,67 +292,15 @@ export function ProbeRunPanel({
               />
             </label>
           </>
-        ) : null}
-        {draft.kind === "break" && draft.tab === "kp" ? (
-          <>
-            <label className="flex flex-col gap-0.5">
-              <span className="text-app-secondary">{t("probeRun.breakAttach")}</span>
-              <input
-                className="w-full rounded border border-app-separator bg-app-bg px-1.5 py-1 font-mono-tight text-app-label"
-                value={breakAttach}
-                onChange={(e) => setBreakAttach(e.target.value)}
-                {...technicalInputProps}
-              />
-            </label>
-            <label className="flex flex-col gap-0.5">
-              <span className="text-app-secondary">{t("probeRun.breakProgram")}</span>
-              <input
-                className="w-full rounded border border-app-separator bg-app-bg px-1.5 py-1 font-mono-tight text-app-label"
-                value={breakProgram}
-                onChange={(e) => setBreakProgram(e.target.value)}
-                placeholder={t("probeRun.breakProgramPh")}
-                {...technicalInputProps}
-              />
-            </label>
-            <label className="flex flex-col gap-0.5 min-h-0">
-              <span className="text-app-secondary">{t("probeRun.breakUserSource")}</span>
-              <textarea
-                className="w-full min-h-[120px] resize-y rounded border border-app-separator bg-app-bg px-1.5 py-1 font-mono-tight text-[10px] text-app-label"
-                value={breakUserSource}
-                onChange={(e) => setBreakUserSource(e.target.value)}
-                spellCheck={false}
-              />
-            </label>
-          </>
-        ) : null}
-        {draft.kind === "trace" ? (
-          <label className="flex flex-col gap-0.5">
-            <span className="text-app-secondary">{t("probeRun.traceExprs")}</span>
-            <input
-              className="w-full rounded border border-app-separator bg-app-bg px-1.5 py-1 font-mono-tight text-app-label"
-              value={traceExprs}
-              onChange={(e) => setTraceExprs(e.target.value)}
-              {...technicalInputProps}
-            />
-          </label>
+        )}
+
+        {draft.kind === "break" ? (
+          <p className="text-app-secondary/90 leading-snug m-0">{t("probeRun.breakTemplateHint")}</p>
         ) : null}
         {draft.kind === "watch" ? (
-          <label className="flex flex-col gap-0.5">
-            <span className="text-app-secondary">{t("probeRun.watchExpr")}</span>
-            <input
-              className="w-full rounded border border-app-separator bg-app-bg px-1.5 py-1 font-mono-tight text-app-label"
-              value={watchExpr}
-              onChange={(e) => setWatchExpr(e.target.value)}
-              {...technicalInputProps}
-            />
-          </label>
+          <p className="text-app-secondary/90 leading-snug m-0">{t("probeRun.watchHint")}</p>
         ) : null}
-        {draft.kind === "break" && draft.tab === "kp" ? (
-          <p className="text-app-secondary/90 leading-snug">{t("probeRun.breakUserEbpfHint")}</p>
-        ) : null}
-        {draft.kind === "trace" || draft.kind === "watch" ? (
-          <p className="text-app-secondary/90 leading-snug">{t("probeRun.traceWatchPairHint")}</p>
-        ) : null}
+
         <div className="flex flex-wrap gap-1">
           <button
             type="button"
@@ -394,13 +311,13 @@ export function ProbeRunPanel({
             {t("probeRun.applyForm")}
           </button>
         </div>
-        {attachForHook ? (
+        {probeHint ? (
           <div className="font-mono-tight text-[9px] text-app-secondary break-all">
-            {t("probeRun.hookCompileAttach")} {attachForHook}
+            {t("probeRun.secHint")} {probeHint}
           </div>
-        ) : (
+        ) : draft.kind === "hook" ? (
           <p className="text-app-secondary/90">{t("probeRun.noTemplate")}</p>
-        )}
+        ) : null}
       </div>
 
       <div className="flex gap-1 shrink-0 border-b border-app-separator pb-1">
@@ -420,48 +337,20 @@ export function ProbeRunPanel({
         ) : null}
         {editorTab === "source" ? (
           <div className="flex-1 min-h-0 flex flex-col gap-1">
-            {draft.kind === "break" && draft.tab === "kp" || needsHookCompile ? (
+            {needsHookCompile ? (
               <textarea
                 className="flex-1 min-h-[200px] w-full resize-y rounded-md border border-app-separator bg-app-bg p-2 font-mono-tight text-[10px] text-app-label"
-                value={sourceText}
-                onChange={(e) => onSourceChange(e.target.value)}
+                value={hookUserSource}
+                onChange={(e) => setHookUserSource(e.target.value)}
                 spellCheck={false}
               />
             ) : (
-              <p className="text-[10px] text-app-secondary">{t("probeRun.noTemplate")}</p>
+              <p className="text-[10px] text-app-secondary">{t("probeRun.hookSourceOnly")}</p>
             )}
           </div>
         ) : null}
         {editorTab === "compile" ? (
-          draft.kind === "break" && draft.tab === "kp" ? (
-            <div className="flex-1 min-h-0 flex flex-col gap-1">
-              {!connected ? <p className="text-[10px] text-app-secondary shrink-0">{t("probeRun.needConnect")}</p> : null}
-              {breakValidateBusy ? <p className="text-[10px] text-app-secondary shrink-0">{t("common.ellipsis")}</p> : null}
-              {breakValidate ? (
-                <>
-                  <p
-                    className={`text-[10px] shrink-0 ${breakValidate.ok ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}
-                  >
-                    {breakValidate.ok
-                      ? t("probeRun.compile.ok")
-                      : breakValidate.error_message || t("probeRun.compile.fail")}
-                  </p>
-                  {breakValidate.diagnostics && breakValidate.diagnostics.length > 0 ? (
-                    <ul className="text-[9px] text-rose-600 dark:text-rose-400 list-disc pl-4 shrink-0 max-h-[80px] overflow-auto m-0">
-                      {breakValidate.diagnostics.map((d, i) => (
-                        <li key={i}>{d.message}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  <pre className="flex-1 min-h-0 overflow-auto rounded-md border border-app-separator bg-app-bg p-2 font-mono-tight text-[9px] text-app-secondary whitespace-pre-wrap break-all">
-                    {(breakValidate.compiler_output || "").trim() || "—"}
-                  </pre>
-                </>
-              ) : connected ? (
-                <p className="text-[10px] text-app-secondary shrink-0">{t("probeRun.breakCompileWaiting")}</p>
-              ) : null}
-            </div>
-          ) : needsHookCompile ? (
+          needsHookCompile ? (
             <div className="flex-1 min-h-0 flex flex-col gap-1">
               {!connected ? <p className="text-[10px] text-app-secondary shrink-0">{t("probeRun.needConnect")}</p> : null}
               {hookValidateBusy ? <p className="text-[10px] text-app-secondary shrink-0">{t("common.ellipsis")}</p> : null}
@@ -490,7 +379,7 @@ export function ProbeRunPanel({
               ) : null}
             </div>
           ) : (
-            <p className="text-[10px] text-app-secondary">{t("probeRun.noTemplate")}</p>
+            <p className="text-[10px] text-app-secondary">{t("probeRun.compileHookOnly")}</p>
           )
         ) : null}
       </div>

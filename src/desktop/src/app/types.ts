@@ -25,6 +25,10 @@ export type DebugEventPayload = {
   tgid: number;
   cpu: number;
   probe_id: string;
+  source_kind?: string;
+  break_id?: string;
+  hook_id?: string;
+  template_probe_id?: string;
   payload_hex: string;
   payload_truncated: boolean;
   payload_utf8: string;

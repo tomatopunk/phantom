@@ -5,7 +5,7 @@
 ## Checklist
 
 - [ ] PR title follows [Conventional Commits](https://www.conventionalcommits.org/) (e.g. `feat:`, `fix:`, `docs:`, `chore:`)
-- [ ] `CI` workflow is green (lint, tests, Rust coverage, e2e on Linux where applicable)
+- [ ] `CI` workflow is green (lint, tests, Rust coverage, Linux BPF build job)
 - [ ] For user-facing changes, README or docs updated if needed
 
 ## Notes

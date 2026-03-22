@@ -8,7 +8,7 @@ export type CommandSuggestResult = {
   items: string[];
 };
 
-const INFO_SUB = ["break", "trace", "watch", "hook", "session"];
+const INFO_SUB = ["break", "break-templates", "watch", "hook", "session"];
 
 const HOOK_SUB = ["attach", "delete", "list"];
 
@@ -16,10 +16,9 @@ const VERBS = [
   "break",
   "b",
   "tbreak",
+  "t",
   "print",
   "p",
-  "trace",
-  "t",
   "continue",
   "c",
   "delete",
@@ -39,18 +38,15 @@ const VERBS = [
 
 const SNIPPETS = [
   "info break",
-  "info trace",
+  "info break-templates",
   "info watch",
   "info hook",
   "info session",
   "help break",
   "help hook",
-  "help trace",
-  'hook attach --attach kprobe:do_nanosleep --file /tmp/myhook.c',
-  'hook attach --attach tracepoint:sched:sched_switch --file /tmp/tp.c --limit 64',
+  'hook attach --file /tmp/myhook.c',
   "hook list",
-  "trace pid tgid comm",
-  "watch tgid",
+  "watch --sec kprobe.do_sys_open",
   "print pid",
   "continue",
 ];
@@ -59,9 +55,6 @@ function norm(s: string): string {
   return s.toLowerCase();
 }
 
-/**
- * Word (non-whitespace run) containing cursor; if cursor is immediately after whitespace, empty word at cursor.
- */
 function wordBoundsAtCursor(line: string, cursor: number): { wordStart: number; wordEnd: number } {
   if (cursor > 0 && /\s/.test(line[cursor - 1])) {
     return { wordStart: cursor, wordEnd: cursor };

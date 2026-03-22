@@ -16,7 +16,7 @@
       "discoverShort": "发现",
       "probeRun": "从发现页组合命令并预览生成的 eBPF C",
       "probeRunShort": "运行",
-      "session": "断点、跟踪、Hook、监视",
+      "session": "断点、模板、Hook、参数监视",
       "sessionShort": "探针",
       "console": "执行 agent 命令",
       "consoleShort": "命令",
@@ -91,11 +91,10 @@
     "prefixPh": "prefix",
     "binaryPh": "binary",
     "list": "列出",
-    "hint": "先点「列出」，再展开一行。单击快捷按钮会打开「运行」页（可编辑完整 C、编译并附加）；Shift+单击仍在「命令」里立即执行。Kprobe 用「断点」或 Hook 均为完整 C。跟踪/监视需先有探针产生事件。切换类型会清空选择与列表。",
+    "hint": "先「列出」再展开一行。快捷操作打开「运行」：模板断点、Hook C、参数监视。Shift+单击在命令行立即执行。监视需同一 probe_id 上已有启用的断点。",
     "rowExpandTitle": "点击展开或收起快捷命令",
     "quick": {
       "break": "断点",
-      "trace": "跟踪",
       "hook": "Hook",
       "watch": "监视",
       "filled": "（已填入命令）",
@@ -111,21 +110,22 @@
   },
   "probeRun": {
     "title": "从发现运行",
-    "empty": "在「发现」里展开一行，选择断点 / Hook / 跟踪 / 监视，在此编辑命令并预览模板。",
+    "empty": "在「发现」里展开一行，选择断点 / Hook / 监视，在此编辑命令。",
     "dismiss": "清除",
-    "hookVsBreakHint": "`hook attach` / 编译并附加：完整 eBPF C（与 `break` 同参数）。`break` 另登记断点 id、condition、disable。",
-    "hookAttach": "挂载点（如 kprobe:do_sys_open）",
+    "hookVsBreakHint": "Hook：完整 eBPF C，probe_point 由 ELF SEC 决定。断点：仅内置模板（见 info break-templates）。",
     "hookProgram": "程序名（可选）",
     "hookCompileAttach": "编译并附加",
     "compileAttachRun": "编译并附加",
-    "breakAttach": "挂载点（--attach，如 kprobe:do_sys_open）",
-    "breakProgram": "程序名（--program，可选）",
     "breakProgramPh": "ELF 程序符号",
-    "breakUserSource": "你的 eBPF C（--source 正文）",
-    "breakUserEbpfHint": "断点在 agent 上编译你的完整 C（CompileRaw）。SEC 在源码里自定；需包含 ringbuf 等以便事件上报。可选 --program 指定要 attach 的入口。",
-    "traceExprs": "跟踪表达式",
-    "watchExpr": "监视表达式",
-    "traceWatchPairHint": "执行时会先对本行「编译并附加」，再运行下方的 trace 或 watch。",
+    "probeId": "目录 probe_id",
+    "breakFilter": "内核过滤 DSL（可选）",
+    "breakLimit": "limit（可选，非负整数）",
+    "watchArgs": "监视列参数下标（可选，逗号分隔）",
+    "breakTemplateHint": "断点仅支持内置模板，例如 kprobe.do_sys_open。",
+    "watchHint": "监视在对应 probe_id 的断点命中时输出参数列；请先设置断点。",
+    "secHint": "预期 SEC / probe_point 提示（仅供参考）：",
+    "hookSourceOnly": "源码编辑仅用于 Hook C。",
+    "compileHookOnly": "Clang 页仅用于 Hook 编译检查。",
     "multiLineConsoleClipboard": "多行脚本已复制到剪贴板。命令页单行输入仅显示第一行；其余请在「从发现运行」执行或粘贴。",
     "applyForm": "用表单覆盖命令行",
     "noTemplate": "此项无可展示内容。",
@@ -162,7 +162,7 @@
     "presetPlaceholder": "内置预设…",
     "loadPreset": "载入",
     "compileAttach": "编译并附加",
-    "hintCompile": "完整 C，自行写 SEC(\"…\")；需 ringbuf map。与 REPL hook attach / gRPC CompileAndAttach 同路径。",
+    "hintCompile": "完整 C + SEC(\"…\")；probe_point 由对象解析。需 ringbuf。与 REPL hook attach / gRPC CompileAndAttach 一致。",
     "problems": "问题",
     "noProblems": "无问题",
     "sourceLocal": "本地"
@@ -171,7 +171,7 @@
     "aria": "会话探针类别",
     "title": "会话探针",
     "refresh": "刷新",
-    "hintRepl": "断点（break / tbreak）：完整 eBPF C（--attach + --source|--file）。Hook（hook attach）：同编译路径，无断点编号。trace / watch：需已有 hook 或 break 产生 ringbuf 事件。",
+    "hintRepl": "break / tbreak：目录 probe_id + 可选 --filter。hook attach：--source|--file，SEC 决定 probe_point。watch：--sec probe_id [--args]。",
     "bpEnabled": "已启用",
     "bpDisabled": "已关闭",
     "action": {
@@ -183,15 +183,15 @@
     "empty": "(无)",
     "tab": {
       "break": "断点",
-      "trace": "跟踪",
+      "templates": "模板",
       "hook": "Hook",
       "watch": "监视"
     },
     "tabHint": {
-      "break": "用户 eBPF：自带 SEC(\"…\") 的 C；参数与 hook attach / CompileAndAttach 一致。condition 仍可在客户端过滤命中。命令：break、tbreak、condition、delete、enable、disable。",
-      "trace": "每次探针事件后对表达式求值并产生 TRACE_SAMPLE（多列）；适用于 tcpdump 式多字段采样。命令：trace、delete。",
-      "hook": "hook attach：完整 eBPF C（与 break 同编译路径，无断点编号）。ringbuf 事件。命令：hook attach、hook list、hook delete。",
-      "watch": "表达式字符串相对上次变化时产生 STATE_CHANGE（类状态 diff，非硬件 watchpoint）。命令：watch、delete。"
+      "break": "模板断点：目录 probe_id + 可选内核过滤 DSL。命令：break、tbreak、condition、delete、enable、disable。",
+      "templates": "Agent 内置 break 模板列表（info break-templates）。",
+      "hook": "hook attach：完整 eBPF C；probe_point 由 ELF SEC 解析。命令：hook attach、hook list、hook delete。",
+      "watch": "断点命中时按列输出参数（EVENT_TYPE_WATCH_ARG）。命令：watch --sec …、delete。"
     }
   },
   "hookMaps": {
@@ -215,6 +215,7 @@
     "colIndex": "#",
     "colDelta": "Δt",
     "colType": "类型",
+    "colSource": "来源",
     "colPid": "PID",
     "colTgid": "TGID",
     "colCpu": "CPU",
@@ -222,7 +223,7 @@
     "colPayload": "Payload",
     "emptyDisconnected": "尚未连接 Agent。连接后点击顶部「开始捕获」，事件会出现在此列表。",
     "emptyNeedCapture": "已连接，但尚未开始捕获。请点击顶部「开始捕获」以订阅调试事件流。",
-    "emptyNoProbesYet": "捕获已开启。若列表仍为空，通常是因为还没有附加会发事件的探针：\n• 「命令」：break（你的 eBPF C）、hook attach、trace、watch\n• 「Hook」：整段 C 编译附加\n内核或目标进程需有实际命中；L4 观测常见 tcp_sendmsg/tcp_recvmsg；TC 改包等需将来扩展 attach 类型。"
+    "emptyNoProbesYet": "捕获已开启。若仍为空，请先附加探针：\n• 命令：break <probe_id>、hook attach、watch --sec …\n• Hook 编辑器：整段 C 编译附加\n需内核实际命中探针。"
   },
   "detail": {
     "jsonTitle": "详情 JSON",

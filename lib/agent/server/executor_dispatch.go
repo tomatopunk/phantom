@@ -35,7 +35,7 @@ func normalizeReplVerb(v string) string {
 	case "p":
 		return "print"
 	case "t":
-		return "trace"
+		return "tbreak"
 	case "c":
 		return "continue"
 	default:
@@ -48,7 +48,6 @@ var replVerbTable = map[string]replHandler{
 	"break":  (*commandExecutor).executeBreak,
 	"tbreak": (*commandExecutor).executeTbreak,
 	"print":  (*commandExecutor).executePrint,
-	"trace":  (*commandExecutor).executeTrace,
 	"continue": func(e *commandExecutor, ctx context.Context, sess *session.Session, _ []string) (*proto.ExecuteResponse, error) {
 		return e.executeContinue(ctx, sess)
 	},

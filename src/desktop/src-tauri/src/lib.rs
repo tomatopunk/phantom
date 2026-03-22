@@ -47,7 +47,7 @@ fn stream_backoff_ms(attempt: u32) -> u64 {
 fn event_type_name(code: i32) -> &'static str {
     match code {
         1 => "BREAK_HIT",
-        2 => "TRACE_SAMPLE",
+        2 => "WATCH_ARG",
         3 => "ERROR",
         4 => "STATE_CHANGE",
         _ => "UNSPECIFIED",
@@ -202,7 +202,7 @@ fn compile_json(r: CompileAndAttachResponse) -> Value {
         "ok": r.ok,
         "error_message": r.error_message,
         "hook_id": r.hook_id,
-        "attach_point": r.attach_point,
+        "probe_point": r.probe_point,
         "diagnostics": diags,
         "compiler_output": r.compiler_output,
     })
@@ -305,6 +305,10 @@ async fn start_capture(app: AppHandle, state: State<'_, AppState>) -> Result<(),
                             "tgid": ev.tgid,
                             "cpu": ev.cpu,
                             "probe_id": ev.probe_id,
+                            "source_kind": ev.source_kind,
+                            "break_id": ev.break_id,
+                            "hook_id": ev.hook_id,
+                            "template_probe_id": ev.template_probe_id,
                             "payload_hex": payload_hex,
                             "payload_truncated": truncated,
                             "payload_utf8": payload_utf8,
@@ -426,14 +430,13 @@ async fn list_uprobes_cmd(
 async fn compile_hook(
     state: State<'_, AppState>,
     source: String,
-    attach: String,
     program_name: String,
     limit: u32,
 ) -> Result<Value, String> {
     let mut guard = state.exec_client.lock().await;
     let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
     let r = c
-        .compile_and_attach(&source, &attach, &program_name, limit)
+        .compile_and_attach(&source, &program_name, limit)
         .await
         .map_err(|e| format!("compile_and_attach: {e}"))?;
     Ok(compile_json(r))

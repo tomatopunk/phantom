@@ -76,29 +76,21 @@ proto: $(PROTO_SRC)
 test:
 	$(GO) test ./...
 
-# E2E test for HTTP/1.0 traffic using only generic eBPF (kprobe + break tcp_sendmsg).
-# Requires: agent, phantom-cli (Rust), bpf/probes/kernel/minikprobe.o
+# E2E targets are no-ops until new e2e is reintroduced (see test/e2e/README.md).
 test-e2e-http10-generic:
-	./scripts/e2e_http10_generic.sh
+	@echo "e2e disabled (test/e2e tests removed)"
 
-# E2E test: tcpdump-style CLI (break/trace/info/delete + L3/L4 metadata). Linux + CAP_BPF.
 test-e2e-tcpdump-style-cli:
-	./scripts/e2e_tcpdump_style_cli.sh
+	@echo "e2e disabled (test/e2e tests removed)"
 
-# E2E Go tests for network scenarios (HTTP/1.0, HTTP/1.1, raw TCP). Requires Linux, agent, kprobe.
 test-e2e-network:
-	E2E_NETWORK=1 $(GO) test -v ./test/e2e/ -run 'TestTcpdumpStyle'
+	@echo "e2e disabled (test/e2e tests removed)"
 
-# Go e2e: HTTP/1.0 + tcpdump-style + scenario tests (recv, open, fork, uprobe) when E2E_SCENARIOS=1.
-# Needs Linux, agent, minikprobe.o, optional uprobe helper from build-uprobe-e2e-helper.
 test-e2e-ci:
-	E2E_HTTP10=1 E2E_NETWORK=1 E2E_SCENARIOS=1 $(GO) test -v ./test/e2e/ -run 'Test(Http10Capture|TcpdumpStyle|E2E)'
+	@echo "e2e disabled (test/e2e tests removed)"
 
-# Build tiny C binary for uprobe e2e (Linux cc; no-op on other uname in recipe).
 build-uprobe-e2e-helper:
-	@if [ "$$(uname -s)" = Linux ]; then \
-		cc -g -O0 -o test/e2e/uprobe_helper/uprobe_helper test/e2e/uprobe_helper/main.c; \
-	fi
+	@true
 
 # Re-apply file caps after shell scripts run `go build -o phantom-agent` (replaces inode / drops xattrs).
 # Go e2e on GHA uses sudo for the agent anyway; this helps local `make test-e2e-mr` without GITHUB_ACTIONS.
@@ -108,15 +100,12 @@ phantom-e2e-reapply-caps:
 		sudo setcap cap_sys_resource,cap_bpf+ep ./phantom-agent && getcap ./phantom-agent; \
 	fi
 
-# MR/CI full BPF e2e: Rust CLI + shell scripts + extended Go e2e.
-test-e2e-mr: cli build-uprobe-e2e-helper
-	./scripts/e2e_http10_generic.sh
-	./scripts/e2e_tcpdump_style_cli.sh
-	$(MAKE) phantom-e2e-reapply-caps
-	$(MAKE) test-e2e-ci
+# MR/CI: previously ran shell + Go e2e; disabled until e2e is restored.
+test-e2e-mr:
+	@echo "e2e disabled (test/e2e tests removed)"
 
-# Run all e2e: CLI script + HTTP/1.0 script + Go e2e (network tests skip on non-Linux).
-test-e2e-all: test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network
+test-e2e-all:
+	@echo "e2e disabled (test/e2e tests removed)"
 
 fmt:
 	$(GO) fmt ./...

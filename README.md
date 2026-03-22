@@ -6,7 +6,7 @@ Remote, interactive **eBPF debugger**: a Go **agent** (gRPC server) loads kprobe
 ## Features
 
 - **gRPC API** — Sessions, `Execute` / `StreamEvents`, discovery and compile-and-attach RPCs ([architecture](docs/architecture.md)).
-- **REPL commands** — Break, trace, continue, hooks, watch, and more ([command reference](docs/command-spec.md)).
+- **REPL commands** — Template break, arg watch, full-C hook, print, and more ([command reference](docs/command-spec.md)).
 - **eBPF** — Ring-buffer events from kernel and user-space probes ([`src/agent/bpf`](src/agent/bpf)). **`hook attach`** and **`break`** compile **your full C** on the agent (`--attach`, `--file` / `--source`, optional `--program`, optional `--limit`). Same path as gRPC **`CompileAndAttach`**. **CO-RE** uses kernel **BTF**; use **`-vmlinux`** / **`PHANTOM_VMLINUX`** when sysfs BTF is missing — [docs/command-spec.md](docs/command-spec.md), [docs/ebpf-parameters.md](docs/ebpf-parameters.md), [docs/vmlinux.md](docs/vmlinux.md).
 - **Hardening** — Optional Bearer token, per-session rate limits and quotas ([architecture](docs/architecture.md#security)).
 - **Desktop** — Tauri UI sharing the Rust [`phantom-client`](lib/phantom-client) crate ([`src/desktop/README.md`](src/desktop/README.md)).

@@ -163,9 +163,12 @@ export function lintBracketBalance(source: string): LocalProblem[] {
 
 export function runLocalLint(source: string, attach: string): LocalProblem[] {
   const out: LocalProblem[] = [];
-  const a = lintAttachPoint(attach);
-  if (a) out.push({ line: 1, column: 1, message: a, source: "local" });
-  out.push(...lintSecVsAttach(source, attach));
+  const att = attach.trim();
+  if (att !== "") {
+    const a = lintAttachPoint(att);
+    if (a) out.push({ line: 1, column: 1, message: a, source: "local" });
+    out.push(...lintSecVsAttach(source, att));
+  }
   out.push(...lintBracketBalance(source));
   return out;
 }

@@ -111,7 +111,7 @@ func BuildServerConfig(cfg *Config) *serverConfig {
 	if cfg == nil {
 		return nil
 	}
-	if cfg.RateLimit <= 0 && cfg.MaxBreak == 0 && cfg.MaxTrace == 0 && cfg.MaxHooks == 0 &&
+	if cfg.RateLimit <= 0 && cfg.MaxBreak == 0 && cfg.MaxHooks == 0 &&
 		cfg.Audit == nil && cfg.BpfIncludeDir == "" && cfg.VmlinuxPath == "" {
 		return nil
 	}
@@ -124,8 +124,8 @@ func BuildServerConfig(cfg *Config) *serverConfig {
 		}
 		sc.rateLimiter = NewRateLimiter(cfg.RateLimit, burst)
 	}
-	if cfg.MaxBreak > 0 || cfg.MaxTrace > 0 || cfg.MaxHooks > 0 {
-		sc.quota = NewSessionQuota(cfg.MaxBreak, cfg.MaxTrace, cfg.MaxHooks)
+	if cfg.MaxBreak > 0 || cfg.MaxHooks > 0 {
+		sc.quota = NewSessionQuota(cfg.MaxBreak, cfg.MaxHooks)
 	}
 	if cfg.Audit != nil {
 		sc.audit = cfg.Audit

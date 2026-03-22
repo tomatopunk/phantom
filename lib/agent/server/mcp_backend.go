@@ -57,14 +57,13 @@ func (a *mcpBackendAdapter) ListHooks(ctx context.Context, sessionID string) (st
 }
 
 func (a *mcpBackendAdapter) CompileAndAttach(
-	ctx context.Context, sessionID, source, attach, programName string, limit uint32,
+	ctx context.Context, sessionID, source, programName string, limit uint32,
 ) (*proto.CompileAndAttachResponse, error) {
 	return a.s.CompileAndAttach(ctx, &proto.CompileAndAttachRequest{
-		SessionId:    sessionID,
-		Source:       source,
-		Attach:       attach,
-		ProgramName:  programName,
-		Limit:        limit,
+		SessionId:   sessionID,
+		Source:      source,
+		ProgramName: programName,
+		Limit:       limit,
 	})
 }
 

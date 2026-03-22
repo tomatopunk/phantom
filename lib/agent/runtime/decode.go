@@ -24,6 +24,9 @@ import (
 // eventHeaderSize is the fixed size of event_header in the eBPF C code.
 const eventHeaderSize = 32
 
+// phantomRingRecordSize is PHANTOM_RING_RECORD_SIZE (header + 6 x u64 args).
+const phantomRingRecordSize = 80
+
 // DecodeEvent parses a ringbuf record into Event (matches event_header layout).
 func DecodeEvent(raw []byte) (Event, error) {
 	if len(raw) < eventHeaderSize {
@@ -38,7 +41,16 @@ func DecodeEvent(raw []byte) (Event, error) {
 		CPU:         binary.NativeEndian.Uint32(raw[24:28]),
 		ProbeID:     binary.NativeEndian.Uint32(raw[28:32]),
 	}
-	if len(raw) > eventHeaderSize {
+	if len(raw) >= phantomRingRecordSize {
+		for i := range ev.Args {
+			off := 32 + i*8
+			ev.Args[i] = binary.NativeEndian.Uint64(raw[off : off+8])
+		}
+		if len(raw) > phantomRingRecordSize {
+			ev.Payload = make([]byte, len(raw)-phantomRingRecordSize)
+			copy(ev.Payload, raw[phantomRingRecordSize:])
+		}
+	} else if len(raw) > eventHeaderSize {
 		ev.Payload = make([]byte, len(raw)-eventHeaderSize)
 		copy(ev.Payload, raw[eventHeaderSize:])
 	}

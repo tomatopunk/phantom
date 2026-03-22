@@ -158,11 +158,11 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 		if sid == "" {
 			return "", fmt.Errorf("session_id required")
 		}
-		sym := str("symbol")
-		if sym == "" {
-			return "", fmt.Errorf("symbol required")
+		probeID := str("probe_id")
+		if probeID == "" {
+			return "", fmt.Errorf("probe_id required (catalog id, same as CLI break)")
 		}
-		return ExecuteCommandLine(ctx, s.backend, sid, "break "+sym)
+		return ExecuteCommandLine(ctx, s.backend, sid, "break "+probeID)
 	case "run_command":
 		sid := str("session_id")
 		if sid == "" {
@@ -200,15 +200,11 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 		if sid == "" {
 			return "", fmt.Errorf("session_id required")
 		}
-		point := str("attach_point")
 		code := str("code")
-		if point == "" {
-			return "", fmt.Errorf("attach_point required")
-		}
 		if code == "" {
-			return "", fmt.Errorf("code required (full eBPF C source; use compile_and_attach for gRPC-native attach)")
+			return "", fmt.Errorf("code required (full eBPF C source; probe_point comes from SEC in the object)")
 		}
-		cmd := "hook attach --attach " + point + " --source " + quoteCode(code)
+		cmd := "hook attach --source " + quoteCode(code)
 		return ExecuteCommandLine(ctx, s.backend, sid, cmd)
 	case "compile_and_attach":
 		sid := str("session_id")
@@ -219,16 +215,12 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 		if source == "" {
 			return "", fmt.Errorf("source required")
 		}
-		attach := str("attach")
-		if attach == "" {
-			return "", fmt.Errorf("attach required")
-		}
 		programName := str("program_name")
 		limit, err := uint32FromArgs(args, "limit", 0)
 		if err != nil {
 			return "", err
 		}
-		resp, err := s.backend.CompileAndAttach(ctx, sid, source, attach, programName, limit)
+		resp, err := s.backend.CompileAndAttach(ctx, sid, source, programName, limit)
 		if err != nil {
 			return "", err
 		}

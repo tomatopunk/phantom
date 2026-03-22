@@ -1,18 +1,6 @@
 /**
  * Copyright 2026 The Phantom Authors
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -22,21 +10,21 @@ import { useTranslation } from "react-i18next";
 import * as api from "../api";
 import {
   parseBreakLines,
+  parseCatalogTemplateLines,
   parseHookLines,
-  parseTraceLines,
   parseWatchLines,
   sliceSection,
 } from "../session/parseInfo";
 import { HookMapsPanel } from "./HookMapsPanel";
 
-type Tab = "break" | "trace" | "hook" | "watch";
+type Tab = "break" | "templates" | "hook" | "watch";
 
-const TAB_ORDER: Tab[] = ["break", "trace", "hook", "watch"];
+const TAB_ORDER: Tab[] = ["break", "templates", "hook", "watch"];
 
 const TAB_SELECTED: Record<Tab, string> = {
   break:
     "border-rose-500/45 bg-rose-500/[0.11] text-app-label dark:border-rose-400/40 dark:bg-rose-500/[0.14]",
-  trace:
+  templates:
     "border-sky-500/45 bg-sky-500/[0.11] text-app-label dark:border-sky-400/40 dark:bg-sky-500/[0.14]",
   hook:
     "border-violet-500/45 bg-violet-500/[0.11] text-app-label dark:border-violet-400/40 dark:bg-violet-500/[0.14]",
@@ -46,7 +34,7 @@ const TAB_SELECTED: Record<Tab, string> = {
 
 const TAB_HINT_BORDER: Record<Tab, string> = {
   break: "border-l-rose-500/55 dark:border-l-rose-400/50",
-  trace: "border-l-sky-500/55 dark:border-l-sky-400/50",
+  templates: "border-l-sky-500/55 dark:border-l-sky-400/50",
   hook: "border-l-violet-500/55 dark:border-l-violet-400/50",
   watch: "border-l-amber-500/55 dark:border-l-amber-400/50",
 };
@@ -61,11 +49,11 @@ function ProbeTabGlyph({ kind }: { kind: Tab }): ReactNode {
           <circle cx="12" cy="12" r="2.5" fill="currentColor" />
         </svg>
       );
-    case "trace":
+    case "templates":
       return (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0 opacity-90" aria-hidden>
-          <path d="M4 16h3l3-6 4 6h6" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M4 8h3l2 4" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M6 4h12v16H6z" stroke="currentColor" strokeWidth={sw} />
+          <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" />
         </svg>
       );
     case "hook":
@@ -102,14 +90,13 @@ export function SessionProbesPanel({
   refreshTrigger = 0,
 }: {
   connected: boolean;
-  /** Increment from parent after attach/delete elsewhere to re-fetch. */
   refreshTrigger?: number;
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("break");
   const [raw, setRaw] = useState<Record<Tab, string>>({
     break: "",
-    trace: "",
+    templates: "",
     hook: "",
     watch: "",
   });
@@ -122,16 +109,16 @@ export function SessionProbesPanel({
     setBusy(true);
     setErr("");
     try {
-      const [b, tr, h, w] = await Promise.all([
+      const [b, tpl, h, w] = await Promise.all([
         api.executeCmd("info break"),
-        api.executeCmd("info trace"),
+        api.executeCmd("info break-templates"),
         api.executeCmd("info hook"),
         api.executeCmd("info watch"),
       ]);
       const pick = (r: { output: string }) => r.output || "";
       setRaw({
         break: pick(b),
-        trace: pick(tr),
+        templates: pick(tpl),
         hook: pick(h),
         watch: pick(w),
       });
@@ -156,12 +143,12 @@ export function SessionProbesPanel({
   };
 
   const breakLines = sliceSection(raw.break, "breakpoints");
-  const traceLines = sliceSection(raw.trace, "traces");
+  const templateLines = sliceSection(raw.templates, "break-templates");
   const hookLines = sliceSection(raw.hook, "hooks");
   const watchLines = sliceSection(raw.watch, "watches");
 
   const breaks = parseBreakLines(breakLines);
-  const traces = parseTraceLines(traceLines);
+  const catalog = parseCatalogTemplateLines(templateLines);
   const hooks = parseHookLines(hookLines);
   const watches = parseWatchLines(watchLines);
 
@@ -251,19 +238,10 @@ export function SessionProbesPanel({
               </span>
             </div>
           ))}
-        {tab === "trace" &&
-          traces.map((r) => (
-            <div key={r.id} className="flex gap-1 items-center border-b border-app-separator/40 py-1">
-              <span className="text-app-accent">{r.id}</span>
-              <span className="truncate flex-1">{r.expressions}</span>
-              <button
-                type="button"
-                disabled={busy}
-                className="btn-app-danger shrink-0 px-1.5 py-0.5 text-[10px] leading-tight"
-                onClick={() => void runCmd(`delete ${r.id}`)}
-              >
-                {t("sessionPanel.action.delete")}
-              </button>
+        {tab === "templates" &&
+          catalog.map((r, i) => (
+            <div key={i} className="border-b border-app-separator/40 py-1 text-app-secondary">
+              {r.line}
             </div>
           ))}
         {tab === "hook" &&
@@ -285,8 +263,8 @@ export function SessionProbesPanel({
             >
               <div className="flex gap-1 items-center">
                 <span className="text-app-accent">{r.id}</span>
-                <span className="truncate flex-1" title={r.attach}>
-                  {r.attach}
+                <span className="truncate flex-1" title={r.probePoint}>
+                  {r.probePoint}
                 </span>
                 <button
                   type="button"
@@ -323,8 +301,8 @@ export function SessionProbesPanel({
           watches.map((r) => (
             <div key={r.id} className="flex gap-1 items-center border-b border-app-separator/40 py-1">
               <span className="text-app-accent">{r.id}</span>
-              <span className="truncate">{r.expression}</span>
-              <span className="text-app-secondary truncate">{r.last}</span>
+              <span className="truncate">{r.probeId}</span>
+              <span className="text-app-secondary truncate">{r.paramText}</span>
               <button
                 type="button"
                 disabled={busy}
@@ -336,7 +314,7 @@ export function SessionProbesPanel({
             </div>
           ))}
         {tab === "break" && breaks.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
-        {tab === "trace" && traces.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
+        {tab === "templates" && catalog.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
         {tab === "hook" && hooks.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
         {tab === "watch" && watches.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
         {tab === "hook" ? (

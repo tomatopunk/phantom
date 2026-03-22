@@ -22,27 +22,24 @@ import (
 	"github.com/tomatopunk/phantom/lib/agent/session"
 )
 
-// SessionQuota limits resources per session (breakpoints, traces, hooks).
+// SessionQuota limits resources per session (breakpoints, hooks).
 type SessionQuota struct {
 	mu       sync.Mutex
 	bySess   map[string]*quotaState
 	MaxBreak int
-	MaxTrace int
 	MaxHooks int
 }
 
 type quotaState struct {
 	breakpoints int
-	traces      int
 	hooks       int
 }
 
 // NewSessionQuota returns a quota enforcer with the given limits (0 = no limit).
-func NewSessionQuota(maxBreak, maxTrace, maxHooks int) *SessionQuota {
+func NewSessionQuota(maxBreak, maxHooks int) *SessionQuota {
 	return &SessionQuota{
 		bySess:   make(map[string]*quotaState),
 		MaxBreak: maxBreak,
-		MaxTrace: maxTrace,
 		MaxHooks: maxHooks,
 	}
 }
@@ -56,18 +53,6 @@ func (q *SessionQuota) AllowBreak(sessionID string) bool {
 		return false
 	}
 	s.breakpoints++
-	return true
-}
-
-// AllowTrace returns true if the session can add another trace.
-func (q *SessionQuota) AllowTrace(sessionID string) bool {
-	q.mu.Lock()
-	defer q.mu.Unlock()
-	s := q.get(sessionID)
-	if q.MaxTrace > 0 && s.traces >= q.MaxTrace {
-		return false
-	}
-	s.traces++
 	return true
 }
 

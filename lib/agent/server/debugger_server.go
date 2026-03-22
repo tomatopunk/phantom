@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/cilium/ebpf/btf"
-	"github.com/tomatopunk/phantom/lib/agent/probe"
 	"github.com/tomatopunk/phantom/lib/agent/runtime"
 	"github.com/tomatopunk/phantom/lib/agent/session"
 	"github.com/tomatopunk/phantom/lib/proto"
@@ -55,7 +54,7 @@ type AuditLogger interface {
 func NewDebuggerServer(sessions *session.Manager) *debuggerServer {
 	return &debuggerServer{
 		sessions: sessions,
-		exec:     newCommandExecutor("", "", probe.NewPlanner(), nil, nil),
+		exec:     newCommandExecutor("", "", nil, nil),
 		cfg:      nil,
 	}
 }
@@ -74,7 +73,7 @@ func NewDebuggerServerWithConfig(sessions *session.Manager, cfg *serverConfig) *
 	}
 	return &debuggerServer{
 		sessions: sessions,
-		exec:     newCommandExecutor(includeDir, vmlinuxPath, probe.NewPlanner(), btfSpec, quota),
+		exec:     newCommandExecutor(includeDir, vmlinuxPath, btfSpec, quota),
 		cfg:      cfg,
 	}
 }
@@ -167,14 +166,18 @@ func (s *debuggerServer) StreamEvents(req *proto.StreamEventsRequest, stream pro
 
 func runtimeEventToProto(sessionID string, ev *runtime.Event) *proto.DebugEvent {
 	return &proto.DebugEvent{
-		TimestampNs: int64(ev.TimestampNs), //nolint:gosec // G115: proto uses int64 for wire format
-		SessionId:   sessionID,
-		EventType:   proto.EventType(ev.EventType), //nolint:gosec // G115: proto enum matches runtime
-		Pid:         ev.PID,
-		Tgid:        ev.Tgid,
-		Cpu:         ev.CPU,
-		ProbeId:     strconv.FormatUint(uint64(ev.ProbeID), 10),
-		Payload:     ev.Payload,
+		TimestampNs:       int64(ev.TimestampNs), //nolint:gosec // G115: proto uses int64 for wire format
+		SessionId:       sessionID,
+		EventType:         proto.EventType(ev.EventType), //nolint:gosec // G115: proto enum matches runtime
+		Pid:               ev.PID,
+		Tgid:              ev.Tgid,
+		Cpu:               ev.CPU,
+		ProbeId:           strconv.FormatUint(uint64(ev.ProbeID), 10),
+		Payload:           ev.Payload,
+		SourceKind:        ev.SourceKind,
+		BreakId:           ev.BreakID,
+		HookId:            ev.HookID,
+		TemplateProbeId:   ev.TemplateProbeID,
 	}
 }
 
@@ -257,7 +260,7 @@ func (s *debuggerServer) ListHooksBackend(_ context.Context, sessionID string) (
 	list := sess.ListHooks()
 	var lines []string
 	for _, h := range list {
-		lines = append(lines, h.ID+"  "+h.AttachPoint)
+		lines = append(lines, h.ID+"  "+h.ProbePoint)
 	}
 	return strings.Join(lines, "\n"), nil
 }
@@ -277,10 +280,6 @@ func checkQuota(q *SessionQuota, sessionID, line string) string {
 		if !q.AllowHook(sessionID) {
 			q.RemoveBreak(sessionID)
 			return "quota: max hooks reached"
-		}
-	case "trace", "t":
-		if !q.AllowTrace(sessionID) {
-			return "quota: max traces reached"
 		}
 	case "hook":
 		if len(parts) < 2 {

@@ -77,13 +77,13 @@ export type CompileHookResult = {
   ok: boolean;
   error_message: string;
   hook_id: string;
-  attach_point: string;
+  probe_point: string;
   diagnostics: CompileDiagnostic[];
   compiler_output: string;
 };
 
-export function compileHook(source: string, attach: string, programName: string, limit = 0) {
-  return invoke<CompileHookResult>("compile_hook", { source, attach, programName, limit });
+export function compileHook(source: string, programName: string, limit = 0) {
+  return invoke<CompileHookResult>("compile_hook", { source, programName, limit });
 }
 
 export type ValidateCompileSourceResult = {

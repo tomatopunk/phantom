@@ -44,6 +44,10 @@ export function eventMatchesFilter(ev: DebugEventPayload, q: string): boolean {
     String(ev.tgid),
     String(ev.cpu),
     ev.probe_id,
+    ev.source_kind ?? "",
+    ev.break_id ?? "",
+    ev.hook_id ?? "",
+    ev.template_probe_id ?? "",
     ev.payload_utf8,
     ev.session_id,
   ]

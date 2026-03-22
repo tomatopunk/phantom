@@ -99,6 +99,7 @@ export function EventsStreamPanel({
                   <span className="w-8 shrink-0 px-1">{t("events.colIndex")}</span>
                   <span className="w-24 shrink-0 truncate">{t("events.colDelta")}</span>
                   <span className="w-28 shrink-0 truncate">{t("events.colType")}</span>
+                  <span className="w-14 shrink-0 truncate">{t("events.colSource")}</span>
                   <span className="w-12 shrink-0">{t("events.colPid")}</span>
                   <span className="w-12 shrink-0">{t("events.colTgid")}</span>
                   <span className="w-8 shrink-0">{t("events.colCpu")}</span>
@@ -127,6 +128,9 @@ export function EventsStreamPanel({
                       <span className="w-8 shrink-0 px-1 text-app-secondary">{vi.index}</span>
                       <span className="w-24 shrink-0 truncate">{relTimeNs(firstTs, ev.timestamp_ns)}</span>
                       <span className="w-28 shrink-0 truncate text-amber-800 dark:text-amber-200/90">{ev.event_type_name}</span>
+                      <span className="w-14 shrink-0 truncate text-cyan-900 dark:text-cyan-200/80">
+                        {ev.source_kind || "—"}
+                      </span>
                       <span className="w-12 shrink-0">{ev.pid}</span>
                       <span className="w-12 shrink-0">{ev.tgid}</span>
                       <span className="w-8 shrink-0">{ev.cpu}</span>

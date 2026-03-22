@@ -33,7 +33,7 @@ func fmtID(prefix string, n uint64) string {
 	return fmt.Sprintf("%s-%d", prefix, n)
 }
 
-// Session holds state for one debug session (breakpoints, traces, runtime, last event).
+// Session holds state for one debug session (breakpoints, hooks, watches, optional legacy runtime).
 type Session struct {
 	ID   string
 	mu   sync.RWMutex
@@ -46,13 +46,10 @@ type Session struct {
 	// Event pump: reads from runtime ringbuf and broadcasts to subscribers.
 	pumpCancel context.CancelFunc
 
-	// Breakpoints, traces, hooks, and watches.
 	breakpoints map[string]*BreakpointState
-	traces      map[string]*TraceState
 	hooks       map[string]*HookState
 	watches     map[string]*WatchState
 	nextBPID    uint64
-	nextTraceID uint64
 	nextHookID  uint64
 	nextWatchID uint64
 
@@ -75,7 +72,6 @@ func NewSession(id, kprobePath string, quotaSink SessionQuotaSink) *Session {
 		stop:        stop,
 		kprobePath:  kprobePath,
 		breakpoints: make(map[string]*BreakpointState),
-		traces:      make(map[string]*TraceState),
 		hooks:       make(map[string]*HookState),
 		watches:     make(map[string]*WatchState),
 		quotaSink:   quotaSink,
@@ -121,36 +117,20 @@ func (s *Session) Runtime() *runtime.Runtime {
 	return s.runtime
 }
 
-// AddBreakpoint stores a breakpoint and returns its id.
-// hookID is non-empty when this breakpoint is backed by a template hook (break/tbreak); detach is nil in that case.
-// kernelFilterExpr is the break/tbreak kernel --sec DSL when KprobeHook; otherwise may be empty.
-func (s *Session) AddBreakpoint(symbol string, detach func(), isTemp bool, hookID, kernelFilterExpr string) string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	id := s.nextBreakpointIDLocked()
-	kh := hookID != ""
-	s.breakpoints[id] = &BreakpointState{
-		ID: id, Symbol: symbol, Detach: detach, Enabled: true, IsTemp: isTemp,
-		HookID: hookID, KprobeHook: kh, KernelFilterExpr: kernelFilterExpr,
-	}
-	return id
-}
-
-// AddProgramBreakpoint registers a breakpoint backed by user eBPF (CompileRaw + hook); Symbol is the attach string for display.
-func (s *Session) AddProgramBreakpoint(attach string, isTemp bool, hookID, source, program string, hookLimit int) string {
+// AddTemplateBreakpoint registers a catalog-backed break (probe_id + optional kernel filter DSL).
+func (s *Session) AddTemplateBreakpoint(probeID string, isTemp bool, hookID, kernelFilterExpr string, hookLimit int) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := s.nextBreakpointIDLocked()
 	s.breakpoints[id] = &BreakpointState{
 		ID:               id,
-		Symbol:           attach,
+		ProbeID:          probeID,
+		Symbol:           probeID,
 		Enabled:          true,
 		IsTemp:           isTemp,
 		HookID:           hookID,
 		KprobeHook:       true,
-		UserProgramBreak: true,
-		UserBreakSource:  source,
-		UserBreakProgram: program,
+		KernelFilterExpr: kernelFilterExpr,
 		HookEventLimit:   hookLimit,
 	}
 	return id
@@ -194,7 +174,6 @@ func (s *Session) RemoveBreakpoint(id string) bool {
 		return false
 	}
 	hookID := bp.HookID
-	detach := bp.Detach
 	delete(s.breakpoints, id)
 	s.mu.Unlock()
 	if hookID != "" {
@@ -202,9 +181,6 @@ func (s *Session) RemoveBreakpoint(id string) bool {
 		s.releaseHookSlot()
 		s.releaseBreakSlot()
 		return true
-	}
-	if detach != nil {
-		detach()
 	}
 	s.releaseBreakSlot()
 	return true
@@ -286,37 +262,15 @@ func (s *Session) ListBreakpoints() []*BreakpointState {
 	return out
 }
 
-// EnableBreakpoint enables a breakpoint (no-op if already enabled; re-attach if was disabled).
-// KprobeHook breakpoints disabled via DisableBreakpoint must be re-attached by the executor (returns false here).
+// EnableBreakpoint returns true only when the template breakpoint is already attached; otherwise the executor must recompile.
 func (s *Session) EnableBreakpoint(id string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bp, ok := s.breakpoints[id]
-	if !ok {
+	if !ok || !bp.KprobeHook {
 		return false
 	}
-	if bp.KprobeHook {
-		if bp.HookID != "" && bp.Enabled {
-			return true
-		}
-		return false
-	}
-	if bp.Enabled && bp.Detach != nil {
-		return true // already enabled and attached
-	}
-	if bp.Detach == nil {
-		// Was disabled; re-attach so the breakpoint can fire again.
-		if s.runtime == nil || bp.Symbol == "" {
-			return false
-		}
-		detach, err := s.runtime.AttachKprobe(bp.Symbol)
-		if err != nil {
-			return false
-		}
-		bp.Detach = detach
-	}
-	bp.Enabled = true
-	return true
+	return bp.HookID != "" && bp.Enabled
 }
 
 // DisableBreakpoint marks breakpoint disabled (detach and keep entry; enable will re-attach).
@@ -336,65 +290,38 @@ func (s *Session) DisableBreakpoint(id string) bool {
 		s.releaseHookSlot()
 		return true
 	}
-	if bp.Detach != nil {
-		bp.Detach()
-		bp.Detach = nil
-	}
 	bp.Enabled = false
 	s.mu.Unlock()
 	return true
 }
 
-// AddTrace stores a trace and returns its id.
-func (s *Session) AddTrace(expressions []string, detach func()) string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	id := s.nextTraceIDLocked()
-	s.traces[id] = &TraceState{ID: id, Expressions: expressions, Detach: detach}
-	return id
-}
-
-func (s *Session) nextTraceIDLocked() string {
-	s.nextTraceID++
-	return fmtID("trace", s.nextTraceID)
-}
-
-// RemoveTrace removes and detaches a trace.
-func (s *Session) RemoveTrace(id string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	tr, ok := s.traces[id]
-	if !ok {
-		return false
+// HasActiveBreakForProbe reports whether an enabled template break exists for the catalog probe_id.
+func (s *Session) HasActiveBreakForProbe(probeID string) bool {
+	for _, bp := range s.ListBreakpoints() {
+		if bp.Enabled && bp.KprobeHook && bp.ProbeID == probeID && bp.HookID != "" {
+			return true
+		}
 	}
-	if tr.Detach != nil {
-		tr.Detach()
-	}
-	delete(s.traces, id)
-	return true
+	return false
 }
 
-// ListTraces returns all trace states.
-func (s *Session) ListTraces() []*TraceState {
+// GetHook returns hook state by id (nil if missing).
+func (s *Session) GetHook(id string) *HookState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	out := make([]*TraceState, 0, len(s.traces))
-	for _, tr := range s.traces {
-		out = append(out, tr)
-	}
-	return out
+	return s.hooks[id]
 }
 
 // AddHook stores a hook, starts an event pump reading from the hook's ringbuf, and returns its id.
 // When the hook is removed or the session stops, the pump is canceled and detach is called.
 // limit is 0 for no limit; when > 0 the hook auto-detaches after that many events.
 // opt may be nil.
-func (s *Session) AddHook(attachPoint string, detach func(), reader *ringbuf.Reader, coll *ebpf.Collection, limit int, opt *HookOpts) string {
+func (s *Session) AddHook(probePoint string, detach func(), reader *ringbuf.Reader, coll *ebpf.Collection, limit int, opt *HookOpts) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := s.nextHookIDLocked()
 	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel stored in HookState and called when hook is removed
-	hs := &HookState{ID: id, AttachPoint: attachPoint, Detach: detach, Cancel: cancel, Limit: limit, Coll: coll}
+	hs := &HookState{ID: id, ProbePoint: probePoint, Detach: detach, Cancel: cancel, Limit: limit, Coll: coll}
 	if opt != nil {
 		hs.Note = opt.Note
 	}
@@ -475,12 +402,17 @@ func (s *Session) ListHooks() []*HookState {
 	return out
 }
 
-// AddWatch stores a watch expression and returns its id.
-func (s *Session) AddWatch(expr string) string {
+// AddArgWatch registers arg-column watch for a catalog probe_id (indices are positions in catalog Params; nil uses defaults at fire time).
+func (s *Session) AddArgWatch(probeID string, argParamIndices []int) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := s.nextWatchIDLocked()
-	s.watches[id] = &WatchState{ID: id, Expression: expr}
+	// copy indices so caller cannot mutate
+	var idxCopy []int
+	if len(argParamIndices) > 0 {
+		idxCopy = append([]int(nil), argParamIndices...)
+	}
+	s.watches[id] = &WatchState{ID: id, ProbeID: probeID, ArgParamIndices: idxCopy}
 	return id
 }
 
@@ -507,45 +439,6 @@ func (s *Session) ListWatches() []*WatchState {
 	out := make([]*WatchState, 0, len(s.watches))
 	for _, w := range s.watches {
 		out = append(out, w)
-	}
-	return out
-}
-
-// EvaluateWatchChanges evaluates all watch expressions against ev, updates last values,
-// and returns triggers for watches whose value changed.
-func (s *Session) EvaluateWatchChanges(ev *runtime.Event) []WatchTrigger {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var out []WatchTrigger
-	for _, w := range s.watches {
-		newVal := expression.Evaluate(ev, w.Expression)
-		if w.HasValue && w.LastValue != newVal {
-			out = append(out, WatchTrigger{ID: w.ID, Expression: w.Expression, OldValue: w.LastValue, NewValue: newVal})
-		}
-		w.LastValue = newVal
-		w.HasValue = true
-	}
-	return out
-}
-
-// EvaluateTraceSamples evaluates all trace expressions against ev and returns one TraceSampleResult per trace.
-func (s *Session) EvaluateTraceSamples(ev *runtime.Event) []TraceSampleResult {
-	s.mu.RLock()
-	traces := make([]*TraceState, 0, len(s.traces))
-	for _, tr := range s.traces {
-		traces = append(traces, tr)
-	}
-	s.mu.RUnlock()
-	if len(traces) == 0 {
-		return nil
-	}
-	out := make([]TraceSampleResult, 0, len(traces))
-	for _, tr := range traces {
-		values := make(map[string]string, len(tr.Expressions))
-		for _, expr := range tr.Expressions {
-			values[expr] = expression.Evaluate(ev, expr)
-		}
-		out = append(out, TraceSampleResult{TraceID: tr.ID, Expressions: tr.Expressions, Values: values})
 	}
 	return out
 }
@@ -629,18 +522,7 @@ func (s *Session) Stop() {
 		s.stop()
 		s.stop = nil
 	}
-	for _, bp := range s.breakpoints {
-		if bp.Detach != nil {
-			bp.Detach()
-		}
-	}
 	s.breakpoints = make(map[string]*BreakpointState)
-	for _, tr := range s.traces {
-		if tr.Detach != nil {
-			tr.Detach()
-		}
-	}
-	s.traces = make(map[string]*TraceState)
 	for _, h := range s.hooks {
 		if h.Cancel != nil {
 			h.Cancel()

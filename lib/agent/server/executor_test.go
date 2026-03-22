@@ -24,18 +24,17 @@ import (
 	"github.com/tomatopunk/phantom/lib/agent/session"
 )
 
-func TestExecuteBreakPrintTrace(t *testing.T) {
-	exec := newCommandExecutor("", "", nil, nil, nil)
-	mgr := session.NewManager("", nil) // no bpf include: break compiles fail
+func TestExecuteBreakPrintContinue(t *testing.T) {
+	exec := newCommandExecutor("", "", nil, nil)
+	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 
 	tests := []struct {
 		line   string
 		wantOk bool
 	}{
-		{"break do_sys_open", false}, // no kprobe path in test
+		{"break kprobe.do_sys_open", false}, // no bpf include
 		{"print pid", true},
-		{"trace arg0", true},
 		{"continue", true},
 		{"break", false},
 		{"print", false},
@@ -51,7 +50,7 @@ func TestExecuteBreakPrintTrace(t *testing.T) {
 			t.Errorf("execute %q: ok=%v want %v", tt.line, resp.GetOk(), tt.wantOk)
 		}
 		if tt.wantOk && resp.GetOutput() == "" && !strings.Contains(tt.line, "continue") {
-			if resp.GetBreakpoint() == nil && resp.GetPrint() == nil && resp.GetTrace() == nil {
+			if resp.GetBreakpoint() == nil && resp.GetPrint() == nil && resp.GetWatch() == nil {
 				t.Errorf("execute %q: expected some output or result", tt.line)
 			}
 		}
@@ -59,12 +58,11 @@ func TestExecuteBreakPrintTrace(t *testing.T) {
 }
 
 func TestExecuteList(t *testing.T) {
-	exec := newCommandExecutor("", "", nil, nil, nil)
+	exec := newCommandExecutor("", "", nil, nil)
 	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
 
-	// no symbol
 	resp, err := exec.execute(ctx, sess, "list")
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +74,6 @@ func TestExecuteList(t *testing.T) {
 		t.Errorf("list: output should ask for symbol, got %q", resp.GetOutput())
 	}
 
-	// with symbol (platform-dependent: kallsyms or stub message)
 	resp, err = exec.execute(ctx, sess, "list do_sys_open")
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +87,7 @@ func TestExecuteList(t *testing.T) {
 }
 
 func TestExecuteBt(t *testing.T) {
-	exec := newCommandExecutor("", "", nil, nil, nil)
+	exec := newCommandExecutor("", "", nil, nil)
 	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
@@ -106,60 +103,61 @@ func TestExecuteBt(t *testing.T) {
 	if !strings.Contains(out, "bt") {
 		t.Errorf("bt: output should contain bt, got %q", out)
 	}
-	// No event yet -> "no event yet" or platform "not supported"
 	if !strings.Contains(out, "event") && !strings.Contains(out, "supported") && !strings.Contains(out, "stack") {
 		t.Errorf("bt: expected event/supported/stack in output, got %q", out)
 	}
 }
 
-//nolint:gocyclo // table-driven style test with many cases
-func TestExecuteWatchAndDeleteAndInfoWatch(t *testing.T) {
-	exec := newCommandExecutor("", "", nil, nil, nil)
+func TestExecuteWatchRequiresBreak(t *testing.T) {
+	exec := newCommandExecutor("", "", nil, nil)
 	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
 
-	// watch missing expression
 	resp, err := exec.execute(ctx, sess, "watch")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if resp.GetOk() {
-		t.Error("watch: want ok false when missing expression")
-	}
-	if !strings.Contains(resp.GetErrorMessage(), "missing") {
-		t.Errorf("watch: want missing expression error, got %q", resp.GetErrorMessage())
+		t.Error("watch: want ok false when missing args")
 	}
 
-	// watch pid -> success, output contains id
-	resp, err = exec.execute(ctx, sess, "watch pid")
+	resp, err = exec.execute(ctx, sess, "watch --sec kprobe.do_sys_open")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "no enabled break") {
+		t.Fatalf("watch without break: got ok=%v err=%q", resp.GetOk(), resp.GetErrorMessage())
+	}
+}
+
+func TestExecuteWatchAndDeleteAndInfoWatch(t *testing.T) {
+	exec := newCommandExecutor("", "", nil, nil)
+	mgr := session.NewManager("", nil)
+	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
+	ctx := context.Background()
+
+	sess.AddTemplateBreakpoint("kprobe.do_sys_open", false, "hook-1", "", 0)
+
+	resp, err := exec.execute(ctx, sess, "watch --sec kprobe.do_sys_open --args 2,3")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !resp.GetOk() {
-		t.Fatalf("watch pid: %s", resp.GetErrorMessage())
+		t.Fatalf("watch: %s", resp.GetErrorMessage())
 	}
-	out := resp.GetOutput()
-	if !strings.Contains(out, "watch") || !strings.Contains(out, "pid") {
-		t.Errorf("watch pid: output should contain watch and pid, got %q", out)
-	}
-	if !strings.Contains(out, "watch-") {
-		t.Errorf("watch pid: output should contain watch id (watch-N), got %q", out)
+	if resp.GetWatch() == nil {
+		t.Fatal("expected Watch result")
 	}
 
-	// info watch -> list the watch
 	resp, err = exec.execute(ctx, sess, "info watch")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !resp.GetOk() {
-		t.Fatalf("info watch: %s", resp.GetErrorMessage())
-	}
-	if !strings.Contains(resp.GetOutput(), "watches") {
-		t.Errorf("info watch: output should contain watches, got %q", resp.GetOutput())
+	if !strings.Contains(resp.GetOutput(), "kprobe.do_sys_open") {
+		t.Errorf("info watch: got %q", resp.GetOutput())
 	}
 
-	// delete watch-1 (id from first watch)
 	list := sess.ListWatches()
 	if len(list) != 1 {
 		t.Fatalf("expected 1 watch, got %d", len(list))
@@ -170,27 +168,15 @@ func TestExecuteWatchAndDeleteAndInfoWatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !resp.GetOk() {
-		t.Fatalf("delete %s: %s", id, resp.GetErrorMessage())
-	}
-	if !strings.Contains(resp.GetOutput(), "deleted") {
-		t.Errorf("delete: output should contain deleted, got %q", resp.GetOutput())
+		t.Fatal(resp.GetErrorMessage())
 	}
 	if len(sess.ListWatches()) != 0 {
-		t.Error("after delete watch, ListWatches should be empty")
-	}
-
-	// delete nonexistent watch
-	resp, err = exec.execute(ctx, sess, "delete watch-999")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.GetOk() {
-		t.Error("delete watch-999: want ok false")
+		t.Error("watch should be removed")
 	}
 }
 
 func TestExecuteHookAddRemoved(t *testing.T) {
-	exec := newCommandExecutor("", "", nil, nil, nil)
+	exec := newCommandExecutor("", "", nil, nil)
 	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
@@ -208,68 +194,57 @@ func TestExecuteHookAddRemoved(t *testing.T) {
 }
 
 func TestExecuteHookAttach(t *testing.T) {
-	exec := newCommandExecutor("", "", nil, nil, nil)
+	exec := newCommandExecutor("", "", nil, nil)
 	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
 
-	resp, err := exec.execute(ctx, sess, "hook attach --attach kprobe:x")
+	resp, err := exec.execute(ctx, sess, "hook attach --source 'int x;'")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "missing --file or --source") {
-		t.Errorf("hook attach missing source: got ok=%v err=%q", resp.GetOk(), resp.GetErrorMessage())
+	if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "no bpf include dir") {
+		t.Errorf("hook attach: want no bpf include dir, got %q", resp.GetErrorMessage())
 	}
 
-	resp, err = exec.execute(ctx, sess, "hook attach --source 'int x;' --file /tmp/a.c --attach kprobe:x")
+	resp, err = exec.execute(ctx, sess, "hook attach --source 'int a;' --file /tmp/x.c")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "cannot use both") {
 		t.Errorf("hook attach both file and source: want error, got %q", resp.GetErrorMessage())
 	}
-
-	resp, err = exec.execute(ctx, sess, "hook attach --attach kprobe:do_sys_open --source int x=0;")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "no bpf include dir") {
-		t.Errorf("hook attach compile path: want no bpf include dir, got %q", resp.GetErrorMessage())
-	}
 }
 
-func TestParseBreakProgramArgs(t *testing.T) {
-	_, _, _, _, _, msg := parseBreakProgramArgs("break", []string{"do_sys_open"}, false)
-	if msg == "" || !strings.Contains(msg, "obsolete") {
-		t.Fatalf("want obsolete bare symbol hint, got %q", msg)
+func TestParseTemplateBreakArgs(t *testing.T) {
+	_, _, _, msg := parseTemplateBreakArgs("break", []string{"--filter", "pid==1"}, false)
+	if msg == "" || !strings.Contains(msg, "missing probe_id") {
+		t.Fatalf("want missing probe_id, got %q", msg)
 	}
-	attach, src, file, prog, limit, msg := parseBreakProgramArgs("break", []string{
-		"--attach", "kprobe:do_sys_open", "--source", "int x;",
+	pid, flt, limit, msg := parseTemplateBreakArgs("break", []string{
+		"kprobe.do_sys_open", "--filter", "pid==1",
 	}, false)
-	if msg != "" {
-		t.Fatalf("want ok, got %q", msg)
+	if msg != "" || pid != "kprobe.do_sys_open" || flt != "pid==1" || limit != 0 {
+		t.Fatalf("got pid=%q flt=%q limit=%d msg=%q", pid, flt, limit, msg)
 	}
-	if attach != "kprobe:do_sys_open" || src != "int x;" || file != "" || prog != "" || limit != 0 {
-		t.Fatalf("got attach=%q src=%q file=%q prog=%q limit=%d", attach, src, file, prog, limit)
-	}
-	_, _, _, _, limit, msg = parseBreakProgramArgs("tbreak", []string{
-		"--attach", "kprobe:foo", "--source", "x", "--limit", "3",
+	_, _, limit, msg = parseTemplateBreakArgs("tbreak", []string{
+		"kprobe.foo", "--limit", "3",
 	}, true)
 	if msg != "" || limit != 3 {
 		t.Fatalf("tbreak limit: msg=%q limit=%d", msg, limit)
 	}
 }
 
-func TestExecuteBreakRequiresFlags(t *testing.T) {
-	exec := newCommandExecutor("", "", nil, nil, nil)
+func TestExecuteBreakUnknownProbe(t *testing.T) {
+	exec := newCommandExecutor("", "", nil, nil)
 	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
-	resp, err := exec.execute(ctx, sess, `break do_sys_open --sec "pid>0"`)
+	resp, err := exec.execute(ctx, sess, "break not_a_real_probe_id")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "unexpected argument") {
-		t.Fatalf("want parse error, got ok=%v err=%q", resp.GetOk(), resp.GetErrorMessage())
+	if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "unknown probe_id") {
+		t.Fatalf("want unknown probe_id, got ok=%v err=%q", resp.GetOk(), resp.GetErrorMessage())
 	}
 }

@@ -11,10 +11,10 @@ MCP over **stdin/stdout** uses the same session model as gRPC. Tools that run co
 
 | Tool | Arguments | Returns |
 |------|-----------|---------|
-| `set_breakpoint` | `session_id`, `symbol` | Runs `break <symbol>` (legacy one-arg form); **obsolete** — expect `break: obsolete syntax`. Prefer **`run_command`** with `break --attach kprobe:<sym> --source '…'` / `--file …`, or **`compile_and_attach`**. |
+| `set_breakpoint` | `session_id`, `probe_id` | Runs `break <probe_id>` (catalog id from `info break-templates`). |
 | `run_command` | `session_id`, `command_line` | Text output from `Execute`. |
-| `add_c_hook` | `session_id`, `attach_point`, `code` (full eBPF C) | Runs `hook attach --source …` via `Execute` (text output). |
-| `compile_and_attach` | `session_id`, `source`, `attach`, optional `program_name`, optional `limit` | On success: **JSON** string (protojson of `CompileAndAttachResponse`, same path as gRPC). On logical failure: JSON-RPC **error** with agent message. |
+| `add_c_hook` | `session_id`, `code` (full eBPF C) | Runs `hook attach --source …` via `Execute`. **Probe point** comes from `SEC("…")` in the object (no attach string). |
+| `compile_and_attach` | `session_id`, `source`, optional `program_name`, optional `limit` | On success: **JSON** string (protojson of `CompileAndAttachResponse`). On logical failure: JSON-RPC **error** with agent message. |
 | `list_sessions` | — | Session ids, one per line. |
 | `list_breakpoints` | `session_id` | Text listing. |
 | `list_hooks` | `session_id` | Text listing. |
@@ -23,8 +23,8 @@ MCP over **stdin/stdout** uses the same session model as gRPC. Tools that run co
 
 Numeric arguments may be JSON numbers (e.g. `max_entries`).
 
-REPL equivalents for `run_command` / `add_c_hook`: [command-spec.md](command-spec.md). Hook parameters: [ebpf-parameters.md](ebpf-parameters.md).
+REPL equivalents for `run_command` / `add_c_hook`: [command-spec.md](command-spec.md). Hook `SEC` layout: [ebpf-parameters.md](ebpf-parameters.md).
 
-`trace` / `watch` apply to events from **`break`**, **`hook attach`**, and the legacy main kprobe runtime when loaded: each probe event updates the session’s last-event context and can emit `TRACE_SAMPLE` / `STATE_CHANGE` derivatives. Use `info session` for counts (`hooks=`, etc.).
+**Events:** each probe hit updates the session last-event context. **Arg watches** (`watch --sec …`) emit **`EVENT_TYPE_WATCH_ARG`** on matching template break hits. Streamed **`DebugEvent`** values carry **`source_kind`** (`break` \| `watch` \| `hook`) plus structured ids where applicable. Use `info session` for counts.
 
-**Event buffering:** same pipeline as gRPC — kernel BPF ringbuf (size is defined in **your** C or the legacy agent object), then agent pumps, then per-stream **64-slot** subscriber channels with **drop-on-full** delivery. Details: [command-spec.md — Event buffering](command-spec.md#event-buffering).
+**Event buffering:** kernel BPF ringbuf → agent pumps → per-stream **64-slot** subscriber channels with **drop-on-full** delivery. Details were summarized in older revisions of [command-spec.md](command-spec.md) (event pipeline section); behavior is unchanged aside from event types.

@@ -33,21 +33,17 @@ func firstLineOf(s string) string {
 	return s
 }
 
-// tryCompileAttachHook compiles full C on the agent (same as hook attach), then attaches. Compile must succeed before attach.
-func (e *commandExecutor) tryCompileAttachHook(
+// compileAttachFromSource compiles full C, derives probe_point from the ELF SEC of the chosen program, then attaches.
+func (e *commandExecutor) compileAttachFromSource(
 	ctx context.Context,
 	sess *session.Session,
-	source, attach, programName string,
+	source, programName string,
 	limit int,
 	note string,
 ) *proto.CompileAndAttachResponse {
 	source = strings.TrimSpace(source)
 	if source == "" {
 		return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: "empty source"}
-	}
-	pa, err := hook.ParseFullAttachPoint(attach)
-	if err != nil {
-		return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: err.Error()}
 	}
 	if e.hookIncludeDir == "" {
 		return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: "no bpf include dir configured"}
@@ -61,12 +57,18 @@ func (e *commandExecutor) tryCompileAttachHook(
 				ErrorMessage:   firstLineOf(out),
 				CompilerOutput: out,
 				Diagnostics:    hook.ParseClangDiagnostics(out),
-				AttachPoint:    attach,
 			}
 		}
 		return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: err.Error()}
 	}
-	detach, rd, coll, err := hook.AttachProbeFromObject(cr.ObjectPath, pa, strings.TrimSpace(programName), cr.Cleanup)
+	pa, pickedProg, err := hook.ParseProbePointFromELF(cr.ObjectPath, strings.TrimSpace(programName))
+	if err != nil {
+		if cr.Cleanup != nil {
+			cr.Cleanup()
+		}
+		return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: err.Error()}
+	}
+	detach, rd, coll, err := hook.AttachProbeFromObject(cr.ObjectPath, pa, pickedProg, cr.Cleanup)
 	if err != nil {
 		if cr.Cleanup != nil {
 			cr.Cleanup()
@@ -76,8 +78,9 @@ func (e *commandExecutor) tryCompileAttachHook(
 	if note == "" {
 		note = "CompileAndAttach"
 	}
-	id := sess.AddHook(attach, detach, rd, coll, limit, &session.HookOpts{Note: note})
-	return &proto.CompileAndAttachResponse{Ok: true, HookId: id, AttachPoint: attach}
+	probePoint := hook.FormatProbePoint(pa)
+	id := sess.AddHook(probePoint, detach, rd, coll, limit, &session.HookOpts{Note: note})
+	return &proto.CompileAndAttachResponse{Ok: true, HookId: id, ProbePoint: probePoint}
 }
 
 func (e *commandExecutor) compileAndAttach(
@@ -85,7 +88,7 @@ func (e *commandExecutor) compileAndAttach(
 	sess *session.Session,
 	req *proto.CompileAndAttachRequest,
 ) *proto.CompileAndAttachResponse {
-	return e.tryCompileAttachHook(ctx, sess, req.GetSource(), req.GetAttach(), req.GetProgramName(), int(req.GetLimit()), "CompileAndAttach")
+	return e.compileAttachFromSource(ctx, sess, req.GetSource(), req.GetProgramName(), int(req.GetLimit()), "CompileAndAttach")
 }
 
 // validateCompileSource runs clang only (no attach, no quota).

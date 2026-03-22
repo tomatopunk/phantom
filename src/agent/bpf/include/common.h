@@ -29,6 +29,8 @@
 #endif
 
 #define PHANTOM_EVENT_HEADER_SIZE 32
+/* Header + six u64 args (break/watch template ringbuf record). */
+#define PHANTOM_RING_RECORD_SIZE 80
 #define PHANTOM_EVENT_TYPE_BREAK_HIT 1
 
 struct event_header {

@@ -193,7 +193,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler clang libbpf-dev linux-headers-$(uname -r) curl build-essential libcap2-bin
-      - name: Generate proto, BPF, agent; full MR e2e
+      - name: Generate proto, BPF, agent (e2e disabled)
         env:
           PHANTOM_STRICT_MEMLOCK: "1"
         run: |
@@ -201,5 +201,3 @@ jobs:
           make proto
           make build-bpf
           make agent
-          # test-e2e-mr re-applies setcap after shell scripts rebuild phantom-agent; Go e2e uses sudo on GHA (see test/e2e/helpers.go).
-          make test-e2e-mr

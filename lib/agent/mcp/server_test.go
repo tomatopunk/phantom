@@ -26,7 +26,7 @@ import (
 
 type fakeMCPBackend struct {
 	executeFn           func(ctx context.Context, sessionID, commandLine string) (*proto.ExecuteResponse, error)
-	compileAndAttachFn  func(ctx context.Context, sessionID, source, attach, programName string, limit uint32) (*proto.CompileAndAttachResponse, error)
+	compileAndAttachFn  func(ctx context.Context, sessionID, source, programName string, limit uint32) (*proto.CompileAndAttachResponse, error)
 	listTracepointsFn   func(ctx context.Context, prefix string, maxEntries uint32) ([]string, error)
 	listKprobeSymbolsFn func(ctx context.Context, prefix string, maxEntries uint32) ([]string, error)
 }
@@ -55,12 +55,12 @@ func (*fakeMCPBackend) ListHooks(context.Context, string) (string, error) {
 }
 
 func (f *fakeMCPBackend) CompileAndAttach(
-	ctx context.Context, sessionID, source, attach, programName string, limit uint32,
+	ctx context.Context, sessionID, source, programName string, limit uint32,
 ) (*proto.CompileAndAttachResponse, error) {
 	if f.compileAndAttachFn != nil {
-		return f.compileAndAttachFn(ctx, sessionID, source, attach, programName, limit)
+		return f.compileAndAttachFn(ctx, sessionID, source, programName, limit)
 	}
-	return &proto.CompileAndAttachResponse{Ok: true, HookId: "h1", AttachPoint: attach}, nil
+	return &proto.CompileAndAttachResponse{Ok: true, HookId: "h1", ProbePoint: "kprobe:foo"}, nil
 }
 
 func (f *fakeMCPBackend) ListTracepoints(ctx context.Context, prefix string, maxEntries uint32) ([]string, error) {
@@ -98,15 +98,15 @@ func TestRunCommandToolFailsLikeSetBreakpoint(t *testing.T) {
 func TestSetBreakpointToolPropagatesExecuteError(t *testing.T) {
 	s := NewServer(&fakeMCPBackend{
 		executeFn: func(_ context.Context, _, _ string) (*proto.ExecuteResponse, error) {
-			return &proto.ExecuteResponse{Ok: false, ErrorMessage: "missing symbol"}, nil
+			return &proto.ExecuteResponse{Ok: false, ErrorMessage: "unknown probe_id"}, nil
 		},
 	})
 	_, err := s.runTool(context.Background(), "set_breakpoint", map[string]any{
 		"session_id": "s1",
-		"symbol":     "x",
+		"probe_id":   "kprobe.nope",
 	})
-	if err == nil || !strings.Contains(err.Error(), "missing symbol") {
-		t.Fatalf("set_breakpoint: want missing symbol error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "unknown probe_id") {
+		t.Fatalf("set_breakpoint: want probe error, got %v", err)
 	}
 }
 
@@ -115,7 +115,6 @@ func TestCompileAndAttachToolSuccessJSON(t *testing.T) {
 	out, err := s.runTool(context.Background(), "compile_and_attach", map[string]any{
 		"session_id": "s1",
 		"source":     "int x;",
-		"attach":     "kprobe:foo",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -127,14 +126,13 @@ func TestCompileAndAttachToolSuccessJSON(t *testing.T) {
 
 func TestCompileAndAttachToolLogicalError(t *testing.T) {
 	s := NewServer(&fakeMCPBackend{
-		compileAndAttachFn: func(_ context.Context, _, _, _, _ string, _ uint32) (*proto.CompileAndAttachResponse, error) {
+		compileAndAttachFn: func(_ context.Context, _, _, _ string, _ uint32) (*proto.CompileAndAttachResponse, error) {
 			return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: "compile bad"}, nil
 		},
 	})
 	_, err := s.runTool(context.Background(), "compile_and_attach", map[string]any{
 		"session_id": "s1",
 		"source":     "bad",
-		"attach":     "kprobe:x",
 	})
 	if err == nil || !strings.Contains(err.Error(), "compile bad") {
 		t.Fatalf("want compile error, got %v", err)

@@ -213,7 +213,6 @@ impl PhantomClient {
     pub async fn compile_and_attach(
         &mut self,
         source: &str,
-        attach: &str,
         program_name: &str,
         limit: u32,
     ) -> Result<CompileAndAttachResponse, tonic::Status> {
@@ -224,7 +223,6 @@ impl PhantomClient {
             .compile_and_attach(self.with_auth(Request::new(CompileAndAttachRequest {
                 session_id: self.session_id.clone(),
                 source: source.to_string(),
-                attach: attach.to_string(),
                 program_name: program_name.to_string(),
                 limit,
             })))

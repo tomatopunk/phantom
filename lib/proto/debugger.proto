@@ -65,7 +65,7 @@ message ExecuteResponse {
   oneof result {
     BreakpointResult breakpoint = 4;
     PrintResult print = 5;
-    TraceResult trace = 6;
+    WatchResult watch = 6;
     HookResult hook = 7;
   }
 }
@@ -81,14 +81,15 @@ message PrintResult {
   string value = 2;
 }
 
-message TraceResult {
-  string trace_id = 1;
-  repeated string expressions = 2;
+message WatchResult {
+  string watch_id = 1;
+  string probe_id = 2;
+  repeated uint32 args = 3;
 }
 
 message HookResult {
   string hook_id = 1;
-  string attach_point = 2;
+  string probe_point = 2;
   bool compiled = 3;
   string error_message = 4;
 }
@@ -106,12 +107,16 @@ message DebugEvent {
   uint32 cpu = 6;
   string probe_id = 7;
   bytes payload = 8;  // event-type-specific data
+  string source_kind = 9;       // break | watch | hook
+  string break_id = 10;
+  string hook_id = 11;
+  string template_probe_id = 12;
 }
 
 enum EventType {
   EVENT_TYPE_UNSPECIFIED = 0;
   EVENT_TYPE_BREAK_HIT = 1;
-  EVENT_TYPE_TRACE_SAMPLE = 2;
+  EVENT_TYPE_WATCH_ARG = 2;
   EVENT_TYPE_ERROR = 3;
   EVENT_TYPE_STATE_CHANGE = 4;
 }
@@ -130,14 +135,14 @@ message CloseSessionResponse {
   bool ok = 1;
 }
 
-// CompileAndAttachRequest compiles full eBPF C source on the agent and attaches one program.
-// attach format: "kprobe:symbol" | "tracepoint:subsystem:event" | "uprobe:/abs/path:symbol"
+// CompileAndAttachRequest compiles full eBPF C and attaches using SEC names in the object (kprobe/..., tracepoint/..., uprobe/...).
 message CompileAndAttachRequest {
   string session_id = 1;
   string source = 2;
-  string attach = 3;
-  string program_name = 4;  // optional ELF section program name; if empty, first matching probe type is used
-  uint32 limit = 5;         // optional: auto-detach hook after this many events (0 = no limit)
+  reserved 3;
+  reserved "attach";
+  string program_name = 4;  // optional ELF program name; if empty, first kprobe/tracepoint program is used
+  uint32 limit = 5;           // optional: auto-detach hook after this many events (0 = no limit)
 }
 
 // CompileDiagnostic is one clang-style diagnostic line (parsed from compiler stderr).
@@ -153,7 +158,7 @@ message CompileAndAttachResponse {
   bool ok = 1;
   string error_message = 2;
   string hook_id = 3;
-  string attach_point = 4;
+  string probe_point = 4;
   repeated CompileDiagnostic diagnostics = 5;
   string compiler_output = 6;  // full stderr for detail panel
 }

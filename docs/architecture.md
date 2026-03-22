@@ -4,7 +4,7 @@
 
 **Phantom** is a remote eBPF debugger.
 
-- **Agent**: gRPC server managing sessions, executing commands (break / print / trace / hooks), loading eBPF, streaming ring-buffer events.
+- **Agent**: gRPC server managing sessions, executing commands (break / watch / print / hooks), loading eBPF, streaming ring-buffer events.
 - **CLI**: Rust (`cargo build -p phantom-cli` in `src/cli`); talks gRPC to the agent.
 - **Desktop**: Tauri app under `src/desktop` using shared `lib/phantom-client`.
 
@@ -24,7 +24,7 @@
 | CLI | REPL and `discover` in `src/cli` |
 | Agent API | Auth, sessions, Execute, streams, discovery, compile/attach |
 | Discovery | `lib/agent/discovery`: tracefs, kallsyms, ELF symbols |
-| Hook compile | `lib/agent/hook`: clang CO-RE, `CompileRaw` + attach for `break` / `hook attach` / `CompileAndAttach` |
+| Hook compile | `lib/agent/hook`: clang CO-RE, `CompileRaw` + SEC-derived attach for template `break` codegen and user `hook attach` / `CompileAndAttach` |
 | Executor | Parse line, dispatch verbs, return proto result |
 | Session | Per-session state; quota and rate limiter |
 | Probe | User-space ELF resolution for uprobes |
@@ -33,7 +33,7 @@
 ## Security
 
 - Optional **Bearer** token on gRPC metadata.
-- **Rate limit** and **quota** per session (breakpoints, traces, hooks).
+- **Rate limit** and **quota** per session (breakpoints, arg watches, hooks).
 - Optional **audit** log of each Execute.
 - Optional **HTTP health** endpoint for load balancers.
 

@@ -19,39 +19,38 @@ package server
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
+	"github.com/tomatopunk/phantom/lib/agent/breaktpl"
 	"github.com/tomatopunk/phantom/lib/agent/session"
 	"github.com/tomatopunk/phantom/lib/proto"
 )
 
 const (
-	infoSubBreak   = "break"
-	infoSubTrace   = "trace"
-	infoSubWatch   = "watch"
-	infoSubHook    = "hook"
-	infoSubSession = "session"
-	infoNoneLine   = "  (none)\n"
-	cmdDelete      = "delete"
-	cmdList        = "list"
+	infoSubBreak         = "break"
+	infoSubBreakTemplates = "break-templates"
+	infoSubWatch         = "watch"
+	infoSubHook          = "hook"
+	infoSubSession       = "session"
+	infoNoneLine         = "  (none)\n"
+	cmdDelete            = "delete"
+	cmdList              = "list"
 )
 
-// executeDelete removes a breakpoint, trace, or watch by id.
+// executeDelete removes a breakpoint or watch by id.
 func (*commandExecutor) executeDelete(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
-		return errResponse("delete: missing breakpoint, trace, or watch id"), nil
+		return errResponse("delete: missing breakpoint or watch id"), nil
 	}
 	id := args[0]
 	if sess.RemoveBreakpoint(id) {
 		return &proto.ExecuteResponse{Ok: true, Output: "breakpoint " + id + " deleted"}, nil
 	}
-	if sess.RemoveTrace(id) {
-		return &proto.ExecuteResponse{Ok: true, Output: "trace " + id + " deleted"}, nil
-	}
 	if sess.RemoveWatch(id) {
 		return &proto.ExecuteResponse{Ok: true, Output: "watch " + id + " deleted"}, nil
 	}
-	return errResponse("delete: no breakpoint, trace, or watch " + id), nil
+	return errResponse("delete: no breakpoint or watch " + id), nil
 }
 
 // executeDisable disables a breakpoint (detaches).
@@ -89,7 +88,7 @@ func (e *commandExecutor) executeEnable(ctx context.Context, sess *session.Sessi
 				e.quota.RemoveHook(sess.ID)
 			}
 		}()
-		resp, err := e.reattachUserProgramBreak(ctx, sess, id, bp)
+		resp, err := e.reattachTemplateBreak(ctx, sess, id, bp)
 		if err != nil {
 			return resp, err
 		}
@@ -116,17 +115,17 @@ func (*commandExecutor) executeCondition(_ context.Context, sess *session.Sessio
 	return errResponse("condition: no breakpoint number " + id), nil
 }
 
-// executeInfo dispatches to info break, trace, watch, hook, or session.
+// executeInfo dispatches to info break, break-templates, watch, hook, or session.
 func (e *commandExecutor) executeInfo(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
-		return errResponse("info: usage info break|trace|watch|hook|session"), nil
+		return errResponse("info: usage info break|break-templates|watch|hook|session"), nil
 	}
 	sub := strings.ToLower(args[0])
 	switch sub {
 	case infoSubBreak, "breakpoints", "b":
 		return e.executeInfoBreak(ctx, sess)
-	case infoSubTrace, "traces", "t":
-		return e.executeInfoTrace(ctx, sess)
+	case infoSubBreakTemplates, "templates":
+		return e.executeInfoBreakTemplates(ctx, sess)
 	case infoSubWatch, "watches", "w":
 		return e.executeInfoWatch(ctx, sess)
 	case infoSubSession, "sess":
@@ -161,14 +160,10 @@ func (*commandExecutor) executeInfoBreak(_ context.Context, sess *session.Sessio
 			cond = " condition " + bp.Condition
 		}
 		kf := ""
-		if bp.KprobeHook && !bp.UserProgramBreak && strings.TrimSpace(bp.KernelFilterExpr) != "" {
-			kf = " kernel_sec=" + bp.KernelFilterExpr
+		if bp.KprobeHook && strings.TrimSpace(bp.KernelFilterExpr) != "" {
+			kf = " filter=" + bp.KernelFilterExpr
 		}
-		userTag := ""
-		if bp.UserProgramBreak {
-			userTag = " user_ebpf=y"
-		}
-		lines = append(lines, fmt.Sprintf("%s%s  %s  enabled=%s%s%s%s", bp.ID, tmp, bp.Symbol, en, cond, kf, userTag))
+		lines = append(lines, fmt.Sprintf("%s%s  probe_id=%s  enabled=%s%s%s", bp.ID, tmp, bp.ProbeID, en, cond, kf))
 	}
 	output := "breakpoints:\n"
 	if len(lines) == 0 {
@@ -179,32 +174,36 @@ func (*commandExecutor) executeInfoBreak(_ context.Context, sess *session.Sessio
 	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
 }
 
-// executeInfoTrace returns a listing of all traces.
-func (*commandExecutor) executeInfoTrace(_ context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
-	list := sess.ListTraces()
+// executeInfoBreakTemplates lists built-in break probe_id entries.
+func (*commandExecutor) executeInfoBreakTemplates(_ context.Context, _ *session.Session) (*proto.ExecuteResponse, error) {
 	var lines []string
-	for _, tr := range list {
-		lines = append(lines, fmt.Sprintf("%s  %s", tr.ID, strings.Join(tr.Expressions, ", ")))
+	for _, e := range breaktpl.List() {
+		kind := "kprobe"
+		if e.Kind == breaktpl.KindTracepoint {
+			kind = "tracepoint"
+		}
+		lines = append(lines, fmt.Sprintf("%s  kind=%s  params=%s  default_arg_indices=%s",
+			e.ProbeID, kind, strings.Join(e.Params, ","), joinIntSlice(e.DefaultArgIndices)))
 	}
-	output := "traces:\n"
+	out := "break-templates:\n"
 	if len(lines) == 0 {
-		output += infoNoneLine
+		out += infoNoneLine
 	} else {
-		output += strings.Join(lines, "\n") + "\n"
+		out += strings.Join(lines, "\n") + "\n"
 	}
-	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
+	return &proto.ExecuteResponse{Ok: true, Output: out}, nil
 }
 
-// executeInfoWatch returns a listing of all watches and their last value.
+// executeInfoWatch returns a listing of arg-column watches.
 func (*commandExecutor) executeInfoWatch(_ context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
 	list := sess.ListWatches()
 	var lines []string
 	for _, w := range list {
-		val := w.LastValue
-		if !w.HasValue {
-			val = "(not yet set)"
+		ix := "(defaults)"
+		if len(w.ArgParamIndices) > 0 {
+			ix = joinIntSlice(w.ArgParamIndices)
 		}
-		lines = append(lines, fmt.Sprintf("%s  %s  last=%s", w.ID, w.Expression, val))
+		lines = append(lines, fmt.Sprintf("%s  probe_id=%s  param_indices=%s", w.ID, w.ProbeID, ix))
 	}
 	output := "watches:\n"
 	if len(lines) == 0 {
@@ -218,10 +217,9 @@ func (*commandExecutor) executeInfoWatch(_ context.Context, sess *session.Sessio
 // executeInfoSession returns session id and basic stats.
 func (*commandExecutor) executeInfoSession(_ context.Context, sess *session.Session) (*proto.ExecuteResponse, error) {
 	bps := sess.ListBreakpoints()
-	trs := sess.ListTraces()
 	wchs := sess.ListWatches()
 	hks := sess.ListHooks()
-	output := fmt.Sprintf("session %s  breakpoints=%d  traces=%d  watches=%d  hooks=%d\n", sess.ID, len(bps), len(trs), len(wchs), len(hks))
+	output := fmt.Sprintf("session %s  breakpoints=%d  watches=%d  hooks=%d\n", sess.ID, len(bps), len(wchs), len(hks))
 	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
 }
 
@@ -251,70 +249,142 @@ func (*commandExecutor) executeBt(_ context.Context, sess *session.Session) (*pr
 	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
 }
 
-// executeWatch registers a watch expression and returns its id; value changes are reported via STATE_CHANGE events.
-func (*commandExecutor) executeWatch(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
-	if len(args) < 1 {
-		return errResponse("watch: missing expression"), nil
+func parseWatchArgs(args []string) (probeID string, indices []int, errMsg string) {
+	var argsPart string
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--sec":
+			if i+1 >= len(args) {
+				return "", nil, "watch: --sec needs value"
+			}
+			probeID = strings.TrimSpace(args[i+1])
+			i++
+		case "--args":
+			if i+1 >= len(args) {
+				return "", nil, "watch: --args needs value"
+			}
+			argsPart = strings.TrimSpace(args[i+1])
+			i++
+		default:
+			return "", nil, "watch: unexpected token " + args[i]
+		}
 	}
-	expr := strings.Join(args, " ")
-	id := sess.AddWatch(expr)
-	_ = sess.EnsureEventPump()
-	return &proto.ExecuteResponse{Ok: true, Output: "watch " + expr + " (" + id + ")"}, nil
+	if probeID == "" {
+		return "", nil, "watch: missing --sec <probe_id>"
+	}
+	if argsPart != "" {
+		for _, p := range strings.Split(argsPart, ",") {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			n, err := strconv.Atoi(p)
+			if err != nil || n < 0 {
+				return "", nil, "watch: --args must be comma-separated non-negative integers"
+			}
+			indices = append(indices, n)
+		}
+	}
+	return probeID, indices, ""
+}
+
+// executeWatch registers arg-column output when the probe break hits (requires an active break on probe_id).
+func (*commandExecutor) executeWatch(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+	probeID, indices, errMsg := parseWatchArgs(args)
+	if errMsg != "" {
+		return errResponse(errMsg), nil
+	}
+	entry, ok := breaktpl.Lookup(probeID)
+	if !ok {
+		return errResponse("watch: unknown probe_id (see info break-templates)"), nil
+	}
+	for _, ix := range indices {
+		if ix >= len(entry.Params) {
+			return errResponse(fmt.Sprintf("watch: param index %d out of range for %s", ix, probeID)), nil
+		}
+	}
+	if !sess.HasActiveBreakForProbe(probeID) {
+		return errResponse("watch: no enabled break for " + probeID + " (run break first)"), nil
+	}
+	id := sess.AddArgWatch(probeID, indices)
+	var args32 []uint32
+	for _, ix := range indices {
+		args32 = append(args32, uint32(ix))
+	}
+	desc := "default columns"
+	if len(indices) > 0 {
+		desc = "param_indices=" + joinIntSlice(indices)
+	}
+	return &proto.ExecuteResponse{
+		Ok:     true,
+		Output: fmt.Sprintf("watch %s on %s (%s)", desc, probeID, id),
+		Result: &proto.ExecuteResponse_Watch{
+			Watch: &proto.WatchResult{WatchId: id, ProbeId: probeID, Args: args32},
+		},
+	}, nil
 }
 
 // executeHelp returns short help for a command or all.
+func joinIntSlice(a []int) string {
+	if len(a) == 0 {
+		return ""
+	}
+	s := make([]string, 0, len(a))
+	for _, v := range a {
+		s = append(s, strconv.Itoa(v))
+	}
+	return strings.Join(s, ",")
+}
+
 func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) >= 1 {
 		cmd := strings.ToLower(args[0])
 		switch cmd {
 		case infoSubBreak, "b":
-			return &proto.ExecuteResponse{Ok: true, Output: "break --attach <point> (--source <c> | --file /abs.c) [--program name] [--limit N]  user eBPF (CompileRaw); same flags as hook attach"}, nil
-		case "tbreak":
-			return &proto.ExecuteResponse{Ok: true, Output: "tbreak ...  same as break; default --limit 1 (temporary)"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "break <probe_id> [--filter <dsl>] [--limit N]  template kprobe/tracepoint only (see info break-templates)"}, nil
+		case "tbreak", "t":
+			return &proto.ExecuteResponse{Ok: true, Output: "tbreak <probe_id> [...]  same as break; default --limit 1"}, nil
 		case "print", "p":
 			return &proto.ExecuteResponse{Ok: true, Output: "print <expr>  evaluate once on last probe event (pid, arg0.., ret, ...)"}, nil
-		case infoSubTrace, "t":
-			return &proto.ExecuteResponse{Ok: true, Output: "trace <expr...>  after each break/hook event emit TRACE_SAMPLE with evaluated columns"}, nil
 		case cmdDelete:
-			return &proto.ExecuteResponse{Ok: true, Output: "delete <id>  delete breakpoint, trace, or watch (hooks: hook delete <id>)"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "delete <id>  breakpoint or watch (hooks: hook delete <id>)"}, nil
 		case "enable", "disable":
 			return &proto.ExecuteResponse{Ok: true, Output: cmd + " <bp_id>  enable or disable breakpoint"}, nil
 		case "condition":
 			return &proto.ExecuteResponse{Ok: true, Output: "condition <bp_id> <expr>  user-side filter on BREAK_HIT"}, nil
 		case "info":
-			return &proto.ExecuteResponse{Ok: true, Output: "info break|trace|watch|hook|session  list state"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "info break|break-templates|watch|hook|session  list state"}, nil
 		case cmdList:
 			return &proto.ExecuteResponse{Ok: true, Output: "list [symbol]  list kernel symbol(s) from /proc/kallsyms"}, nil
 		case "bt":
 			return &proto.ExecuteResponse{Ok: true, Output: "bt  backtrace (kernel stack of last event thread)"}, nil
 		case "watch":
-			return &proto.ExecuteResponse{Ok: true, Output: "watch <expr>  emit STATE_CHANGE when expression string value changes vs last event"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "watch --sec <probe_id> [--args 0,1,2]  arg columns on break hit (param indices into catalog Params)"}, nil
 		case "continue", "c":
 			return &proto.ExecuteResponse{Ok: true, Output: "continue  continue execution"}, nil
 		case "hook":
-			return &proto.ExecuteResponse{Ok: true, Output: "hook attach ...  full eBPF C (same flags as break; no breakpoint id). hook list | hook delete <id>  (hook add removed)"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "hook attach --source|--file [--program] [--limit]  full C; probe_point from ELF SEC"}, nil
 		default:
 			return &proto.ExecuteResponse{Ok: true, Output: "help " + cmd + ": unknown command"}, nil
 		}
 	}
 	output := `commands:
   Probes:
-  break, b  --attach P (--source S | --file /abs.c) [--program N] [--limit L]  user eBPF (like hook attach)
-  tbreak    same; default --limit 1
-  hook attach|list|delete   hook attach: full C (--attach, --source|--file, [--program], [--limit]); see docs/command-spec.md
+  break, b   <probe_id> [--filter <dsl>] [--limit N]   catalog template only
+  tbreak, t  same; default --limit 1
+  hook attach|list|delete   hook attach: --source|--file [--program] [--limit]
 
   On each probe event:
   print, p <expr>       evaluate once on last event
-  trace, t <expr...>    TRACE_SAMPLE columns after each break/hook hit
-  watch <expr>          STATE_CHANGE when value string changes
+  watch --sec <probe_id> [--args i,j,...]   EVENT_TYPE_WATCH_ARG columns when break hits
 
   Breakpoint control:
-  delete <id>           breakpoint / trace / watch only (hooks: hook delete <id>)
+  delete <id>           breakpoint or watch (hooks: hook delete <id>)
   enable|disable <id>   breakpoint only
   condition <id> <expr> user-side filter on BREAK_HIT
 
   Other:
-  info break|trace|watch|hook|session
+  info break|break-templates|watch|hook|session
   list [symbol]         kallsyms / disasm
   bt                    kernel stack for last event
   continue, c

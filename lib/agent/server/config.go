@@ -25,13 +25,12 @@ type Config struct {
 	MCPAddr          string
 	HealthAddr       string    // optional: HTTP /health on this address
 	MetricsAddr      string    // optional: HTTP /metrics for Prometheus
-	KprobeObjectPath string    // path to kprobe .o for real break/trace (Linux)
+	KprobeObjectPath string    // path to kprobe .o for legacy ringbuf pump (Linux)
 	VmlinuxPath      string    // optional: vmlinux ELF for list disasm and BTF fallback when sysfs BTF is missing (Linux); see docs/vmlinux.md
 	BpfIncludeDir    string    // path to bpf/include for C hook compile (e.g. ./src/agent/bpf/include)
 	RateLimit        float64   // requests per second per session (0 = no limit)
 	RateBurst        int       // burst size for rate limiter
 	MaxBreak         int       // max breakpoints per session (0 = no limit)
-	MaxTrace         int       // max traces per session (0 = no limit)
 	MaxHooks         int       // max hooks per session (0 = no limit)
 	Audit            *AuditLog // optional audit logger
 }
@@ -45,7 +44,6 @@ func DefaultConfig() Config {
 		RateLimit:  100,
 		RateBurst:  20,
 		MaxBreak:   64,
-		MaxTrace:   32,
 		MaxHooks:   8,
 		Audit:      nil,
 	}

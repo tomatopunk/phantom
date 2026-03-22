@@ -51,8 +51,8 @@ func (s *debuggerServer) CompileAndAttach(
 	if resp.GetOk() {
 		ok = true
 	}
-	DebugLogf("CompileAndAttach session=%s ok=%v attach=%q hook_id=%q err=%q",
-		sid, resp.GetOk(), truncateForLog(req.GetAttach(), 160), resp.GetHookId(), resp.GetErrorMessage())
+	DebugLogf("CompileAndAttach session=%s ok=%v program=%q probe_point=%q hook_id=%q err=%q",
+		sid, resp.GetOk(), truncateForLog(req.GetProgramName(), 80), truncateForLog(resp.GetProbePoint(), 160), resp.GetHookId(), resp.GetErrorMessage())
 	return resp, nil
 }
 

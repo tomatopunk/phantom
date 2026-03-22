@@ -21,7 +21,7 @@ import (
 )
 
 func TestSessionQuotaAllowBreak(t *testing.T) {
-	q := NewSessionQuota(2, 0, 0)
+	q := NewSessionQuota(2, 0)
 	if !q.AllowBreak("s1") {
 		t.Error("first break should be allowed")
 	}

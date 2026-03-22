@@ -1,22 +1,10 @@
 /**
  * Copyright 2026 The Phantom Authors
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
  * SPDX-License-Identifier: Apache-2.0
  */
 
-/** Parse `info break|trace|hook|watch` plaintext from ExecuteResponse.output */
+/** Parse `info break|break-templates|hook|watch` plaintext from ExecuteResponse.output */
 
 export function sliceSection(output: string, title: string): string[] {
   const needle = `${title}:\n`;
@@ -43,32 +31,40 @@ export function parseBreakLines(lines: string[]): BreakRow[] {
   const rows: BreakRow[] = [];
   for (const line of lines) {
     const temp = line.includes("(temp)");
-    const re =
-      /^(\S+)(?:\s*\(temp\))?\s+(\S+)\s+enabled=([yn])(?:\s+condition\s+(.*))?$/;
-    const m = re.exec(line.trim());
+    const trimmed = line.trim();
+    const re = /^(\S+)(?:\s*\(temp\))?\s+probe_id=(\S+)\s+enabled=([yn])/;
+    const m = re.exec(trimmed);
     if (!m) continue;
+    let rest = trimmed.slice(m[0].length).trim();
+    let condition: string | undefined;
+    if (rest.startsWith("condition ")) {
+      const fi = rest.indexOf(" filter=");
+      if (fi >= 0) {
+        condition = rest.slice("condition ".length, fi).trim();
+        rest = rest.slice(fi).trim();
+      } else {
+        condition = rest.slice("condition ".length).trim();
+        rest = "";
+      }
+    }
     rows.push({
       id: m[1],
       symbol: m[2],
       enabled: m[3] === "y",
-      condition: m[4]?.trim() || undefined,
+      condition,
       temp,
     });
   }
   return rows;
 }
 
-export type TraceRow = { id: string; expressions: string };
+export type CatalogTemplateRow = { line: string };
 
-export function parseTraceLines(lines: string[]): TraceRow[] {
-  return lines.map((line) => {
-    const sp = line.indexOf(" ");
-    if (sp < 0) return { id: line, expressions: "" };
-    return { id: line.slice(0, sp), expressions: line.slice(sp + 1).trim() };
-  });
+export function parseCatalogTemplateLines(lines: string[]): CatalogTemplateRow[] {
+  return lines.map((line) => ({ line: line.trim() }));
 }
 
-export type HookRow = { id: string; attach: string; filter?: string; note?: string };
+export type HookRow = { id: string; probePoint: string; filter?: string; note?: string };
 
 export function parseHookLines(lines: string[]): HookRow[] {
   return lines.map((line) => {
@@ -87,28 +83,24 @@ export function parseHookLines(lines: string[]): HookRow[] {
     }
     s = s.replace(/\s+/g, " ").trim();
     const sp = s.indexOf(" ");
-    if (sp < 0) return { id: s, attach: "", filter, note };
-    return { id: s.slice(0, sp), attach: s.slice(sp + 1).trim(), filter, note };
+    if (sp < 0) return { id: s, probePoint: "", filter, note };
+    return { id: s.slice(0, sp), probePoint: s.slice(sp + 1).trim(), filter, note };
   });
 }
 
-export type WatchRow = { id: string; expression: string; last: string };
+export type WatchRow = { id: string; probeId: string; paramText: string };
 
 export function parseWatchLines(lines: string[]): WatchRow[] {
   const rows: WatchRow[] = [];
   for (const line of lines) {
-    const lastIdx = line.lastIndexOf(" last=");
-    if (lastIdx < 0) {
-      const sp = line.indexOf(" ");
-      if (sp < 0) rows.push({ id: line, expression: "", last: "" });
-      else rows.push({ id: line.slice(0, sp), expression: line.slice(sp + 1).trim(), last: "" });
+    const m = /^(\S+)\s+probe_id=(\S+)\s+param_indices=(.+)$/.exec(line.trim());
+    if (m) {
+      rows.push({ id: m[1], probeId: m[2], paramText: m[3].trim() });
       continue;
     }
-    const last = line.slice(lastIdx + " last=".length).trim();
-    const before = line.slice(0, lastIdx);
-    const sp = before.indexOf(" ");
-    if (sp < 0) rows.push({ id: before, expression: "", last });
-    else rows.push({ id: before.slice(0, sp), expression: before.slice(sp + 1).trim(), last });
+    const sp = line.indexOf(" ");
+    if (sp < 0) rows.push({ id: line.trim(), probeId: "", paramText: "" });
+    else rows.push({ id: line.slice(0, sp), probeId: "", paramText: line.slice(sp + 1).trim() });
   }
   return rows;
 }

@@ -24,7 +24,7 @@ Agent is configured via code (see `server.DefaultConfig()` and `server.Config`).
 - `Token` — if set, all RPCs must send `Authorization: Bearer <token>`.
 - `HealthAddr` — if set, HTTP server serves `GET /health` (e.g. `:8080`).
 - `RateLimit`, `RateBurst` — per-session rate limit.
-- `MaxBreak`, `MaxTrace`, `MaxHooks` — per-session quotas.
+- `MaxBreak`, `MaxHooks` — per-session quotas.
 - `Audit` — optional audit logger (e.g. `server.NewAuditLog(os.Stderr)`).
 
 ## Troubleshooting
@@ -60,7 +60,7 @@ Another process is using the listen port. Change `ListenAddr` or stop the other 
 
 ### Rate limited / quota
 
-Increase `RateLimit`/`RateBurst` or `MaxBreak`/`MaxTrace`/`MaxHooks` in config, or reduce usage per session.
+Increase `RateLimit`/`RateBurst` or `MaxBreak`/`MaxHooks` in config, or reduce usage per session.
 
 ### Health check
 

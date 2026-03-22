@@ -10,43 +10,45 @@ import (
 	"github.com/tomatopunk/phantom/lib/agent/runtime"
 )
 
-func TestProcessProbeEventHookPathTraceSample(t *testing.T) {
+func TestProcessProbeEventHookPathWatchArg(t *testing.T) {
 	s := NewSession("s1", "", nil)
-	ch := make(chan *runtime.Event, 8)
+	ch := make(chan *runtime.Event, 16)
 	s.SubscribeEvents(ch)
 
-	s.AddTrace([]string{"pid"}, nil)
+	s.AddTemplateBreakpoint("kprobe.do_sys_open", false, "hook-1", "", 0)
+	s.AddArgWatch("kprobe.do_sys_open", []int{2})
 
 	ev := &runtime.Event{
 		TimestampNs: 1,
-		EventType:   99,
+		EventType:   runtime.EventTypeBreakHit,
 		PID:         4242,
 		Tgid:        4240,
 		CPU:         0,
 		ProbeID:     7,
+		Args:        [6]uint64{99, 0, 0, 0, 0, 0},
 	}
 	if !s.ProcessProbeEvent(ev, ProbeEventOpts{HookID: "hook-1"}) {
 		t.Fatal("ProcessProbeEvent(fromHook): want true")
 	}
 
-	var sawTrace, sawRaw bool
+	var sawWatch, sawBreak bool
 	for len(ch) > 0 {
 		e := <-ch
 		if e == nil {
 			continue
 		}
-		if e.EventType == eventTypeTraceSample {
-			sawTrace = true
-		}
-		if e.EventType == 99 && e.PID == 4242 {
-			sawRaw = true
+		switch e.EventType {
+		case runtime.EventTypeWatchArg:
+			sawWatch = true
+		case runtime.EventTypeBreakHit:
+			sawBreak = true
 		}
 	}
-	if !sawTrace {
-		t.Fatal("expected TRACE_SAMPLE on hook-path ProcessProbeEvent with trace registered")
+	if !sawWatch {
+		t.Fatal("expected WATCH_ARG when watch registered on probe")
 	}
-	if !sawRaw {
-		t.Fatal("expected raw probe event broadcast")
+	if !sawBreak {
+		t.Fatal("expected BREAK_HIT broadcast")
 	}
 }
 
@@ -55,10 +57,14 @@ func TestProcessProbeEventMainPumpSuppressesBreakHitWhenAllConditionsFail(t *tes
 	ch := make(chan *runtime.Event, 8)
 	s.SubscribeEvents(ch)
 
-	id := s.AddBreakpoint("sym", func() {}, false, "", "")
-	if !s.SetBreakpointCondition(id, "pid==1") {
-		t.Fatal("SetBreakpointCondition")
+	s.mu.Lock()
+	s.nextBPID++
+	id := fmtID("bp", s.nextBPID)
+	s.breakpoints[id] = &BreakpointState{
+		ID: id, Symbol: "sym", ProbeID: "sym", Enabled: true,
+		Condition: "pid==1", KprobeHook: false, HookID: "",
 	}
+	s.mu.Unlock()
 
 	ev := &runtime.Event{
 		EventType: runtime.EventTypeBreakHit,

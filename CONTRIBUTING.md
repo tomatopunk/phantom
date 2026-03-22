@@ -3,7 +3,7 @@
 ## Pull requests
 
 - **Title:** Use [Conventional Commits](https://www.conventionalcommits.org/) so history and release notes stay readable. Examples: `feat(agent): add hook limit`, `fix(cli): handle EOF`, `chore(ci): bump Go version`.
-- **Checks:** The `CI` workflow runs Go lint (`golangci-lint`), Go tests (with coverage on Linux), Rust `fmt` / `clippy` on `phantom-cli` + `phantom-client` (not the Tauri crate), Rust `llvm-cov` for those packages, full build including eBPF on Ubuntu, macOS build/test, and Linux BPF e2e (`make test-e2e-mr`: Rust CLI, shell scripts, and extended Go e2e including `E2E_SCENARIOS`). `PR checks` validates the PR title.
+- **Checks:** The `CI` workflow runs Go lint (`golangci-lint`), Go tests (with coverage on Linux), Rust `fmt` / `clippy` on `phantom-cli` + `phantom-client` (not the Tauri crate), Rust `llvm-cov` for those packages, full build including eBPF on Ubuntu, macOS build/test, and a Linux job that builds the agent with BPF artifacts (extended e2e is **disabled** until restored). `PR checks` validates the PR title.
 - **Merge:** Squash merge is recommended so the default commit message matches the PR title.
 
 ## Branch protection (maintainers)
@@ -28,4 +28,4 @@ Exact job names appear in the Actions tab and may include matrix suffixes (e.g. 
 
 - `make proto` — regenerate Go protobufs (needs `protoc`).
 - `make desktop-install` / `make desktop-dev` — Phantom Desktop (Tauri); `make desktop-build` for release binary (see [src/desktop/README.md](src/desktop/README.md)).
-- `make test-e2e-ci` — Go e2e only (`E2E_HTTP10`, `E2E_NETWORK`, `E2E_SCENARIOS`). `make test-e2e-mr` — full Linux MR e2e (CLI + scripts + `test-e2e-ci`). See [README.md](README.md) and [docs/testing.md](docs/testing.md).
+- `make test-e2e-*` — currently **no-op** placeholders while `test/e2e` is empty. See [docs/testing.md](docs/testing.md).

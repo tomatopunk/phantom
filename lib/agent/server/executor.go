@@ -23,7 +23,6 @@ import (
 
 	"github.com/cilium/ebpf/btf"
 	"github.com/tomatopunk/phantom/lib/agent/expression"
-	"github.com/tomatopunk/phantom/lib/agent/probe"
 	"github.com/tomatopunk/phantom/lib/agent/session"
 	"github.com/tomatopunk/phantom/lib/proto"
 )
@@ -33,20 +32,15 @@ type commandExecutor struct {
 	hookIncludeDir string // path to bpf/include for C hook compile
 	vmlinuxPath    string // optional: path to vmlinux for list disasm (Linux)
 	btfSpec        *btf.Spec
-	planner        *probe.Planner
 	quota          *SessionQuota // optional: rollback hook slot on failed hook attach; decrement on delete
 }
 
 func newCommandExecutor(
 	hookIncludeDir, vmlinuxPath string,
-	planner *probe.Planner,
 	btfSpec *btf.Spec,
 	quota *SessionQuota,
 ) *commandExecutor {
-	if planner == nil {
-		planner = probe.NewPlanner()
-	}
-	return &commandExecutor{hookIncludeDir: hookIncludeDir, vmlinuxPath: vmlinuxPath, btfSpec: btfSpec, planner: planner, quota: quota}
+	return &commandExecutor{hookIncludeDir: hookIncludeDir, vmlinuxPath: vmlinuxPath, btfSpec: btfSpec, quota: quota}
 }
 
 func (e *commandExecutor) executeBreak(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
@@ -69,23 +63,6 @@ func (*commandExecutor) executePrint(_ context.Context, sess *session.Session, a
 		Output: "$" + expr + " = " + value,
 		Result: &proto.ExecuteResponse_Print{
 			Print: &proto.PrintResult{Expression: expr, Value: value},
-		},
-	}, nil
-}
-
-func (e *commandExecutor) executeTrace(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
-	if len(args) < 1 {
-		return errResponse("trace: missing expression(s)"), nil
-	}
-	plan := e.planner.PlanTrace(args)
-	id := sess.AddTrace(plan.Expressions, nil)
-	// Main kprobe ringbuf (if loaded); hook events also drive trace via ProcessProbeEvent.
-	_ = sess.EnsureEventPump()
-	return &proto.ExecuteResponse{
-		Ok:     true,
-		Output: "tracing " + strings.Join(plan.Expressions, ", ") + " (" + id + ")",
-		Result: &proto.ExecuteResponse_Trace{
-			Trace: &proto.TraceResult{TraceId: id, Expressions: plan.Expressions},
 		},
 	}, nil
 }

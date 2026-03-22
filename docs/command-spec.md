@@ -1,110 +1,66 @@
 # Command specification
 
-Commands are sent as a single line via `Execute(session_id, command_line)`. The executor splits on whitespace and treats the first token as the verb.
+Commands are sent as a single line via `Execute(session_id, command_line)`. The executor splits on whitespace (with quoted tokens) and treats the first token as the verb.
 
 ## Commands
 
 | Command | Alias | Args | Description |
 |---------|-------|------|-------------|
-| `break …` | `b` | see **break / tbreak** below | Compiles **your full eBPF C** on the agent (`CompileRaw`, same as `hook attach` / `CompileAndAttach`). You define **`SEC("…")` in source**. Registers a **breakpoint** (`info break`, `disable`, `enable`, **`condition`** user-side). Consumes a **hook** quota slot + **breakpoint** slot when quotas are enabled. Bare `break <sym>` is **obsolete** — use flags below. |
-| `tbreak …` | — | same as `break` | Default **`--limit 1`** (override with `--limit N`); temporary breakpoint removed after enough hook events. |
-| `print <expr>` | `p` | expression | Print value (e.g. `pid`, `arg0`, `ret`) from last event context. |
-| `trace <expr>` | `t` | one or more | Register expressions; after **each** qualifying probe event (legacy main kprobe ringbuf **or** any hook pump), emit `TRACE_SAMPLE` with evaluated columns. Returns trace id. **`trace` alone does not attach eBPF** — you need a probe that emits ringbuf events: **`hook attach`**, **`break`**, or a loaded legacy kprobe object. |
-| `continue` | `c` | — | Continue execution. |
-| `delete <id>` | — | id | Remove a **breakpoint**, **trace**, or **watch** by id. Hooks use `hook delete <id>`. |
-| `disable <id>` | — | breakpoint id | Disable breakpoint. |
-| `enable <id>` | — | breakpoint id | Re-enable breakpoint (recompiles saved user C for `break`-created entries). |
-| `condition <id> <expr>` | — | id, expression | **User-side** filter on a breakpoint id; suppresses `BREAK_HIT` when the expression is false. |
-| `info` | — | `break` \| `trace` \| `watch` \| `hook` \| `session` | List breakpoints, traces, watches, hooks, or session summary (includes hook count). |
-| `list [sym]` | — | optional symbol | List source/disasm near symbol; may return "symbol not available". |
-| `bt` | — | — | Backtrace; returns "not supported" if unavailable. |
-| `watch <expr>` | — | expression | Register an expression; when its **string value** changes vs the previous event, emit `STATE_CHANGE` (state diff; not a hardware memory watchpoint). Same as `trace`: requires a probe producing events; the **first** event only seeds the baseline (no `STATE_CHANGE` until the value changes). |
-| `help [cmd]` | — | optional command | Short help for command or global. |
-| `hook …` | — | `attach` \| `list` \| `delete` | **`hook add` is removed.** Use **`hook attach`** with full C (same as `break` without breakpoint state). `hook add` in a script should be migrated to `hook attach --attach … --source …` or `--file /abs/path.c`. |
-| `hook attach …` | — | see below | Same compilation path as **`break`**: full C, **`--attach`**, **`--file`** or **`--source`**, optional **`--program`**, optional **`--limit N`**. Creates a **hook** only (no breakpoint row). Same as gRPC `CompileAndAttach`. |
+| `break …` | `b` | see **break / tbreak** | **Catalog template only** (`info break-templates`). Compiles agent-generated BPF for the given **`probe_id`**, optional **`--filter`** kernel predicate DSL. Registers a breakpoint; consumes hook + breakpoint quota when enabled. |
+| `tbreak …` | `t` | same as `break` | Default **`--limit 1`** unless overridden. |
+| `print <expr>` | `p` | expression | Evaluate on last event (`pid`, `arg0`, …). |
+| `continue` | `c` | — | No-op placeholder (REPL). |
+| `delete <id>` | — | id | Remove breakpoint or **arg watch** by id. Hooks: `hook delete <id>`. |
+| `disable <id>` / `enable <id>` | — | breakpoint id | Detach or recompile template break. |
+| `condition <id> <expr>` | — | id, expr | User-side filter on `BREAK_HIT`. |
+| `info` | — | `break` \| `break-templates` \| `watch` \| `hook` \| `session` | List state. |
+| `list [sym]` | — | optional | Kernel symbol listing / disasm. |
+| `bt` | — | — | Kernel stack for last event thread. |
+| `watch …` | — | `--sec` + optional `--args` | **Arg-column watch**: requires an **enabled break** on the same catalog `probe_id`. Emits **`EVENT_TYPE_WATCH_ARG`** on break hits. |
+| `help [cmd]` | — | optional | Help text. |
+| `hook …` | — | `attach` \| `list` \| `delete` | **`hook add` removed.** `hook attach` loads full C; **probe_point** is derived from ELF `SEC` (no `--attach`). |
 | `quit` / `exit` / `q` | — | — | Exit REPL. |
 
 ## break / tbreak (details)
 
-- **Required:** `--attach` / `-a` — `kprobe:…` \| `tracepoint:sub:event` \| `uprobe:/abs:sym` \| `uretprobe:…` (same strings as `hook attach`).
-- **Required (exactly one):** `--source '…'` inline C **or** `--file` / `-f` with an **absolute** path on the agent.
-- **Optional:** `--program` / `-P` — BPF program function name in the ELF.
-- **Optional:** `--limit N` — hook auto-detach after N events (`tbreak` defaults to **1** if you omit `--limit`).
-- **Not supported:** bare `break <symbol>`, **`--sec` / `-s` DSL** on `break` (there is no template hook path; express filters in your C).
+- **Required:** first token **`probe_id`** from the built-in catalog (e.g. `kprobe.do_sys_open`, `tp.sched.sched_process_fork`).
+- **Optional:** `--filter '<dsl>'` — predicate only (identifiers allowed per template; see agent).
+- **Optional:** `--limit N` — hook auto-detach after N events (`tbreak` defaults limit **1**).
 
 Example:
 
 ```text
-break --attach kprobe:do_sys_open --source '...' --program my_entry
-tbreak --attach kprobe:foo --file /tmp/x.c --program bar
+break kprobe.do_sys_open --filter "pid==1"
+tbreak tp.sched.sched_process_fork --limit 3
 ```
 
 ## hook attach (details)
 
-Compiles a **complete** C file on the agent (same pipeline as gRPC `CompileAndAttach` and **`break`**). The object must include a **ring buffer** map so events can stream to the session.
+- **Required:** `--file /abs/path.c` **or** `--source '…'` (inline C).
+- **Optional:** `--program` / `-P` — BPF program name; if empty, first suitable kprobe/tracepoint program in the object.
+- **Optional:** `--limit N` — auto-detach after N ringbuf events.
+- **No** `--attach`: attachment is inferred from section names (`kprobe/…`, `tracepoint/…`, etc.).
 
-- **Required:** `--attach` / `-a` — `kprobe:…`, `tracepoint:sub:event`, `uprobe:/abs:sym`, `uretprobe:…`.
-- **Required (exactly one):** `--file /absolute/path.c` or `--source '…'` (inline source; practical only for tiny programs).
-- **Optional:** `--program` / `-P` — BPF program **function name** in the ELF (if omitted, the loader picks the first program of a suitable type).
-- **Optional:** `--limit N` — auto-detach the hook after N ringbuf events (same semantics as `break --limit`).
+## gRPC
 
-Example (program on the agent filesystem):
-
-```text
-hook attach --attach kprobe:do_sys_open --file /tmp/myhook.c --program my_handler
-```
-
-Errors include `hook attach: empty source`, `hook attach: --file path must be absolute`, `hook attach: read file: …`, and compile/attach failures from clang or the loader. After successful compilation, **attach** failures are reported as `hook attach: attach failed: …` (same underlying message as gRPC `CompileAndAttach`).
-
-## Typical scenarios (capability bounds)
-
-- **Tcpdump-style L4:** Attach a **full C** program on `kprobe:tcp_sendmsg` / `tcp_recvmsg` that reads socket metadata (e.g. via CO-RE) and emits ringbuf events, then `trace pid tgid …` for columns. Automated e2e: `test/e2e/tcpdump_style_test.go` (set `E2E_NETWORK=1`).
-- **Hook + trace on stream:** `CompileAndAttach` or `hook attach` with a tracepoint (or kprobe) program → `trace pid tgid` → gRPC `StreamEvents` yields `EVENT_TYPE_TRACE_SAMPLE`. Automated e2e: `TestE2EHookAddTraceSampleStream` in `test/e2e/scenarios_test.go` (set `E2E_SCENARIOS=1`).
-- **L7 / request context:** Usually needs **user-space** uprobes (e.g. libc/TLS) via **`hook attach`** / **`break`** with custom C and maps; raw `tcp_*` kprobes often see buffer pointers, not HTTP text.
-- **TC (traffic control), XDP, clsact:** **Not** supported as a dedicated attach string today; attach kinds are `kprobe`, `tracepoint`, `uprobe`, `uretprobe` only. Extending the loader would be a separate change.
-
-## gRPC (supplementary)
-
-- **`CompileAndAttach`** — same as `hook attach` / `break` compile path (no breakpoint unless you use the `break` REPL command). Request may include optional **`limit`** (auto-detach after N hook events; `0` = none).
-- **`ValidateCompileSource`** — clang only, no attach (no quota).
-- **`ListHookMaps`** / **`ReadHookMap`** — introspect maps for a loaded hook id (including hooks backing `break`).
+- **`CompileAndAttach`** — compile full C and attach from ELF SEC; fields: `session_id`, `source`, `program_name`, `limit`. Response includes **`probe_point`**.
+- **`StreamEvents`** — `DebugEvent` includes **`source_kind`** (`break` \| `watch` \| `hook`), **`break_id`**, **`hook_id`**, **`template_probe_id`** where applicable. `EVENT_TYPE_WATCH_ARG` replaces the old trace sample type.
 
 ## MCP
 
-stdio JSON-RPC tools use the same command strings and attach semantics; see [mcp.md](mcp.md). `add_c_hook` sends **`hook attach --source …`** with full C.
+`compile_and_attach` takes `source` and optional `program_name` / `limit` (no attach string). `add_c_hook` runs `hook attach --source …`.
 
-## Expressions (print / trace)
+## Expressions (`print` / `condition`)
 
-Built-in names: `pid`, `tgid`, `comm`, `cpu`, `arg0` … `arg5`, `ret`. Values are read from the last event context or the probe’s `pt_regs` (kernel) / ABI (user).
+Built-in: `pid`, `tgid`, `comm`, `cpu`, `arg0`–`arg5`, `ret` from last decoded event.
 
-## Event buffering
+## Event flow
 
-Events flow through **three** layers: kernel ringbuf, agent pumps, then per-client subscriber queues. Order is always **kernel → agent → client**.
+Template **break** and **hook** programs should use a **ringbuf** map. The agent decodes the template layout (extended header + args) and sets **`source_kind`** on streamed events. **Watch** rows are synthetic `WATCH_ARG` events emitted when a matching break hits.
 
-### Kernel: BPF ring buffer
+## Errors (selected)
 
-Each loaded program supplies its own **`BPF_MAP_TYPE_RINGBUF`** map (name and `max_entries` are defined in your C). The prebuilt legacy main kprobe object (`src/agent/bpf/core/events.c`, etc.) uses a fixed layout; **user `hook attach` / `break` objects** define whatever ringbuf size they need. If this map is overrun under extreme load, the kernel may drop or fail individual `bpf_ringbuf_output` / reserve calls — the agent does not resize maps at runtime.
-
-### Agent: ringbuf readers (pumps)
-
-After attach, the session runs **one goroutine per event source**: the legacy main kprobe runtime (if loaded) **plus one pump per hook**, each blocking on `ringbuf.Reader.Read()`. Decoded records become `runtime.Event` values and enter `ProcessProbeEvent` (last-event, `trace` / `watch` derivatives, then broadcast). Pumps do not queue unbounded batches in Go memory beyond what the cilium/ebpf reader holds internally.
-
-### Agent to clients: subscriber channels (gRPC `StreamEvents`, etc.)
-
-Each stream subscribes with a **Go channel of capacity 64** (`eventChanCap` in `lib/agent/server/debugger_server.go`). **`BroadcastEvent` uses non-blocking sends**: if a subscriber’s channel is full, **that event is dropped for that subscriber** so pumps never block on a slow or stalled client. Under burst load, **clients can miss events** even when the kernel ringbuf and agent pump kept up. For reliability under overload, consume the stream promptly or reduce probe rate / filter in your eBPF C.
-
-Synthetic events (`TRACE_SAMPLE`, `STATE_CHANGE`) are broadcast the same way as raw probe hits and are subject to the same per-subscriber drop policy.
-
-## Errors
-
-- `missing session_id` — request had no session.
-- `session not found` — session was closed or never created.
-- `rate limited` — per-session rate limit exceeded.
-- `quota: max breakpoints reached` / `quota: max hooks reached` — `break` / `tbreak` reserve **both** a breakpoint and a hook slot when quotas are enabled (and similar messages for trace-only or hook-only limits).
-- `break: obsolete syntax` — bare `break <sym>`; use `--attach` and `--source` / `--file`.
-- `break: missing --attach` / `missing --file or --source` — invalid `break` / `tbreak` invocation.
-- `hook add is removed` — use `hook attach` with full C.
-- `hook attach: missing --file or --source` — neither input source was provided.
-- `hook attach: attach failed: …` — compile succeeded but loader could not attach (same situation as gRPC `CompileAndAttach` / MCP `compile_and_attach`).
-- `quota: max hooks reached` — session hook quota exceeded (`CompileAndAttach` / `hook attach` / `break`).
-- `unknown command: <verb>` — verb not recognized.
+- `unknown probe_id` — not in `info break-templates`.
+- `watch: no enabled break for …` — register a break on that `probe_id` first.
+- `quota: max breakpoints reached` / `quota: max hooks reached` — per-session limits.
+- `no bpf include dir configured` — agent needs BPF headers for compile.

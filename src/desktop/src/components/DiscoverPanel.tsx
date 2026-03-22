@@ -28,13 +28,11 @@ import { technicalInputProps } from "../app/technicalInputProps";
 
 type Tab = "tp" | "kp" | "up";
 
-const QUICK_KINDS: DiscoverProbeKind[] = ["break", "trace", "hook", "watch"];
+const QUICK_KINDS: DiscoverProbeKind[] = ["break", "hook", "watch"];
 
 const QUICK_BTN: Record<DiscoverProbeKind, string> = {
   break:
     "rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 disabled:opacity-35 dark:border-rose-400/35",
-  trace:
-    "rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors border-sky-500/40 bg-sky-500/[0.06] hover:bg-sky-500/15 disabled:opacity-35 dark:border-sky-400/35",
   hook:
     "rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors border-violet-500/40 bg-violet-500/[0.06] hover:bg-violet-500/15 disabled:opacity-35 dark:border-violet-400/35",
   watch:

@@ -60,6 +60,25 @@ func main() {
 	cfg.VmlinuxPath = *vmlinux
 	cfg.BpfIncludeDir = *bpfInclude
 
+	authOn := strings.TrimSpace(cfg.Token) != "" || strings.TrimSpace(os.Getenv("PHANTOM_TOKEN")) != ""
+	healthLabel := cfg.HealthAddr
+	if healthLabel == "" {
+		healthLabel = "off"
+	}
+	metricsLabel := cfg.MetricsAddr
+	if metricsLabel == "" {
+		metricsLabel = "off"
+	}
+	authStr := "off"
+	if authOn {
+		authStr = "on"
+	}
+
+	if server.AgentDebugEnabled() {
+		log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+		log.Print("[phantom] PHANTOM_AGENT_DEBUG: verbose command/session logs enabled")
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -69,6 +88,8 @@ func main() {
 		dbg := server.NewDebuggerServerWithConfig(mgr, sc)
 		backend := server.NewMCPServerBackend(dbg)
 		mcpSrv := mcp.NewServer(backend)
+		log.Printf("[phantom] starting MCP (stdio) kprobe=%q bpf-include=%q vmlinux=%q auth=%s",
+			cfg.KprobeObjectPath, cfg.BpfIncludeDir, cfg.VmlinuxPath, authStr)
 		if err := mcpSrv.Run(ctx); err != nil && ctx.Err() == nil {
 			stop()
 			log.Fatalf("mcp: %v", err) //nolint:gocritic // exitAfterDefer: stop() called explicitly before exit
@@ -76,6 +97,8 @@ func main() {
 		return
 	}
 
+	log.Printf("[phantom] starting gRPC: listen=%s health=%s metrics=%s kprobe=%q bpf-include=%q vmlinux=%q auth=%s",
+		cfg.ListenAddr, healthLabel, metricsLabel, cfg.KprobeObjectPath, cfg.BpfIncludeDir, cfg.VmlinuxPath, authStr)
 	if err := server.Run(ctx, &cfg); err != nil && ctx.Err() == nil {
 		log.Fatalf("agent: %v", err)
 	}

@@ -51,6 +51,8 @@ func (s *debuggerServer) CompileAndAttach(
 	if resp.GetOk() {
 		ok = true
 	}
+	DebugLogf("CompileAndAttach session=%s ok=%v attach=%q hook_id=%q err=%q",
+		sid, resp.GetOk(), truncateForLog(req.GetAttach(), 160), resp.GetHookId(), resp.GetErrorMessage())
 	return resp, nil
 }
 
@@ -68,7 +70,10 @@ func (s *debuggerServer) PreviewHookTemplate(
 	if s.cfg != nil && s.cfg.rateLimiter != nil && !s.cfg.rateLimiter.Allow(sid) {
 		return &proto.PreviewHookTemplateResponse{Ok: false, ErrorMessage: "rate limited"}, nil
 	}
-	return s.exec.previewHookTemplate(ctx, req.GetAttachPoint(), req.GetSecExpression(), req.GetCodeSnippet()), nil
+	resp := s.exec.previewHookTemplate(ctx, req.GetAttachPoint(), req.GetSecExpression(), req.GetCodeSnippet())
+	DebugLogf("PreviewHookTemplate session=%s ok=%v attach=%q compile_ok=%v err=%q",
+		sid, resp.GetOk(), truncateForLog(req.GetAttachPoint(), 160), resp.GetCompileOk(), resp.GetErrorMessage())
+	return resp, nil
 }
 
 func (*debuggerServer) ListTracepoints(_ context.Context, req *proto.ListTracepointsRequest) (*proto.ListTracepointsResponse, error) {

@@ -19,6 +19,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"time"
@@ -42,6 +43,7 @@ func ServeHealth(ctx context.Context, addr string) error {
 	if err != nil {
 		return fmt.Errorf("health listen %s: %w", addr, err)
 	}
+	log.Printf("[phantom] health HTTP listening on %s (/health)", lis.Addr().String())
 	go func() {
 		<-ctx.Done()
 		_ = srv.Shutdown(ctx)
@@ -63,6 +65,7 @@ func ServeMetrics(ctx context.Context, addr string) error {
 	if err != nil {
 		return fmt.Errorf("metrics listen %s: %w", addr, err)
 	}
+	log.Printf("[phantom] metrics HTTP listening on %s (/metrics)", lis.Addr().String())
 	go func() {
 		<-ctx.Done()
 		_ = srv.Shutdown(ctx)

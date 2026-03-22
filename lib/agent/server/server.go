@@ -19,6 +19,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 
 	"github.com/tomatopunk/phantom/lib/agent/session"
@@ -46,6 +47,7 @@ func Run(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("listen %s: %w", cfg.ListenAddr, err)
 	}
 	defer listener.Close()
+	log.Printf("[phantom] gRPC listening on %s", listener.Addr().String())
 
 	sc := PrepareServerConfig(cfg)
 	mgr := session.NewManager(cfg.KprobeObjectPath, QuotaSessionSink(sc.quota))

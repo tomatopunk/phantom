@@ -90,6 +90,7 @@ func (s *debuggerServer) OpenSession(ctx context.Context, req *proto.OpenSession
 		return nil, err
 	}
 	SetSessionsActive(len(s.sessions.List()))
+	DebugLogf("open_session session_id=%s requested=%q", sid, req.GetSessionId())
 	return &proto.OpenSessionResponse{SessionId: sid, Message: "connected"}, nil
 }
 
@@ -97,22 +98,27 @@ func (s *debuggerServer) OpenSession(ctx context.Context, req *proto.OpenSession
 func (s *debuggerServer) Execute(ctx context.Context, req *proto.ExecuteRequest) (*proto.ExecuteResponse, error) {
 	sid := req.GetSessionId()
 	if sid == "" {
+		DebugLogf("grpc.Execute reject: missing session_id cmd=%q", truncateForLog(strings.TrimSpace(req.GetCommandLine()), 200))
 		return errResponse("missing session_id"), nil
 	}
 	sess := s.sessions.Get(sid)
 	if sess == nil {
+		DebugLogf("grpc.Execute reject: session not found session=%s cmd=%q", sid, truncateForLog(strings.TrimSpace(req.GetCommandLine()), 200))
 		return errResponse("session not found"), nil
 	}
 	if s.cfg != nil && s.cfg.rateLimiter != nil && !s.cfg.rateLimiter.Allow(sid) {
+		DebugLogf("grpc.Execute reject: rate limited session=%s", sid)
 		return errResponse("rate limited"), nil
 	}
 	line := strings.TrimSpace(req.GetCommandLine())
 	if s.cfg != nil && s.cfg.quota != nil {
 		if errMsg := checkQuota(s.cfg.quota, sid, line); errMsg != "" {
+			DebugLogf("grpc.Execute reject: quota session=%s err=%q cmd=%q", sid, errMsg, truncateForLog(line, 200))
 			return errResponse(errMsg), nil
 		}
 	}
 	resp, err := s.exec.execute(ctx, sess, line)
+	logExecuteDebug("grpc.Execute", sid, line, resp, err)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +143,7 @@ func (s *debuggerServer) StreamEvents(req *proto.StreamEventsRequest, stream pro
 	if sess == nil {
 		return nil
 	}
+	DebugLogf("stream_events start session_id=%s", sid)
 	const eventChanCap = 64
 	evCh := make(chan *runtime.Event, eventChanCap)
 	sess.SubscribeEvents(evCh)
@@ -180,6 +187,7 @@ func (s *debuggerServer) ListSessions(_ context.Context, _ *proto.ListSessionsRe
 // CloseSession removes the session and releases resources.
 func (s *debuggerServer) CloseSession(_ context.Context, req *proto.CloseSessionRequest) (*proto.CloseSessionResponse, error) {
 	sid := req.GetSessionId()
+	DebugLogf("close_session session_id=%s", sid)
 	s.sessions.Close(sid)
 	SetSessionsActive(len(s.sessions.List()))
 	if s.cfg != nil {
@@ -202,6 +210,7 @@ func (s *debuggerServer) ConnectSession(ctx context.Context, sessionID string) (
 	if err != nil {
 		return "", err
 	}
+	DebugLogf("mcp.ConnectSession session_id=%s", sessionID)
 	return sessionID, nil
 }
 
@@ -211,7 +220,13 @@ func (s *debuggerServer) ExecuteCommand(ctx context.Context, sessionID, commandL
 	if sess == nil {
 		return errResponse("session not found"), nil
 	}
-	return s.exec.execute(ctx, sess, strings.TrimSpace(commandLine))
+	line := strings.TrimSpace(commandLine)
+	resp, err := s.exec.execute(ctx, sess, line)
+	logExecuteDebug("mcp.Execute", sessionID, line, resp, err)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // ListSessionsBackend returns session ids; for MCP backend.

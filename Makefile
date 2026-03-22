@@ -1,5 +1,5 @@
 # Phantom — build and CI
-.PHONY: all build proto test fmt vet lint lint-go-linux lint-go-ubuntu lint-go-macos lint-go-ci rust-lint-ci ci-lint clean agent cli rust-cli rust-workspace build-bpf build-uprobe-e2e-helper test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-ci test-e2e-mr test-e2e-all desktop-install desktop-dev desktop-build license-add license-check
+.PHONY: all build proto test fmt vet lint lint-go-linux lint-go-ubuntu lint-go-macos lint-go-ci rust-lint-ci ci-lint clean agent agent-dev cli rust-cli rust-workspace build-bpf build-uprobe-e2e-helper test-e2e-http10-generic test-e2e-tcpdump-style-cli test-e2e-network test-e2e-ci test-e2e-mr test-e2e-all desktop-install desktop-dev desktop-build license-add license-check
 
 BINARY_AGENT := phantom-agent
 DESKTOP_DIR  := src/desktop
@@ -28,6 +28,24 @@ build: agent
 
 agent:
 	$(GO) build -o $(BINARY_AGENT) ./src/agent
+
+# Extra flags for `make agent-dev ./phantom-agent ...` (e.g. AGENT_DEV_ARGS=-listen=:19090).
+AGENT_DEV_ARGS ?=
+
+# Regenerate protobuf Go code, build BPF objects (Linux only), rebuild agent, run with debug logs.
+# Sets PHANTOM_AGENT_DEBUG=1, PHANTOM_BPF_INCLUDE to repo include tree; on Linux also PHANTOM_KPROBE=minikprobe.o.
+agent-dev: proto
+	@if [ "$$(uname -s)" = Linux ]; then \
+		$(MAKE) build-bpf; \
+	else \
+		echo "phantom: agent-dev: skipping build-bpf (requires Linux + clang -target bpf)"; \
+	fi
+	$(MAKE) agent
+	@if [ "$$(uname -s)" = Linux ]; then \
+		PHANTOM_AGENT_DEBUG=1 PHANTOM_KPROBE=$(CURDIR)/$(BPF_OUT) PHANTOM_BPF_INCLUDE=$(BPF_INCLUDE) ./$(BINARY_AGENT) $(AGENT_DEV_ARGS); \
+	else \
+		PHANTOM_AGENT_DEBUG=1 PHANTOM_BPF_INCLUDE=$(BPF_INCLUDE) ./$(BINARY_AGENT) $(AGENT_DEV_ARGS); \
+	fi
 
 # Rust REPL + discover (preferred CLI)
 cli: rust-cli

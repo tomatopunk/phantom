@@ -13,7 +13,7 @@ bpf/*.skel.h
 
 # IDE / OS
 .idea/
-.vscode/
+#.vscode/
 .DS_Store
 
 # Env / secrets

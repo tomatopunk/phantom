@@ -1,0 +1,77 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "phantom-agent: debug (gRPC + kprobe)",
+        "type": "go",
+        "request": "launch",
+        "mode": "debug",
+        "program": "${workspaceFolder}/src/agent",
+        "cwd": "${workspaceFolder}",
+        "args": [
+          "-listen",
+          ":9090",
+          "-kprobe",
+          "${workspaceFolder}/src/agent/bpf/probes/kernel/minikprobe.o",
+          "-bpf-include",
+          "${workspaceFolder}/src/agent/bpf/include"
+        ],
+        "showLog": false
+      },
+      {
+        "name": "phantom-agent: debug (gRPC only, no -kprobe)",
+        "type": "go",
+        "request": "launch",
+        "mode": "debug",
+        "program": "${workspaceFolder}/src/agent",
+        "cwd": "${workspaceFolder}",
+        "args": ["-listen", ":9090"],
+        "showLog": false
+      },
+      {
+        "name": "phantom-agent: attach (pick process)",
+        "type": "go",
+        "request": "attach",
+        "mode": "local",
+        "processId": "${command:pickGoProcess}"
+      },
+      {
+        "type": "lldb",
+        "request": "launch",
+        "name": "phantom-cli: debug (REPL)",
+        "cwd": "${workspaceFolder}",
+        "cargo": {
+          "args": ["build", "--package=phantom-cli", "--bin=phantom-cli"],
+          "filter": {
+            "kind": "bin",
+            "name": "phantom-cli"
+          }
+        },
+        "args": ["--agent", "127.0.0.1:9090"],
+        "sourceLanguages": ["rust"]
+      },
+      {
+        "type": "lldb",
+        "request": "launch",
+        "name": "phantom-cli: debug (discover kprobe)",
+        "cwd": "${workspaceFolder}",
+        "cargo": {
+          "args": ["build", "--package=phantom-cli", "--bin=phantom-cli"],
+          "filter": {
+            "kind": "bin",
+            "name": "phantom-cli"
+          }
+        },
+        "args": ["--agent", "127.0.0.1:9090", "kprobe", "--max", "20"],
+        "sourceLanguages": ["rust"]
+      },
+      {
+        "type": "lldb",
+        "request": "attach",
+        "name": "phantom-cli: attach (pick process)",
+        "pid": "${command:pickProcess}",
+        "sourceLanguages": ["rust"]
+      }
+    ]
+  }
+  

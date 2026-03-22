@@ -1,0 +1,20 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "cargo: build phantom-cli (debug)",
+        "type": "shell",
+        "command": "cargo",
+        "args": ["build", "-p", "phantom-cli"],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        },
+        "problemMatcher": ["$rustc"]
+      }
+    ]
+  }
+  

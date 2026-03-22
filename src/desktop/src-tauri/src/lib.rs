@@ -18,8 +18,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use phantom_client::{
-    CompileAndAttachResponse, GetHostMetricsResponse, GetTaskTreeResponse, PhantomClient,
-    PreviewHookTemplateResponse,
+    CompileAndAttachResponse, GetHostMetricsResponse, GetTaskTreeResponse, ListHookMapsResponse,
+    PhantomClient, PreviewHookTemplateResponse, ReadHookMapResponse, ValidateCompileSourceResponse,
 };
 use serde_json::{json, Value};
 use tauri::menu::{MenuBuilder, MenuItem, PredefinedMenuItem, SubmenuBuilder};
@@ -155,6 +155,58 @@ fn preview_template_json(r: PreviewHookTemplateResponse) -> Value {
         "compiler_output": r.compiler_output,
         "diagnostics": diags,
     })
+}
+
+fn validate_source_json(r: ValidateCompileSourceResponse) -> Value {
+    let diags: Vec<Value> = r
+        .diagnostics
+        .iter()
+        .map(|d| {
+            json!({
+                "path": d.path,
+                "line": d.line,
+                "column": d.column,
+                "severity": d.severity,
+                "message": d.message,
+            })
+        })
+        .collect();
+    json!({
+        "ok": r.ok,
+        "error_message": r.error_message,
+        "diagnostics": diags,
+        "compiler_output": r.compiler_output,
+    })
+}
+
+fn list_hook_maps_json(r: ListHookMapsResponse) -> Value {
+    let maps: Vec<Value> = r
+        .maps
+        .iter()
+        .map(|m| {
+            json!({
+                "name": m.name,
+                "map_type": m.map_type,
+                "key_size": m.key_size,
+                "value_size": m.value_size,
+                "max_entries": m.max_entries,
+            })
+        })
+        .collect();
+    json!({ "ok": r.ok, "error_message": r.error_message, "maps": maps })
+}
+
+fn bytes_hex(b: &[u8]) -> String {
+    b.iter().map(|x| format!("{:02x}", x)).collect()
+}
+
+fn read_hook_map_json(r: ReadHookMapResponse) -> Value {
+    let entries: Vec<Value> = r
+        .entries
+        .iter()
+        .map(|e| json!({ "key_hex": bytes_hex(&e.key), "value_hex": bytes_hex(&e.value) }))
+        .collect();
+    json!({ "ok": r.ok, "error_message": r.error_message, "entries": entries })
 }
 
 fn compile_json(r: CompileAndAttachResponse) -> Value {
@@ -427,6 +479,44 @@ async fn preview_hook_template(
     Ok(preview_template_json(r))
 }
 
+#[tauri::command]
+async fn validate_compile_source(state: State<'_, AppState>, source: String) -> Result<Value, String> {
+    let mut guard = state.exec_client.lock().await;
+    let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
+    let r = c
+        .validate_compile_source(&source)
+        .await
+        .map_err(|e| format!("validate_compile_source: {e}"))?;
+    Ok(validate_source_json(r))
+}
+
+#[tauri::command]
+async fn list_hook_maps_cmd(state: State<'_, AppState>, hook_id: String) -> Result<Value, String> {
+    let mut guard = state.exec_client.lock().await;
+    let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
+    let r = c
+        .list_hook_maps(&hook_id)
+        .await
+        .map_err(|e| format!("list_hook_maps: {e}"))?;
+    Ok(list_hook_maps_json(r))
+}
+
+#[tauri::command]
+async fn read_hook_map_cmd(
+    state: State<'_, AppState>,
+    hook_id: String,
+    map_name: String,
+    max_entries: u32,
+) -> Result<Value, String> {
+    let mut guard = state.exec_client.lock().await;
+    let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
+    let r = c
+        .read_hook_map(&hook_id, &map_name, max_entries)
+        .await
+        .map_err(|e| format!("read_hook_map: {e}"))?;
+    Ok(read_hook_map_json(r))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let state = AppState {
@@ -521,6 +611,9 @@ pub fn run() {
             list_uprobes_cmd,
             compile_hook,
             preview_hook_template,
+            validate_compile_source,
+            list_hook_maps_cmd,
+            read_hook_map_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Phantom desktop");

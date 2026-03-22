@@ -7,7 +7,7 @@ How **user-visible parameters** reach BPF programs, and how **`hook add --sec`**
 | Term | What it is |
 |------|------------|
 | **`hook add --sec`** | A small **condition DSL** (e.g. `pid==123 and arg0==0xff`). The agent turns it into a C `if (!cond) return 0;` in front of your `--code` snippet (or alone as the snippet body). It does **not** set the ELF section name. |
-| **BPF `SEC("…")`** | The **ELF section** that libbpf-style loaders use to classify programs (`kprobe`, `tracepoint/...`, `uprobe`, etc.). In the template path this is **generated for you** from `--point`. For full control, use **`hook attach`** or **`CompileAndAttach`** with your own C source. |
+| **BPF `SEC("…")`** | The **ELF section** that libbpf-style loaders use to classify programs (`kprobe`, `tracepoint/...`, `uprobe`, etc.). In the template path this is **generated for you** from `--point`. For full control, use **`break`**, **`hook attach`**, or **`CompileAndAttach`** with your own C source (same compile path; `break` also registers breakpoint state). |
 
 ## Strategies for “parameters”
 
@@ -17,10 +17,10 @@ How **user-visible parameters** reach BPF programs, and how **`hook add --sec`**
 - **Literals:** Decimal integers and **`0x` / `0X` hex** (e.g. `arg0==0xff`).
 - **Best for:** Fast filters without shipping a full `.c` file.
 
-### 2. Full C: `hook attach` / `CompileAndAttach` (maximum control)
+### 2. Full C: `break` / `hook attach` / `CompileAndAttach` (maximum control)
 
 - You write **`SEC("…")`**, maps, CO-RE reads, and any constants in C.
-- **REPL:** `hook attach --attach <point> --file /abs/path.c [--program name]` or `--source '…'`.
+- **REPL:** `break --attach <point> --file /abs/path.c [--program name]` or `--source '…'` (breakpoint ids); or `hook attach` with the same flags (hook list only).
 - **gRPC:** `CompileAndAttach` with `source`, `attach`, optional `program_name`.
 - **MCP:** `compile_and_attach` — same pipeline as gRPC ([mcp.md](mcp.md)).
 - **Best for:** Custom sections, tracepoint-specific `ctx` layout, BPF maps, and production-style programs.

@@ -22,6 +22,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
 
 	"github.com/tomatopunk/phantom/lib/agent/expression"
@@ -131,6 +132,26 @@ func (s *Session) AddBreakpoint(symbol string, detach func(), isTemp bool, hookI
 	s.breakpoints[id] = &BreakpointState{
 		ID: id, Symbol: symbol, Detach: detach, Enabled: true, IsTemp: isTemp,
 		HookID: hookID, KprobeHook: kh, KernelFilterExpr: kernelFilterExpr,
+	}
+	return id
+}
+
+// AddProgramBreakpoint registers a breakpoint backed by user eBPF (CompileRaw + hook); Symbol is the attach string for display.
+func (s *Session) AddProgramBreakpoint(attach string, isTemp bool, hookID, source, program string, hookLimit int) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id := s.nextBreakpointIDLocked()
+	s.breakpoints[id] = &BreakpointState{
+		ID:               id,
+		Symbol:           attach,
+		Enabled:          true,
+		IsTemp:           isTemp,
+		HookID:           hookID,
+		KprobeHook:       true,
+		UserProgramBreak: true,
+		UserBreakSource:  source,
+		UserBreakProgram: program,
+		HookEventLimit:   hookLimit,
 	}
 	return id
 }
@@ -368,12 +389,12 @@ func (s *Session) ListTraces() []*TraceState {
 // When the hook is removed or the session stops, the pump is canceled and detach is called.
 // limit is 0 for no limit; when > 0 the hook auto-detaches after that many events.
 // opt may be nil.
-func (s *Session) AddHook(attachPoint string, detach func(), reader *ringbuf.Reader, limit int, opt *HookOpts) string {
+func (s *Session) AddHook(attachPoint string, detach func(), reader *ringbuf.Reader, coll *ebpf.Collection, limit int, opt *HookOpts) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := s.nextHookIDLocked()
 	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel stored in HookState and called when hook is removed
-	hs := &HookState{ID: id, AttachPoint: attachPoint, Detach: detach, Cancel: cancel, Limit: limit}
+	hs := &HookState{ID: id, AttachPoint: attachPoint, Detach: detach, Cancel: cancel, Limit: limit, Coll: coll}
 	if opt != nil {
 		hs.FilterExpr = opt.FilterExpr
 		hs.Note = opt.Note

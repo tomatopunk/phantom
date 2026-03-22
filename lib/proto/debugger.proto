@@ -28,8 +28,14 @@ service DebuggerService {
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
   rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
   rpc CompileAndAttach(CompileAndAttachRequest) returns (CompileAndAttachResponse);
+  // ValidateCompileSource runs clang on source only (no attach, no quota).
+  rpc ValidateCompileSource(ValidateCompileSourceRequest) returns (ValidateCompileSourceResponse);
   // PreviewHookTemplate expands --sec (or inline code) into full template C and optionally runs clang (no attach, no quota).
   rpc PreviewHookTemplate(PreviewHookTemplateRequest) returns (PreviewHookTemplateResponse);
+  // ListHookMaps enumerates BPF maps for a loaded hook (includes user-program break loads).
+  rpc ListHookMaps(ListHookMapsRequest) returns (ListHookMapsResponse);
+  // ReadHookMap returns up to max_entries key/value pairs (raw bytes) from a map.
+  rpc ReadHookMap(ReadHookMapRequest) returns (ReadHookMapResponse);
   rpc ListTracepoints(ListTracepointsRequest) returns (ListTracepointsResponse);
   rpc ListKprobeSymbols(ListKprobeSymbolsRequest) returns (ListKprobeSymbolsResponse);
   rpc ListUprobeSymbols(ListUprobeSymbolsRequest) returns (ListUprobeSymbolsResponse);
@@ -151,6 +157,55 @@ message CompileAndAttachResponse {
   string attach_point = 4;
   repeated CompileDiagnostic diagnostics = 5;
   string compiler_output = 6;  // full stderr for detail panel
+}
+
+message ValidateCompileSourceRequest {
+  string session_id = 1;
+  string source = 2;
+}
+
+message ValidateCompileSourceResponse {
+  bool ok = 1;
+  string error_message = 2;
+  repeated CompileDiagnostic diagnostics = 3;
+  string compiler_output = 4;
+}
+
+message HookMapDescriptor {
+  string name = 1;
+  string map_type = 2;  // e.g. Hash, Array, RingBuf
+  uint32 key_size = 3;
+  uint32 value_size = 4;
+  uint32 max_entries = 5;
+}
+
+message ListHookMapsRequest {
+  string session_id = 1;
+  string hook_id = 2;
+}
+
+message ListHookMapsResponse {
+  bool ok = 1;
+  string error_message = 2;
+  repeated HookMapDescriptor maps = 3;
+}
+
+message MapEntry {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+message ReadHookMapRequest {
+  string session_id = 1;
+  string hook_id = 2;
+  string map_name = 3;
+  uint32 max_entries = 4;  // cap rows returned; 0 means default 256
+}
+
+message ReadHookMapResponse {
+  bool ok = 1;
+  string error_message = 2;
+  repeated MapEntry entries = 3;
 }
 
 message PreviewHookTemplateRequest {

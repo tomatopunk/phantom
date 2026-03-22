@@ -288,34 +288,38 @@ func TestExecuteHookAttach(t *testing.T) {
 	}
 }
 
-func TestParseBreakArgs(t *testing.T) {
-	sym, sec, msg := parseBreakArgs("break", []string{"do_sys_open"})
+func TestParseBreakProgramArgs(t *testing.T) {
+	_, _, _, _, _, msg := parseBreakProgramArgs("break", []string{"do_sys_open"}, false)
+	if msg == "" || !strings.Contains(msg, "obsolete") {
+		t.Fatalf("want obsolete bare symbol hint, got %q", msg)
+	}
+	attach, src, file, prog, limit, msg := parseBreakProgramArgs("break", []string{
+		"--attach", "kprobe:do_sys_open", "--source", "int x;",
+	}, false)
 	if msg != "" {
 		t.Fatalf("want ok, got %q", msg)
 	}
-	if sym != "do_sys_open" || sec != breakDefaultKernelSec {
-		t.Fatalf("got sym=%q sec=%q", sym, sec)
+	if attach != "kprobe:do_sys_open" || src != "int x;" || file != "" || prog != "" || limit != 0 {
+		t.Fatalf("got attach=%q src=%q file=%q prog=%q limit=%d", attach, src, file, prog, limit)
 	}
-	sym, sec, msg = parseBreakArgs("tbreak", []string{"tcp_sendmsg", "--sec", "sport==22"})
-	if msg != "" || sym != "tcp_sendmsg" || sec != "sport==22" {
-		t.Fatalf("got sym=%q sec=%q msg=%q", sym, sec, msg)
-	}
-	_, _, msg = parseBreakArgs("break", []string{"tracepoint:sched:foo"})
-	if msg == "" || !strings.Contains(msg, "bare kernel symbol") {
-		t.Fatalf("want bare symbol error, got %q", msg)
+	_, _, _, _, limit, msg = parseBreakProgramArgs("tbreak", []string{
+		"--attach", "kprobe:foo", "--source", "x", "--limit", "3",
+	}, true)
+	if msg != "" || limit != 3 {
+		t.Fatalf("tbreak limit: msg=%q limit=%d", msg, limit)
 	}
 }
 
-func TestExecuteBreakKernelFilterValidation(t *testing.T) {
+func TestExecuteBreakRequiresFlags(t *testing.T) {
 	exec := newCommandExecutor("", "", nil, nil, nil)
 	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
-	resp, err := exec.execute(ctx, sess, `break do_sys_open --sec "sport==22"`)
+	resp, err := exec.execute(ctx, sess, `break do_sys_open --sec "pid>0"`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp.GetOk() {
-		t.Fatal("want sport rejected on do_sys_open for break --sec")
+	if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "unexpected argument") {
+		t.Fatalf("want parse error, got ok=%v err=%q", resp.GetOk(), resp.GetErrorMessage())
 	}
 }

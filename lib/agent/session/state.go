@@ -16,6 +16,8 @@
 
 package session
 
+import "github.com/cilium/ebpf"
+
 // BreakpointState holds one breakpoint's runtime state and detach.
 type BreakpointState struct {
 	ID        string
@@ -24,12 +26,18 @@ type BreakpointState struct {
 	Enabled   bool
 	IsTemp    bool
 	Condition string // optional expr; when set, event is only reported if condition passes (evaluated later)
-	// HookID is set when this breakpoint uses a template kprobe hook (break/tbreak path); empty after disable.
+	// HookID is set when this breakpoint uses a hook (user eBPF break/tbreak path); empty after disable.
 	HookID string
-	// KprobeHook is true when the breakpoint was created via break/tbreak (template hook); used to re-enable after disable.
+	// KprobeHook is true when the breakpoint is hook-backed (user program break/tbreak); used to re-enable after disable.
 	KprobeHook bool
-	// KernelFilterExpr is the kernel-side filter DSL (same family as hook add --sec) compiled into the break template; empty means agent default.
+	// KernelFilterExpr is unused for user-program break (legacy template field).
 	KernelFilterExpr string
+	// UserProgramBreak is true when break was created from CompileRaw user C (re-enable recompiles UserBreakSource).
+	UserProgramBreak bool
+	UserBreakSource  string
+	UserBreakProgram string
+	// HookEventLimit is the hook auto-remove limit (0 = none; tbreak uses 1).
+	HookEventLimit int
 }
 
 // TraceState holds one trace's expressions and optional detach.
@@ -49,6 +57,8 @@ type HookState struct {
 	HitCount    int    // incremented on each event; used when Limit > 0
 	FilterExpr  string // when set via hook add --sec (for info / UI)
 	Note        string // origin label e.g. CompileAndAttach
+	// Coll is the live collection until Detach closes it; used for ListHookMaps / ReadHookMap.
+	Coll *ebpf.Collection
 }
 
 // WatchState holds one watch expression and its last value for change detection.

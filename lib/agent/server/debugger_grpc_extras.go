@@ -76,6 +76,71 @@ func (s *debuggerServer) PreviewHookTemplate(
 	return resp, nil
 }
 
+func (s *debuggerServer) ValidateCompileSource(
+	ctx context.Context,
+	req *proto.ValidateCompileSourceRequest,
+) (*proto.ValidateCompileSourceResponse, error) {
+	sid := req.GetSessionId()
+	if sid == "" {
+		return &proto.ValidateCompileSourceResponse{Ok: false, ErrorMessage: "missing session_id"}, nil
+	}
+	if s.sessions.Get(sid) == nil {
+		return &proto.ValidateCompileSourceResponse{Ok: false, ErrorMessage: "session not found"}, nil
+	}
+	if s.cfg != nil && s.cfg.rateLimiter != nil && !s.cfg.rateLimiter.Allow(sid) {
+		return &proto.ValidateCompileSourceResponse{Ok: false, ErrorMessage: "rate limited"}, nil
+	}
+	return s.exec.validateCompileSource(ctx, req.GetSource()), nil
+}
+
+func (s *debuggerServer) ListHookMaps(
+	_ context.Context,
+	req *proto.ListHookMapsRequest,
+) (*proto.ListHookMapsResponse, error) {
+	sid := req.GetSessionId()
+	if sid == "" {
+		return &proto.ListHookMapsResponse{Ok: false, ErrorMessage: "missing session_id"}, nil
+	}
+	sess := s.sessions.Get(sid)
+	if sess == nil {
+		return &proto.ListHookMapsResponse{Ok: false, ErrorMessage: "session not found"}, nil
+	}
+	descs, err := sess.ListHookMapDescriptors(req.GetHookId())
+	if err != nil {
+		return &proto.ListHookMapsResponse{Ok: false, ErrorMessage: err.Error()}, nil
+	}
+	var maps []*proto.HookMapDescriptor
+	for _, d := range descs {
+		maps = append(maps, &proto.HookMapDescriptor{
+			Name: d.Name, MapType: d.TypeName, KeySize: d.KeySize, ValueSize: d.ValueSize, MaxEntries: d.MaxEntries,
+		})
+	}
+	return &proto.ListHookMapsResponse{Ok: true, Maps: maps}, nil
+}
+
+func (s *debuggerServer) ReadHookMap(
+	_ context.Context,
+	req *proto.ReadHookMapRequest,
+) (*proto.ReadHookMapResponse, error) {
+	sid := req.GetSessionId()
+	if sid == "" {
+		return &proto.ReadHookMapResponse{Ok: false, ErrorMessage: "missing session_id"}, nil
+	}
+	sess := s.sessions.Get(sid)
+	if sess == nil {
+		return &proto.ReadHookMapResponse{Ok: false, ErrorMessage: "session not found"}, nil
+	}
+	entries, err := sess.ReadHookMapEntries(req.GetHookId(), req.GetMapName(), req.GetMaxEntries())
+	if err != nil {
+		return &proto.ReadHookMapResponse{Ok: false, ErrorMessage: err.Error()}, nil
+	}
+	var out []*proto.MapEntry
+	for _, e := range entries {
+		out = append(out, &proto.MapEntry{Key: e.Key, Value: e.Value})
+	}
+	return &proto.ReadHookMapResponse{Ok: true, Entries: out}, nil
+}
+
 func (*debuggerServer) ListTracepoints(_ context.Context, req *proto.ListTracepointsRequest) (*proto.ListTracepointsResponse, error) {
 	names, err := discovery.ListTracepoints(req.GetPrefix(), int(req.GetMaxEntries()))
 	if err != nil {

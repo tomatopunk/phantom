@@ -70,14 +70,14 @@ func (e *commandExecutor) attachCompiledHook(ctx context.Context, sess *session.
 		}
 		return "", fmt.Errorf("internal: missing attach info")
 	}
-	detach, hookReader, err := hook.AttachProbeFromObject(cr.ObjectPath, cr.ParsedAttach, hook.HookTemplateProgramName, cr.Cleanup)
+	detach, hookReader, coll, err := hook.AttachProbeFromObject(cr.ObjectPath, cr.ParsedAttach, hook.HookTemplateProgramName, cr.Cleanup)
 	if err != nil {
 		if cr.Cleanup != nil {
 			cr.Cleanup()
 		}
 		return "", err
 	}
-	id := sess.AddHook(plan.AttachPoint, detach, hookReader, plan.Limit, opt)
+	id := sess.AddHook(plan.AttachPoint, detach, hookReader, coll, plan.Limit, opt)
 	return id, nil
 }
 
@@ -236,7 +236,7 @@ func (e *commandExecutor) executeHookAttach(ctx context.Context, sess *session.S
 		} else {
 			src = inline
 		}
-		r := e.tryCompileAttachHook(ctx, sess, src, attach, program, 0)
+		r := e.tryCompileAttachHook(ctx, sess, src, attach, program, 0, "hook attach")
 		if !r.GetOk() {
 			return errResponse("hook attach: " + r.GetErrorMessage()), nil
 		}

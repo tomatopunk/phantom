@@ -69,7 +69,7 @@ func TestMCPConnectAndListSessions(t *testing.T) {
 	}
 }
 
-// TestMCPSetBreakpoint runs set_breakpoint via backend (Execute "break sym"); no kprobe so expect error.
+// TestMCPSetBreakpoint runs set_breakpoint via backend; bare-symbol break is obsolete without bpf.
 func TestMCPSetBreakpoint(t *testing.T) {
 	backend, cleanup := startDebuggerServerWithBackend(t)
 	defer cleanup()
@@ -83,13 +83,10 @@ func TestMCPSetBreakpoint(t *testing.T) {
 		t.Fatalf("Execute break: %v", err)
 	}
 	if resp.GetOk() {
-		if resp.GetBreakpoint() == nil || resp.GetBreakpoint().GetSymbol() != "tcp_sendmsg" {
-			t.Errorf("set_breakpoint: want symbol tcp_sendmsg, got %v", resp.GetBreakpoint())
-		}
-	} else {
-		if !strings.Contains(resp.GetErrorMessage(), "kprobe") && !strings.Contains(resp.GetErrorMessage(), "no kprobe") {
-			t.Logf("set_breakpoint (no kprobe): %s", resp.GetErrorMessage())
-		}
+		t.Fatal("expected bare break to fail (obsolete syntax)")
+	}
+	if !strings.Contains(resp.GetErrorMessage(), "obsolete") {
+		t.Errorf("set_breakpoint: want obsolete error, got %q", resp.GetErrorMessage())
 	}
 }
 

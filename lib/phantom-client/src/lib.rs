@@ -26,9 +26,11 @@ pub use phantom::api::{
     debugger_service_client::DebuggerServiceClient, CloseSessionRequest, CompileAndAttachRequest,
     CompileAndAttachResponse, DebugEvent, EventType, ExecuteRequest, ExecuteResponse,
     GetHostMetricsRequest, GetHostMetricsResponse, GetTaskTreeRequest, GetTaskTreeResponse,
-    InspectElfRequest, ListKprobeSymbolsRequest, ListSessionsRequest, ListTracepointsRequest,
-    ListUprobeSymbolsRequest, OpenSessionRequest, OpenSessionResponse, PreviewHookTemplateRequest,
-    PreviewHookTemplateResponse, StreamEventsRequest,
+    InspectElfRequest, ListHookMapsRequest, ListHookMapsResponse, ListKprobeSymbolsRequest,
+    ListSessionsRequest, ListTracepointsRequest, ListUprobeSymbolsRequest, OpenSessionRequest,
+    OpenSessionResponse, PreviewHookTemplateRequest, PreviewHookTemplateResponse, ReadHookMapRequest,
+    ReadHookMapResponse, StreamEventsRequest, ValidateCompileSourceRequest,
+    ValidateCompileSourceResponse,
 };
 
 use tonic::metadata::AsciiMetadataValue;
@@ -243,6 +245,55 @@ impl PhantomClient {
                 attach_point: attach_point.to_string(),
                 sec_expression: sec_expression.to_string(),
                 code_snippet: code_snippet.to_string(),
+            })))
+            .await
+            .map(|r| r.into_inner())
+    }
+
+    pub async fn validate_compile_source(
+        &mut self,
+        source: &str,
+    ) -> Result<ValidateCompileSourceResponse, tonic::Status> {
+        if self.session_id.is_empty() {
+            return Err(tonic::Status::failed_precondition("not connected"));
+        }
+        self.inner
+            .validate_compile_source(self.with_auth(Request::new(ValidateCompileSourceRequest {
+                session_id: self.session_id.clone(),
+                source: source.to_string(),
+            })))
+            .await
+            .map(|r| r.into_inner())
+    }
+
+    pub async fn list_hook_maps(&mut self, hook_id: &str) -> Result<ListHookMapsResponse, tonic::Status> {
+        if self.session_id.is_empty() {
+            return Err(tonic::Status::failed_precondition("not connected"));
+        }
+        self.inner
+            .list_hook_maps(self.with_auth(Request::new(ListHookMapsRequest {
+                session_id: self.session_id.clone(),
+                hook_id: hook_id.to_string(),
+            })))
+            .await
+            .map(|r| r.into_inner())
+    }
+
+    pub async fn read_hook_map(
+        &mut self,
+        hook_id: &str,
+        map_name: &str,
+        max_entries: u32,
+    ) -> Result<ReadHookMapResponse, tonic::Status> {
+        if self.session_id.is_empty() {
+            return Err(tonic::Status::failed_precondition("not connected"));
+        }
+        self.inner
+            .read_hook_map(self.with_auth(Request::new(ReadHookMapRequest {
+                session_id: self.session_id.clone(),
+                hook_id: hook_id.to_string(),
+                map_name: map_name.to_string(),
+                max_entries,
             })))
             .await
             .map(|r| r.into_inner())

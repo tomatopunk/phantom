@@ -104,3 +104,47 @@ export function previewHookTemplate(attachPoint: string, secExpression: string, 
     codeSnippet,
   });
 }
+
+export type ValidateCompileSourceResult = {
+  ok: boolean;
+  error_message: string;
+  diagnostics: CompileDiagnostic[];
+  compiler_output: string;
+};
+
+export function validateCompileSource(source: string) {
+  return invoke<ValidateCompileSourceResult>("validate_compile_source", { source });
+}
+
+export type HookMapDescriptor = {
+  name: string;
+  map_type: string;
+  key_size: number;
+  value_size: number;
+  max_entries: number;
+};
+
+export type ListHookMapsResult = {
+  ok: boolean;
+  error_message: string;
+  maps: HookMapDescriptor[];
+};
+
+export function listHookMaps(hookId: string) {
+  return invoke<ListHookMapsResult>("list_hook_maps_cmd", { hookId });
+}
+
+export type MapEntryHex = {
+  key_hex: string;
+  value_hex: string;
+};
+
+export type ReadHookMapResult = {
+  ok: boolean;
+  error_message: string;
+  entries: MapEntryHex[];
+};
+
+export function readHookMap(hookId: string, mapName: string, maxEntries: number) {
+  return invoke<ReadHookMapResult>("read_hook_map_cmd", { hookId, mapName, maxEntries });
+}

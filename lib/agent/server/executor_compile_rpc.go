@@ -39,6 +39,7 @@ func (e *commandExecutor) tryCompileAttachHook(
 	sess *session.Session,
 	source, attach, programName string,
 	limit int,
+	note string,
 ) *proto.CompileAndAttachResponse {
 	source = strings.TrimSpace(source)
 	if source == "" {
@@ -65,14 +66,17 @@ func (e *commandExecutor) tryCompileAttachHook(
 		}
 		return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: err.Error()}
 	}
-	detach, rd, err := hook.AttachProbeFromObject(cr.ObjectPath, pa, strings.TrimSpace(programName), cr.Cleanup)
+	detach, rd, coll, err := hook.AttachProbeFromObject(cr.ObjectPath, pa, strings.TrimSpace(programName), cr.Cleanup)
 	if err != nil {
 		if cr.Cleanup != nil {
 			cr.Cleanup()
 		}
 		return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: "attach failed: " + err.Error()}
 	}
-	id := sess.AddHook(attach, detach, rd, limit, &session.HookOpts{Note: "CompileAndAttach"})
+	if note == "" {
+		note = "CompileAndAttach"
+	}
+	id := sess.AddHook(attach, detach, rd, coll, limit, &session.HookOpts{Note: note})
 	return &proto.CompileAndAttachResponse{Ok: true, HookId: id, AttachPoint: attach}
 }
 
@@ -81,5 +85,30 @@ func (e *commandExecutor) compileAndAttach(
 	sess *session.Session,
 	req *proto.CompileAndAttachRequest,
 ) *proto.CompileAndAttachResponse {
-	return e.tryCompileAttachHook(ctx, sess, req.GetSource(), req.GetAttach(), req.GetProgramName(), 0)
+	return e.tryCompileAttachHook(ctx, sess, req.GetSource(), req.GetAttach(), req.GetProgramName(), 0, "CompileAndAttach")
+}
+
+// validateCompileSource runs clang only (no attach, no quota).
+func (e *commandExecutor) validateCompileSource(ctx context.Context, source string) *proto.ValidateCompileSourceResponse {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return &proto.ValidateCompileSourceResponse{Ok: false, ErrorMessage: "empty source"}
+	}
+	if e.hookIncludeDir == "" {
+		return &proto.ValidateCompileSourceResponse{Ok: false, ErrorMessage: "no bpf include dir configured"}
+	}
+	_, err := hook.CompileRaw(ctx, source, e.hookIncludeDir)
+	if err != nil {
+		if cf, ok := hook.AsCompileFailed(err); ok {
+			out := string(cf.Stderr)
+			return &proto.ValidateCompileSourceResponse{
+				Ok:             false,
+				ErrorMessage:   firstLineOf(out),
+				CompilerOutput: out,
+				Diagnostics:    hook.ParseClangDiagnostics(out),
+			}
+		}
+		return &proto.ValidateCompileSourceResponse{Ok: false, ErrorMessage: err.Error()}
+	}
+	return &proto.ValidateCompileSourceResponse{Ok: true}
 }

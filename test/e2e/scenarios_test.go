@@ -138,12 +138,12 @@ func TestTcpdumpStyleTcpRecvmsg(t *testing.T) {
 	if _, cerr := c.Connect(ctx, ""); cerr != nil {
 		t.Fatalf("connect: %v", cerr)
 	}
-	br, err := c.Execute(ctx, "break tcp_recvmsg")
+	br, err := c.Execute(ctx, `hook add --point kprobe:tcp_recvmsg --lang c --sec "pid>=0"`)
 	if err != nil {
-		t.Fatalf("break tcp_recvmsg: %v", err)
+		t.Fatalf("hook add tcp_recvmsg: %v", err)
 	}
 	if !br.GetOk() {
-		t.Fatalf("break tcp_recvmsg: %s", br.GetErrorMessage())
+		t.Fatalf("hook add tcp_recvmsg: %s", br.GetErrorMessage())
 	}
 
 	trigger := func() {
@@ -175,12 +175,12 @@ func TestE2EOpenBreak(t *testing.T) {
 	if _, cerr := c.Connect(ctx, ""); cerr != nil {
 		t.Fatalf("connect: %v", cerr)
 	}
-	resp, err := c.Execute(ctx, "break "+sym)
+	resp, err := c.Execute(ctx, fmt.Sprintf(`hook add --point kprobe:%s --lang c --sec "pid>=0"`, sym))
 	if err != nil {
-		t.Fatalf("break: %v", err)
+		t.Fatalf("hook add: %v", err)
 	}
 	if !resp.GetOk() {
-		t.Fatalf("break %s not attached: %s", sym, resp.GetErrorMessage())
+		t.Fatalf("hook add kprobe:%s not attached: %s", sym, resp.GetErrorMessage())
 	}
 
 	tmp := filepath.Join(os.TempDir(), fmt.Sprintf("phantom-e2e-open-%d", os.Getpid()))

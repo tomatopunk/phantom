@@ -27,6 +27,7 @@ import {
   parseWatchLines,
   sliceSection,
 } from "../session/parseInfo";
+import { HookMapsPanel } from "./HookMapsPanel";
 
 type Tab = "break" | "trace" | "hook" | "watch";
 
@@ -114,6 +115,7 @@ export function SessionProbesPanel({
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [mapsHookId, setMapsHookId] = useState("");
 
   const refresh = useCallback(async () => {
     if (!connected) return;
@@ -162,6 +164,12 @@ export function SessionProbesPanel({
   const traces = parseTraceLines(traceLines);
   const hooks = parseHookLines(hookLines);
   const watches = parseWatchLines(watchLines);
+
+  useEffect(() => {
+    if (mapsHookId && !hooks.some((h) => h.id === mapsHookId)) {
+      setMapsHookId("");
+    }
+  }, [hooks, mapsHookId]);
 
   useEffect(() => {
     if (connected) void refresh();
@@ -260,7 +268,21 @@ export function SessionProbesPanel({
           ))}
         {tab === "hook" &&
           hooks.map((r) => (
-            <div key={r.id} className="flex flex-col gap-0.5 border-b border-app-separator/40 py-1">
+            <div
+              key={r.id}
+              className={`flex flex-col gap-0.5 border-b border-app-separator/40 py-1 cursor-pointer rounded-sm -mx-0.5 px-0.5 ${
+                mapsHookId === r.id ? "bg-app-accent-muted/50" : ""
+              }`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setMapsHookId(r.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setMapsHookId(r.id);
+                }
+              }}
+            >
               <div className="flex gap-1 items-center">
                 <span className="text-app-accent">{r.id}</span>
                 <span className="truncate flex-1" title={r.attach}>
@@ -269,8 +291,22 @@ export function SessionProbesPanel({
                 <button
                   type="button"
                   disabled={busy}
+                  className="btn-app shrink-0 px-1.5 py-0.5 text-[10px] leading-tight"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMapsHookId(r.id);
+                  }}
+                >
+                  {t("sessionPanel.action.maps")}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
                   className="btn-app-danger shrink-0 px-1.5 py-0.5 text-[10px] leading-tight"
-                  onClick={() => void runCmd(`hook delete ${r.id}`)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void runCmd(`hook delete ${r.id}`);
+                  }}
                 >
                   {t("sessionPanel.action.delete")}
                 </button>
@@ -303,6 +339,9 @@ export function SessionProbesPanel({
         {tab === "trace" && traces.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
         {tab === "hook" && hooks.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
         {tab === "watch" && watches.length === 0 && <p className="text-app-secondary">{t("sessionPanel.empty")}</p>}
+        {tab === "hook" ? (
+          <HookMapsPanel t={t} connected={connected} hookId={mapsHookId} onHookIdChange={setMapsHookId} />
+        ) : null}
       </div>
     </div>
   );

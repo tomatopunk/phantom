@@ -89,7 +89,7 @@ func (e *commandExecutor) executeEnable(ctx context.Context, sess *session.Sessi
 				e.quota.RemoveHook(sess.ID)
 			}
 		}()
-		resp, err := e.reattachKprobeBreak(ctx, sess, id, bp)
+		resp, err := e.reattachUserProgramBreak(ctx, sess, id, bp)
 		if err != nil {
 			return resp, err
 		}
@@ -161,10 +161,14 @@ func (*commandExecutor) executeInfoBreak(_ context.Context, sess *session.Sessio
 			cond = " condition " + bp.Condition
 		}
 		kf := ""
-		if bp.KprobeHook && strings.TrimSpace(bp.KernelFilterExpr) != "" {
+		if bp.KprobeHook && !bp.UserProgramBreak && strings.TrimSpace(bp.KernelFilterExpr) != "" {
 			kf = " kernel_sec=" + bp.KernelFilterExpr
 		}
-		lines = append(lines, fmt.Sprintf("%s%s  %s  enabled=%s%s%s", bp.ID, tmp, bp.Symbol, en, cond, kf))
+		userTag := ""
+		if bp.UserProgramBreak {
+			userTag = " user_ebpf=y"
+		}
+		lines = append(lines, fmt.Sprintf("%s%s  %s  enabled=%s%s%s%s", bp.ID, tmp, bp.Symbol, en, cond, kf, userTag))
 	}
 	output := "breakpoints:\n"
 	if len(lines) == 0 {
@@ -264,9 +268,9 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
 		cmd := strings.ToLower(args[0])
 		switch cmd {
 		case infoSubBreak, "b":
-			return &proto.ExecuteResponse{Ok: true, Output: "break <symbol> [--sec <expr>]  built-in kprobe template only (bare symbol); kernel filter DSL same as hook add --sec; default pid>=0. condition = user-side filter"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "break --attach <point> (--source <c> | --file /abs.c) [--program name] [--limit N]  user eBPF (CompileRaw); same flags as hook attach"}, nil
 		case "tbreak":
-			return &proto.ExecuteResponse{Ok: true, Output: "tbreak <symbol> [--sec <expr>]  temporary built-in kprobe break"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "tbreak ...  same as break; default --limit 1 (temporary)"}, nil
 		case "print", "p":
 			return &proto.ExecuteResponse{Ok: true, Output: "print <expr>  evaluate once on last probe event (pid, arg0.., ret, ...)"}, nil
 		case infoSubTrace, "t":
@@ -276,7 +280,7 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
 		case "enable", "disable":
 			return &proto.ExecuteResponse{Ok: true, Output: cmd + " <bp_id>  enable or disable breakpoint"}, nil
 		case "condition":
-			return &proto.ExecuteResponse{Ok: true, Output: "condition <bp_id> <expr>  user-side filter on BREAK_HIT (contrast: hook add --sec is kernel-side in template)"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "condition <bp_id> <expr>  user-side filter on BREAK_HIT"}, nil
 		case "info":
 			return &proto.ExecuteResponse{Ok: true, Output: "info break|trace|watch|hook|session  list state"}, nil
 		case cmdList:
@@ -288,17 +292,16 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
 		case "continue", "c":
 			return &proto.ExecuteResponse{Ok: true, Output: "continue  continue execution"}, nil
 		case "hook":
-			return &proto.ExecuteResponse{Ok: true, Output: "hook add ...  template BPF at kprobe:/tracepoint:/uprobe:; --sec is filter DSL in generated C (not ELF SEC name). " +
-				"hook attach ...  full C --file or --source. hook list | hook delete <id>"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "hook add ...  template BPF (--point, --sec or --code). hook attach ...  same as break (full C). hook list | hook delete <id>"}, nil
 		default:
 			return &proto.ExecuteResponse{Ok: true, Output: "help " + cmd + ": unknown command"}, nil
 		}
 	}
 	output := `commands:
   Probes:
-  break, b <sym> [--sec e]  built-in kprobe template only; optional kernel --sec (same DSL as hook); hook add for other attach kinds
-  tbreak <sym> [--sec e]    temporary built-in kprobe break
-  hook add|attach|list|delete   template or full C; see docs/command-spec.md
+  break, b  --attach P (--source S | --file /abs.c) [--program N] [--limit L]  user eBPF (like hook attach)
+  tbreak    same; default --limit 1
+  hook add|attach|list|delete   hook add: template --point + --sec|--code; hook attach: full C; see docs/command-spec.md
 
   On each probe event:
   print, p <expr>       evaluate once on last event

@@ -77,27 +77,28 @@ func preferredProgramType(pa *ParsedAttach) ebpf.ProgramType {
 }
 
 // AttachProbeFromObject loads an ELF .o, picks a program, attaches per ParsedAttach, opens the first ringbuf map.
+// The returned coll remains valid until detach(); detach closes the collection and link.
 func AttachProbeFromObject(
 	objectPath string,
 	pa *ParsedAttach,
 	programName string,
 	cleanup func(),
-) (detach func(), reader *ringbuf.Reader, err error) {
+) (detach func(), reader *ringbuf.Reader, coll *ebpf.Collection, err error) {
 	spec, err := ebpf.LoadCollectionSpec(objectPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("load spec: %w", err)
+		return nil, nil, nil, fmt.Errorf("load spec: %w", err)
 	}
 	if kerr := agentrt.FillKprobeKernelVersionsFromUname(spec); kerr != nil {
-		return nil, nil, fmt.Errorf("kprobe kernel version: %w", kerr)
+		return nil, nil, nil, fmt.Errorf("kprobe kernel version: %w", kerr)
 	}
-	coll, err := ebpf.NewCollection(spec)
+	coll, err = ebpf.NewCollection(spec)
 	if err != nil {
-		return nil, nil, fmt.Errorf("new collection: %w", err)
+		return nil, nil, nil, fmt.Errorf("new collection: %w", err)
 	}
 	prog, err := pickProgram(coll, programName, preferredProgramType(pa))
 	if err != nil {
 		coll.Close()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	var lk link.Link
 	switch pa.Kind {
@@ -122,19 +123,19 @@ func AttachProbeFromObject(
 	}
 	if err != nil {
 		coll.Close()
-		return nil, nil, fmt.Errorf("attach: %w", err)
+		return nil, nil, nil, fmt.Errorf("attach: %w", err)
 	}
 	m, err := findRingBufMap(coll)
 	if err != nil {
 		_ = lk.Close()
 		coll.Close()
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	rd, err := ringbuf.NewReader(m)
 	if err != nil {
 		_ = lk.Close()
 		coll.Close()
-		return nil, nil, fmt.Errorf("ringbuf reader: %w", err)
+		return nil, nil, nil, fmt.Errorf("ringbuf reader: %w", err)
 	}
 	detachFn := func() {
 		_ = lk.Close()
@@ -143,5 +144,5 @@ func AttachProbeFromObject(
 			cleanup()
 		}
 	}
-	return detachFn, rd, nil
+	return detachFn, rd, coll, nil
 }

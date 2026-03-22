@@ -68,12 +68,12 @@ func TestHttp10CaptureE2E(t *testing.T) {
 	if _, cerr := c.Connect(ctx, ""); cerr != nil {
 		t.Fatalf("connect: %v", cerr)
 	}
-	br, err := c.Execute(ctx, "break tcp_sendmsg")
+	br, err := c.Execute(ctx, `hook add --point kprobe:tcp_sendmsg --lang c --sec "pid>=0"`)
 	if err != nil {
-		t.Fatalf("break tcp_sendmsg: %v", err)
+		t.Fatalf("hook add tcp_sendmsg: %v", err)
 	}
 	if !br.GetOk() {
-		t.Fatalf("break tcp_sendmsg: %s", br.GetErrorMessage())
+		t.Fatalf("hook add tcp_sendmsg: %s", br.GetErrorMessage())
 	}
 
 	trigger := func() {

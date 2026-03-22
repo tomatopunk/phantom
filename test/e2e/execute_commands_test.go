@@ -69,29 +69,37 @@ func TestExecuteCommandMatrix(t *testing.T) {
 		t.Fatalf("connect: %v", err)
 	}
 
-	t.Run("break_b", func(t *testing.T) {
+	t.Run("break_obsolete_syntax", func(t *testing.T) {
 		resp, err := c.Execute(ctx, "break do_sys_open")
 		if err != nil {
 			t.Fatal(err)
 		}
-		// No kprobe path: expect error or ok with breakpoint result
-		if resp.GetOk() {
-			if resp.GetBreakpoint() == nil || resp.GetBreakpoint().GetSymbol() != "do_sys_open" {
-				t.Errorf("break: want breakpoint symbol do_sys_open, got %v", resp.GetBreakpoint())
-			}
-		} else {
-			if !strings.Contains(resp.GetErrorMessage(), "kprobe") && !strings.Contains(resp.GetErrorMessage(), "no kprobe") {
-				t.Logf("break (no kprobe): %s", resp.GetErrorMessage())
-			}
+		if resp.GetOk() || !strings.Contains(resp.GetErrorMessage(), "obsolete") {
+			t.Errorf("break bare symbol: want obsolete error, ok=%v err=%q", resp.GetOk(), resp.GetErrorMessage())
 		}
 	})
-	t.Run("tbreak", func(t *testing.T) {
-		resp, err := c.Execute(ctx, "tbreak do_sys_open")
+	t.Run("break_needs_bpf_include", func(t *testing.T) {
+		resp, err := c.Execute(ctx, `break --attach kprobe:do_sys_open --source "int x;"`)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if resp.GetOk() && resp.GetBreakpoint() != nil && !strings.Contains(resp.GetOutput(), "temporary") {
-			t.Errorf("tbreak: output should mention temporary, got %q", resp.GetOutput())
+		if resp.GetOk() {
+			t.Fatal("break: expected failure without bpf include in in-process server")
+		}
+		if !strings.Contains(resp.GetErrorMessage(), "bpf include") {
+			t.Errorf("break: want bpf include error, got %q", resp.GetErrorMessage())
+		}
+	})
+	t.Run("tbreak", func(t *testing.T) {
+		resp, err := c.Execute(ctx, `tbreak --attach kprobe:do_sys_open --source "int y;"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.GetOk() {
+			t.Fatal("tbreak: expected failure without bpf include")
+		}
+		if !strings.Contains(resp.GetErrorMessage(), "bpf include") {
+			t.Logf("tbreak err: %s", resp.GetErrorMessage())
 		}
 	})
 	t.Run("print_p", func(t *testing.T) {

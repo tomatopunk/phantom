@@ -22,6 +22,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
 import { runLocalLint } from "../hook/localLint";
+import { useResolvedDark } from "../theme/ThemeProvider";
 import { probePresets } from "../presets/types";
 
 type Problem = {
@@ -53,6 +54,8 @@ export function HookEditorPanel({
   onProbesChanged?: () => void;
 }) {
   const { t } = useTranslation();
+  const resolvedDark = useResolvedDark();
+  const monacoTheme = resolvedDark ? "vs-dark" : "light";
   const [src, setSrc] = useState(
     '#include <linux/bpf.h>\n#include <bpf/bpf_helpers.h>\n\nchar LICENSE[] SEC("license") = "Dual BSD/GPL";\n',
   );
@@ -263,7 +266,7 @@ export function HookEditorPanel({
         <Editor
           height="100%"
           defaultLanguage="c"
-          theme="vs-dark"
+          theme={monacoTheme}
           value={src}
           onChange={(v) => setSrc(v ?? "")}
           onMount={onMount}
@@ -304,10 +307,17 @@ export function HookEditorPanel({
               <li key={p.key}>
                 <button
                   type="button"
-                  className="text-left w-full hover:bg-white/5 rounded px-0.5 font-mono-tight"
+                  className="text-left w-full rounded px-0.5 font-mono-tight hover:bg-black/5 dark:hover:bg-white/5"
                   onClick={() => jumpToLine(p.line)}
                 >
-                  <span className={p.source === "agent" ? "text-amber-300" : "text-blue-300"}>[{p.source}]</span> L{p.line}:{p.column}{" "}
+                  <span
+                    className={
+                      p.source === "agent" ? "text-amber-800 dark:text-amber-300" : "text-blue-700 dark:text-blue-300"
+                    }
+                  >
+                    [{p.source}]
+                  </span>{" "}
+                  L{p.line}:{p.column}{" "}
                   {p.message}
                 </button>
               </li>

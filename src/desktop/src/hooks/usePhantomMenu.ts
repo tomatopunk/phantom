@@ -17,7 +17,6 @@
  */
 
 import { listen } from "@tauri-apps/api/event";
-import type { i18n as I18nType } from "i18next";
 import { useEffect } from "react";
 
 type Payload = { action?: string };
@@ -25,9 +24,10 @@ type Payload = { action?: string };
 export function usePhantomMenu(opts: {
   exportJsonl: () => void;
   clearEvents: () => void;
-  i18n: I18nType;
+  onOpenSettings?: () => void;
+  onOpenAbout?: () => void;
 }) {
-  const { exportJsonl, clearEvents, i18n } = opts;
+  const { exportJsonl, clearEvents, onOpenSettings, onOpenAbout } = opts;
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -35,13 +35,13 @@ export function usePhantomMenu(opts: {
       const a = e.payload?.action;
       if (a === "export") exportJsonl();
       else if (a === "clear") clearEvents();
-      else if (a === "lang_zh") void i18n.changeLanguage("zh");
-      else if (a === "lang_en") void i18n.changeLanguage("en");
+      else if (a === "open_settings") onOpenSettings?.();
+      else if (a === "about") onOpenAbout?.();
     }).then((fn) => {
       unlisten = fn;
     });
     return () => {
       unlisten?.();
     };
-  }, [exportJsonl, clearEvents, i18n]);
+  }, [exportJsonl, clearEvents, onOpenSettings, onOpenAbout]);
 }

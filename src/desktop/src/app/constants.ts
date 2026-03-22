@@ -16,17 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import App from "./App";
-import "./i18n";
-import "./index.css";
-import { ThemeProvider } from "./theme/ThemeProvider";
+/** Matches README.md project links. */
+export const GITHUB_REPO_URL = "https://github.com/tomatopunk/phantom";
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <ThemeProvider>
-      <App />
-    </ThemeProvider>
-  </StrictMode>,
-);
+export const APACHE_LICENSE_URL = "https://www.apache.org/licenses/LICENSE-2.0";

@@ -140,7 +140,32 @@
     "stopped": "停止",
     "metricsRefresh": "指标刷新:",
     "shortcutExport": "快捷键: ⌘/Ctrl+E 导出 JSONL",
-    "shortcutsHint": "⌘/Ctrl+E 导出 · 菜单栏可清空事件与切换语言"
+    "shortcutsHint": "设置：⌘ 或 Ctrl + ，"
+  },
+  "settings": {
+    "title": "设置",
+    "appearance": "外观",
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统",
+    "language": "语言",
+    "langZh": "中文",
+    "langEn": "English",
+    "hintShortcut": "随时可用 ⌘ 或 Ctrl + 逗号 打开此对话框（亦在「显示 / View」菜单中）。语言与界面选项会保存在本机。",
+    "close": "关闭"
+  },
+  "about": {
+    "title": "Phantom",
+    "subtitle": "远程 eBPF 调试 — 桌面客户端",
+    "body": "Phantom 面向 Linux eBPF 的分布式调试：本桌面客户端通过网络连接 Phantom Agent，用于附加探针、使用类 GDB 的命令行界面，并从运行 Agent 的机器上持续接收结构化调试事件。本应用以开源方式发布，欢迎在 GitHub 上参与贡献与反馈。",
+    "version": "版本",
+    "licenseHeading": "许可证",
+    "licenseName": "Apache License 2.0",
+    "licenseDetail": "本软件依据 Apache License, Version 2.0 授权。您可在下方链接获取许可证全文。除适用法律要求或书面同意外，依据本许可证分发的软件按「原样」提供，不附带任何明示或默示的保证或条件。",
+    "repositoryHeading": "源代码",
+    "repositoryHint": "在 GitHub 浏览源码、提交问题并关注项目动态。",
+    "close": "关闭",
+    "copyright": "© {{year}} The Phantom Authors。保留所有权利。"
   },
   "glossary": {
     "loadavg_one": "/proc/loadavg 第 1 列：过去 1 分钟平均负载（可运行+不可中断睡眠的任务数，按 CPU 核数理解）。",

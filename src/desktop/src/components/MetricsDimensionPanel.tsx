@@ -89,7 +89,7 @@ export function MetricsDimensionPanel({
         {connected && dimension === "host" && metrics && (
           <div className="space-y-2">
             {(metrics.error_message as string) && (
-              <p className="text-amber-400">{(metrics.error_message as string) || ""}</p>
+              <p className="text-amber-800 dark:text-amber-400">{(metrics.error_message as string) || ""}</p>
             )}
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-md border border-app-separator bg-app-field p-2">
@@ -114,7 +114,7 @@ export function MetricsDimensionPanel({
                 </div>
                 <div className="h-2 rounded overflow-hidden border border-app-separator bg-app-field">
                   <div
-                    className="h-full bg-blue-600/70"
+                    className="h-full bg-blue-500/60 dark:bg-blue-600/70"
                     style={{
                       width: `${Math.min(
                         100,
@@ -205,7 +205,7 @@ export function MetricsDimensionPanel({
                 {t("tasks.loadTask")}
               </button>
             </div>
-            {taskErr && <p className="text-amber-400">{taskErr}</p>}
+            {taskErr && <p className="text-amber-800 dark:text-amber-400">{taskErr}</p>}
             <table className="w-full font-mono-tight text-[10px] border-collapse">
               <thead>
                 <tr className="text-app-secondary text-left">

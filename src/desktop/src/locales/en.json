@@ -140,7 +140,32 @@
     "stopped": "stopped",
     "metricsRefresh": "Metrics refresh:",
     "shortcutExport": "Shortcut: ⌘/Ctrl+E export JSONL",
-    "shortcutsHint": "⌘/Ctrl+E export · Menu bar: clear events, language"
+    "shortcutsHint": "Settings: ⌘ or Ctrl + ,"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "Match system",
+    "language": "Language",
+    "langZh": "中文",
+    "langEn": "English",
+    "hintShortcut": "Open this dialog anytime with ⌘ or Ctrl + comma (also under the View menu). Appearance and language are saved locally.",
+    "close": "Close"
+  },
+  "about": {
+    "title": "Phantom",
+    "subtitle": "Remote eBPF debugging — desktop client",
+    "body": "Phantom is a distributed debugger for Linux eBPF: a desktop client connects to a Phantom agent over the network to attach probes, run a GDB-style command interface, and stream structured events from the machine where the agent runs. This application is open source; contributions and feedback are welcome on GitHub.",
+    "version": "Version",
+    "licenseHeading": "License",
+    "licenseName": "Apache License 2.0",
+    "licenseDetail": "This software is licensed under the Apache License, Version 2.0. You may obtain a copy of the License below. Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.",
+    "repositoryHeading": "Source code",
+    "repositoryHint": "Browse source, report issues, and follow project updates on GitHub.",
+    "close": "Close",
+    "copyright": "© {{year}} The Phantom Authors. All rights reserved."
   },
   "glossary": {
     "loadavg_one": "/proc/loadavg field 1: 1-minute load average (runnable + uninterruptible tasks, interpret per CPU count).",

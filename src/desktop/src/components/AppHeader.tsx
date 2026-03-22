@@ -96,7 +96,7 @@ export function AppHeader({
           {t("header.startCapture")}
         </button>
       ) : (
-        <button type="button" className="btn-app text-xs text-amber-200/90" onClick={onStopCap}>
+        <button type="button" className="btn-app text-xs text-amber-800 dark:text-amber-200/90" onClick={onStopCap}>
           {t("header.stopCapture")}
         </button>
       )}

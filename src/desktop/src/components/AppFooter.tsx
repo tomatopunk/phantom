@@ -41,7 +41,7 @@ export function AppFooter({ t, sessionId, connected, capturing, metricsAt }: Pro
       <span>
         {t("footer.metricsRefresh")} {metricsAt ?? t("common.dash")}
       </span>
-      <span className="ml-auto">{t("footer.shortcutsHint")}</span>
+      <span className="ml-auto shrink-0">{t("footer.shortcutsHint")}</span>
     </footer>
   );
 }

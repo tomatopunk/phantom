@@ -28,7 +28,7 @@ export function InlineErrorBanner({ t, message, onDismiss }: Props) {
   if (!message) return null;
   return (
     <div
-      className="flex shrink-0 items-center gap-2 border-b border-amber-700/50 bg-amber-950/40 px-3 py-2 text-sm text-amber-100/95"
+      className="flex shrink-0 items-center gap-2 border-b border-amber-300/80 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100/95"
       role="alert"
     >
       <span className="min-w-0 flex-1 break-words">{message}</span>

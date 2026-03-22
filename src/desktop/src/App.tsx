@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { eventMatchesFilter, MAX_EVENTS } from "./app/eventUtils";
 import type { CpuJ, DebugEventPayload, NetDev, TaskRow } from "./app/types";
 import * as api from "./api";
+import { AboutDialog } from "./components/AboutDialog";
 import { AppFooter } from "./components/AppFooter";
 import { AppHeader } from "./components/AppHeader";
 import { CmdReplBlock } from "./components/CmdReplBlock";
@@ -32,13 +33,14 @@ import { HookEditorPanel } from "./components/HookEditorPanel";
 import { InlineErrorBanner } from "./components/InlineErrorBanner";
 import { MetricsDimensionPanel } from "./components/MetricsDimensionPanel";
 import { SessionProbesPanel } from "./components/SessionProbesPanel";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { usePhantomMenu } from "./hooks/usePhantomMenu";
 import { AppShell } from "./layout/AppShell";
 
 export type { DebugEventPayload } from "./app/types";
 
 export default function App() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   function relTimeNs(first: number, cur: number): string {
     const d = (cur - first) / 1e6;
@@ -75,6 +77,8 @@ export default function App() {
   const [cmd, setCmd] = useState("help");
   const [cmdOut, setCmdOut] = useState("");
   const [probeRefresh, setProbeRefresh] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -162,13 +166,22 @@ export default function App() {
     bump();
   }, [bump]);
 
-  usePhantomMenu({ exportJsonl, clearEvents, i18n });
+  usePhantomMenu({
+    exportJsonl,
+    clearEvents,
+    onOpenSettings: () => setSettingsOpen(true),
+    onOpenAbout: () => setAboutOpen(true),
+  });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "e") {
         e.preventDefault();
         exportJsonl();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+        e.preventDefault();
+        setSettingsOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -352,6 +365,8 @@ export default function App() {
       />
 
       <AppFooter t={t} sessionId={sessionId} connected={connected} capturing={capturing} metricsAt={metricsAt} />
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </div>
   );
 }

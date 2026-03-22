@@ -124,7 +124,7 @@ export function SessionProbesPanel({
           </button>
         ))}
       </div>
-      {err && <p className="text-[11px] text-amber-400 shrink-0">{err}</p>}
+      {err && <p className="text-[11px] text-amber-800 shrink-0 dark:text-amber-400">{err}</p>}
       <div className="flex-1 min-h-0 overflow-auto text-[10px] font-mono-tight text-app-label">
         {tab === "break" &&
           breaks.map((r) => (
@@ -134,15 +134,15 @@ export function SessionProbesPanel({
                 {r.symbol}
               </span>
               <span className="text-app-secondary">{r.enabled ? "on" : "off"}</span>
-              {r.condition && <span className="text-gray-500 truncate max-w-[100px]">{r.condition}</span>}
+              {r.condition && <span className="text-gray-600 truncate max-w-[100px] dark:text-gray-500">{r.condition}</span>}
               <span className="ml-auto flex gap-0.5 shrink-0">
-                <button type="button" className="text-blue-400 hover:underline" onClick={() => void runCmd(`delete ${r.id}`)}>
+                <button type="button" className="text-blue-700 hover:underline dark:text-blue-400" onClick={() => void runCmd(`delete ${r.id}`)}>
                   del
                 </button>
-                <button type="button" className="text-blue-400 hover:underline" onClick={() => void runCmd(`disable ${r.id}`)}>
+                <button type="button" className="text-blue-700 hover:underline dark:text-blue-400" onClick={() => void runCmd(`disable ${r.id}`)}>
                   off
                 </button>
-                <button type="button" className="text-blue-400 hover:underline" onClick={() => void runCmd(`enable ${r.id}`)}>
+                <button type="button" className="text-blue-700 hover:underline dark:text-blue-400" onClick={() => void runCmd(`enable ${r.id}`)}>
                   on
                 </button>
               </span>
@@ -153,7 +153,7 @@ export function SessionProbesPanel({
             <div key={r.id} className="flex gap-1 items-center border-b border-app-separator/40 py-1">
               <span className="text-app-accent">{r.id}</span>
               <span className="truncate flex-1">{r.expressions}</span>
-              <button type="button" className="text-blue-400 hover:underline shrink-0" onClick={() => void runCmd(`delete ${r.id}`)}>
+              <button type="button" className="text-blue-700 hover:underline shrink-0 dark:text-blue-400" onClick={() => void runCmd(`delete ${r.id}`)}>
                 del
               </button>
             </div>
@@ -166,12 +166,12 @@ export function SessionProbesPanel({
                 <span className="truncate flex-1" title={r.attach}>
                   {r.attach}
                 </span>
-                <button type="button" className="text-blue-400 hover:underline shrink-0" onClick={() => void runCmd(`hook delete ${r.id}`)}>
+                <button type="button" className="text-blue-700 hover:underline shrink-0 dark:text-blue-400" onClick={() => void runCmd(`hook delete ${r.id}`)}>
                   del
                 </button>
               </div>
               {(r.filter || r.note) && (
-                <div className="text-gray-500 pl-2">
+                <div className="text-gray-600 pl-2 dark:text-gray-500">
                   {r.filter && <span>filter={r.filter} </span>}
                   {r.note && <span>note={r.note}</span>}
                 </div>
@@ -184,7 +184,7 @@ export function SessionProbesPanel({
               <span className="text-app-accent">{r.id}</span>
               <span className="truncate">{r.expression}</span>
               <span className="text-app-secondary truncate">{r.last}</span>
-              <button type="button" className="text-blue-400 hover:underline ml-auto shrink-0" onClick={() => void runCmd(`delete ${r.id}`)}>
+              <button type="button" className="text-blue-700 hover:underline ml-auto shrink-0 dark:text-blue-400" onClick={() => void runCmd(`delete ${r.id}`)}>
                 del
               </button>
             </div>

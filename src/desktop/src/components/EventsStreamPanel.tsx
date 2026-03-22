@@ -77,7 +77,7 @@ export function EventsStreamPanel({
                   >
                     <span className="w-8 shrink-0 px-1 text-app-secondary">{vi.index}</span>
                     <span className="w-24 shrink-0 truncate">{relTimeNs(firstTs, ev.timestamp_ns)}</span>
-                    <span className="w-28 shrink-0 truncate text-amber-200/90">{ev.event_type_name}</span>
+                    <span className="w-28 shrink-0 truncate text-amber-800 dark:text-amber-200/90">{ev.event_type_name}</span>
                     <span className="w-12 shrink-0">{ev.pid}</span>
                     <span className="w-12 shrink-0">{ev.tgid}</span>
                     <span className="w-8 shrink-0">{ev.cpu}</span>

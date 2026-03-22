@@ -414,15 +414,19 @@ pub fn run() {
                 .select_all()
                 .build()?;
 
-            let lang_zh = MenuItem::with_id(app, "phantom_lang_zh", "中文", true, None::<&str>)?;
-            let lang_en = MenuItem::with_id(app, "phantom_lang_en", "English", true, None::<&str>)?;
-            let view_menu = SubmenuBuilder::new(app, "View")
-                .item(&lang_zh)
-                .item(&lang_en)
-                .build()?;
+            let phantom_settings = MenuItem::with_id(
+                app,
+                "phantom_settings",
+                "Settings…",
+                true,
+                Some("CmdOrCtrl+,"),
+            )?;
+            let view_menu = SubmenuBuilder::new(app, "View").item(&phantom_settings).build()?;
 
+            let phantom_about =
+                MenuItem::with_id(app, "phantom_about", "About Phantom", true, None::<&str>)?;
             let help_menu = SubmenuBuilder::new(app, "Help")
-                .item(&PredefinedMenuItem::about(app, Some("About Phantom"), None)?)
+                .item(&phantom_about)
                 .build()?;
 
             let menu = MenuBuilder::new(app)
@@ -440,10 +444,10 @@ pub fn run() {
                 Some("export")
             } else if event.id() == "phantom_clear" {
                 Some("clear")
-            } else if event.id() == "phantom_lang_zh" {
-                Some("lang_zh")
-            } else if event.id() == "phantom_lang_en" {
-                Some("lang_en")
+            } else if event.id() == "phantom_settings" {
+                Some("open_settings")
+            } else if event.id() == "phantom_about" {
+                Some("about")
             } else {
                 None
             };

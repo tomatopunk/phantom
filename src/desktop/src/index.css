@@ -21,6 +21,25 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
+  --app-bg: #f5f5f7;
+  --app-panel: #ffffff;
+  --app-sidebar: #ececf0;
+  --app-separator: #d2d2d7;
+  --app-label: #1d1d1f;
+  --app-secondary: #6e6e73;
+  --app-accent: #2563eb;
+  --app-accent-muted: rgba(37, 99, 235, 0.12);
+  --app-hover: rgba(0, 0, 0, 0.06);
+  --app-field-bg: rgba(0, 0, 0, 0.04);
+  --app-primary-hover-bg: rgba(37, 99, 235, 0.22);
+  --app-danger-bg: rgba(220, 38, 38, 0.12);
+  --app-danger-text: #991b1b;
+  --app-danger-hover-bg: rgba(220, 38, 38, 0.2);
+}
+
+html.dark {
+  color-scheme: dark;
   --app-bg: #1a1b26;
   --app-panel: #16161e;
   --app-sidebar: #13141a;
@@ -31,6 +50,10 @@
   --app-accent-muted: rgba(122, 162, 247, 0.18);
   --app-hover: rgba(255, 255, 255, 0.06);
   --app-field-bg: rgba(0, 0, 0, 0.35);
+  --app-primary-hover-bg: rgba(122, 162, 247, 0.25);
+  --app-danger-bg: rgba(69, 10, 10, 0.45);
+  --app-danger-text: #fecaca;
+  --app-danger-hover-bg: rgba(127, 29, 29, 0.5);
 }
 
 html,
@@ -59,10 +82,15 @@ body {
     @apply rounded-md border border-app-separator bg-app-accent-muted px-2 py-1 text-app-accent transition-colors disabled:opacity-40;
   }
   .btn-app-primary:hover:not(:disabled) {
-    background-color: rgba(122, 162, 247, 0.25);
+    background-color: var(--app-primary-hover-bg);
   }
   .btn-app-danger {
-    @apply rounded-md border border-app-separator bg-red-950/40 px-2 py-1 text-red-200/90 hover:bg-red-900/50 disabled:opacity-40;
+    @apply rounded-md border border-app-separator px-2 py-1 transition-colors disabled:opacity-40;
+    background-color: var(--app-danger-bg);
+    color: var(--app-danger-text);
+  }
+  .btn-app-danger:hover:not(:disabled) {
+    background-color: var(--app-danger-hover-bg);
   }
 }
 

@@ -60,15 +60,16 @@
     "nicHint": "/proc/net/dev (click to select context NIC)",
     "load1m": "Load 1m",
     "load5m": "Load 5m",
-    "memTotal": "Mem total",
-    "memAvail": "Mem avail",
-    "rxLabel": "rx",
-    "txLabel": "tx",
-    "byteAbbr": "B",
-    "colUser": "user",
-    "colSys": "sys",
-    "colIdle": "idle",
-    "colIow": "iow"
+    "memTotal": "Total physical RAM",
+    "memAvail": "Est. memory available",
+    "rxLabel": "RX",
+    "txLabel": "TX",
+    "byteAbbr": "bytes",
+    "colUser": "User (jiffies)",
+    "colSys": "System (jiffies)",
+    "colIdle": "Idle (jiffies)",
+    "colIow": "I/O wait (jiffies)",
+    "cpuJiffiesNote": "Cumulative jiffies from /proc/stat since boot — not live CPU %. Often HZ=100 so 1 jiffy ≈ 10 ms; in general 1 jiffy = 1/HZ second."
   },
   "tasks": {
     "loadTask": "Load /proc/…/task",
@@ -132,6 +133,12 @@
       "trace": "Traces",
       "hook": "Hooks",
       "watch": "Watches"
+    },
+    "tabHint": {
+      "break": "Kprobe breakpoints: stop the session on hits (debugger-style). Commands: break, delete, enable, disable.",
+      "trace": "Sample expressions in probe context (e.g. pid, regs). Command: trace.",
+      "hook": "Attached eBPF programs (template or full C), often via ringbuf. Commands: hook add, hook delete.",
+      "watch": "Emit when a watched expression’s value changes. Command: watch."
     }
   },
   "events": {

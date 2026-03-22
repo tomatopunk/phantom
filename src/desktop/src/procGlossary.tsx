@@ -36,9 +36,8 @@ export function GlossaryTip({
   const title = t(`glossary.${term}`, { defaultValue: term });
   const text = children ?? (labelKey ? t(labelKey) : label ?? term);
   return (
-    <span className="inline-flex cursor-help items-center gap-0.5 border-b border-dotted border-app-secondary" title={title}>
+    <span className="cursor-help border-b border-dotted border-app-secondary" title={title}>
       {text}
-      <span className="text-[10px] text-app-secondary">?</span>
     </span>
   );
 }

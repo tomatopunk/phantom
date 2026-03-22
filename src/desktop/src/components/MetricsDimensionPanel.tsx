@@ -22,6 +22,11 @@ import type { CpuJ, NetDev, TaskRow } from "../app/types";
 
 type Dim = "host" | "nic" | "threads";
 
+/** Group digits for large /proc/stat jiffies counters. */
+function formatJiffies(n: number): string {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
+}
+
 type Props = {
   t: TFunction;
   hostname: string;
@@ -128,6 +133,7 @@ export function MetricsDimensionPanel({
             )}
             <div className="font-mono-tight text-[10px] overflow-x-auto">
               <div className="text-app-secondary mb-1">{t("metrics.statTableCaption")}</div>
+              <p className="text-[10px] text-app-secondary leading-snug mb-1.5">{t("metrics.cpuJiffiesNote")}</p>
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="text-left text-app-secondary">
@@ -150,10 +156,10 @@ export function MetricsDimensionPanel({
                   {cpus.slice(0, 9).map((c) => (
                     <tr key={c.label} className="border-t border-app-separator/60">
                       <td className="pr-2">{c.label}</td>
-                      <td>{c.user}</td>
-                      <td>{c.system}</td>
-                      <td>{c.idle}</td>
-                      <td>{c.iowait}</td>
+                      <td className="tabular-nums">{formatJiffies(c.user)}</td>
+                      <td className="tabular-nums">{formatJiffies(c.system)}</td>
+                      <td className="tabular-nums">{formatJiffies(c.idle)}</td>
+                      <td className="tabular-nums">{formatJiffies(c.iowait)}</td>
                     </tr>
                   ))}
                 </tbody>

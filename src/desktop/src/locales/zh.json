@@ -60,15 +60,16 @@
     "nicHint": "/proc/net/dev（点击选择上下文网卡）",
     "load1m": "Load 1m",
     "load5m": "Load 5m",
-    "memTotal": "Mem total",
-    "memAvail": "Mem avail",
-    "rxLabel": "rx",
-    "txLabel": "tx",
-    "byteAbbr": "B",
-    "colUser": "user",
-    "colSys": "sys",
-    "colIdle": "idle",
-    "colIow": "iow"
+    "memTotal": "物理内存总计",
+    "memAvail": "估算可用内存",
+    "rxLabel": "接收",
+    "txLabel": "发送",
+    "byteAbbr": "字节",
+    "colUser": "用户态 (jiffies)",
+    "colSys": "内核态 (jiffies)",
+    "colIdle": "空闲 (jiffies)",
+    "colIow": "I/O 等待 (jiffies)",
+    "cpuJiffiesNote": "下表为自开机以来 /proc/stat 中的累计 jiffies（内核时间片 tick），不是实时 CPU 占用率。多数内核 HZ=100 时，1 jiffy ≈ 0.01 s；一般换算为 1/HZ 秒。"
   },
   "tasks": {
     "loadTask": "加载 /proc/…/task",
@@ -132,6 +133,12 @@
       "trace": "跟踪",
       "hook": "Hook",
       "watch": "监视"
+    },
+    "tabHint": {
+      "break": "kprobe 断点：命中时可停住会话（类调试器）。命令：break / delete / enable / disable。",
+      "trace": "按探针上下文周期性记录表达式（如 pid、寄存器）。命令：trace。",
+      "hook": "附加的 eBPF 程序（模板或整段 C），常通过 ringbuf 推送事件。命令：hook add / hook delete。",
+      "watch": "监视表达式，仅在取值变化时产生事件。命令：watch。"
     }
   },
   "events": {

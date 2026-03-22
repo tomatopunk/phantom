@@ -16,6 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "../api";
@@ -28,6 +29,72 @@ import {
 } from "../session/parseInfo";
 
 type Tab = "break" | "trace" | "hook" | "watch";
+
+const TAB_ORDER: Tab[] = ["break", "trace", "hook", "watch"];
+
+const TAB_SELECTED: Record<Tab, string> = {
+  break:
+    "border-rose-500/45 bg-rose-500/[0.11] text-app-label dark:border-rose-400/40 dark:bg-rose-500/[0.14]",
+  trace:
+    "border-sky-500/45 bg-sky-500/[0.11] text-app-label dark:border-sky-400/40 dark:bg-sky-500/[0.14]",
+  hook:
+    "border-violet-500/45 bg-violet-500/[0.11] text-app-label dark:border-violet-400/40 dark:bg-violet-500/[0.14]",
+  watch:
+    "border-amber-500/45 bg-amber-500/[0.11] text-app-label dark:border-amber-400/40 dark:bg-amber-500/[0.14]",
+};
+
+const TAB_HINT_BORDER: Record<Tab, string> = {
+  break: "border-l-rose-500/55 dark:border-l-rose-400/50",
+  trace: "border-l-sky-500/55 dark:border-l-sky-400/50",
+  hook: "border-l-violet-500/55 dark:border-l-violet-400/50",
+  watch: "border-l-amber-500/55 dark:border-l-amber-400/50",
+};
+
+function ProbeTabGlyph({ kind }: { kind: Tab }): ReactNode {
+  const sw = 1.5;
+  switch (kind) {
+    case "break":
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0 opacity-90" aria-hidden>
+          <circle cx="12" cy="12" r="7" stroke="currentColor" strokeWidth={sw} />
+          <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+        </svg>
+      );
+    case "trace":
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0 opacity-90" aria-hidden>
+          <path d="M4 16h3l3-6 4 6h6" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M4 8h3l2 4" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case "hook":
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0 opacity-90" aria-hidden>
+          <path
+            d="M10 6a3 3 0 1 1 4 5.2l-1.7 1.7M14 18a3 3 0 1 1-4-5.2l1.7-1.7"
+            stroke="currentColor"
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+          <path d="M8.5 8.5l-2 2M15.5 15.5l2-2" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" />
+        </svg>
+      );
+    case "watch":
+      return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0 opacity-90" aria-hidden>
+          <path
+            d="M12 6c4 0 7 4.5 7 6s-3 6-7 6-7-4.5-7-6 3-6 7-6Z"
+            stroke="currentColor"
+            strokeWidth={sw}
+            strokeLinejoin="round"
+          />
+          <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth={sw} />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
 
 export function SessionProbesPanel({
   connected,
@@ -109,21 +176,27 @@ export function SessionProbesPanel({
         </button>
       </div>
       <p className="text-[11px] text-app-secondary leading-snug shrink-0">{t("sessionPanel.hintRepl")}</p>
-      <div className="flex flex-wrap gap-1 shrink-0" role="tablist" aria-label={t("sessionPanel.aria")}>
-        {(["break", "trace", "hook", "watch"] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            role="tab"
-            aria-selected={tab === k}
-            className={`rounded-md px-2 py-1 text-xs border transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-accent ${
-              tab === k ? "border-app-separator bg-app-field text-app-label" : "border-transparent text-app-secondary hover:bg-app-hover"
-            }`}
-            onClick={() => setTab(k)}
-          >
-            {t(`sessionPanel.tab.${k}`)}
-          </button>
-        ))}
+      <div className="flex flex-col gap-1.5 shrink-0">
+        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label={t("sessionPanel.aria")}>
+          {TAB_ORDER.map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={tab === k}
+              className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-app-accent ${
+                tab === k ? TAB_SELECTED[k] : "border-transparent text-app-secondary hover:bg-app-hover"
+              }`}
+              onClick={() => setTab(k)}
+            >
+              <ProbeTabGlyph kind={k} />
+              {t(`sessionPanel.tab.${k}`)}
+            </button>
+          ))}
+        </div>
+        <p className={`text-[10px] text-app-secondary leading-relaxed border-l-2 pl-2.5 py-0.5 ${TAB_HINT_BORDER[tab]}`}>
+          {t(`sessionPanel.tabHint.${tab}`)}
+        </p>
       </div>
       {err && <p className="text-[11px] text-amber-800 shrink-0 dark:text-amber-400">{err}</p>}
       <div className="flex-1 min-h-0 overflow-auto text-[10px] font-mono-tight text-app-label">

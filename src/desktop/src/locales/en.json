@@ -29,6 +29,7 @@
     "toolbarAria": "Connection and capture toolbar",
     "brand": "Phantom",
     "agent": "Agent",
+    "agentHistoryHint": "Up to 10 successfully connected agent addresses; pick from the dropdown while typing.",
     "token": "Token",
     "connect": "Connect",
     "disconnect": "Disconnect",
@@ -88,9 +89,20 @@
     "prefixPh": "prefix",
     "binaryPh": "binary",
     "list": "List",
-    "hint": "Click a row to fill a suggested command in the sidebar “CLI” box and copy it. Switching tabs clears the list—click List again.",
-    "rowTitle": "{{line}} — fill command & copy",
-    "filledRepl": "(filled)"
+    "hint": "Click List, then a row to expand. Four shortcuts map to breakpoints / traces / hooks / watches. Switching discovery kind clears the selection and list.",
+    "rowExpandTitle": "Expand or collapse quick commands",
+    "quick": {
+      "break": "Breakpoint",
+      "trace": "Trace",
+      "hook": "Hook",
+      "watch": "Watch",
+      "filled": "(filled in CLI)",
+      "ran": "(executed)",
+      "shiftHint": "Click: fill and open “CLI”. Shift+click: fill and run immediately. Command is copied to the clipboard.",
+      "ariaGroup": "Build probe command for selected row",
+      "breakUnavailable": "Breakpoints only apply to kprobe kernel symbols.",
+      "invalidRow": "Cannot build this command for the row (invalid format or disconnected)."
+    }
   },
   "cmd": {
     "title": "Command (execute)",

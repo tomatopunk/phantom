@@ -29,6 +29,7 @@
     "toolbarAria": "连接与捕获工具栏",
     "brand": "Phantom",
     "agent": "Agent",
+    "agentHistoryHint": "成功连接过的地址会记住最近 10 条；输入时可下拉选择。",
     "token": "Token",
     "connect": "连接",
     "disconnect": "断开",
@@ -88,9 +89,20 @@
     "prefixPh": "prefix",
     "binaryPh": "binary",
     "list": "列出",
-    "hint": "点击一行会将建议命令填入侧栏「命令」输入框并复制到剪贴板；切换到其它 tab 会清空下列表，请再点「列出」。",
-    "rowTitle": "{{line}} — 填入命令并复制",
-    "filledRepl": "（已填入命令）"
+    "hint": "先点「列出」，再点击某一行展开。可用四个快捷按钮对应会话里的断点 / 跟踪 / Hook / 监视；切换 Tracepoint / Kprobe / Uprobe 会清空选择与列表。",
+    "rowExpandTitle": "点击展开或收起快捷命令",
+    "quick": {
+      "break": "断点",
+      "trace": "跟踪",
+      "hook": "Hook",
+      "watch": "监视",
+      "filled": "（已填入命令）",
+      "ran": "（已执行）",
+      "shiftHint": "单击：填入并打开「命令」；Shift+单击：填入并立即执行。命令会复制到剪贴板。",
+      "ariaGroup": "为选中条目生成探针命令",
+      "breakUnavailable": "断点仅适用于 Kprobe 列表中的内核符号。",
+      "invalidRow": "无法从当前行生成该命令（格式无效或未连接）。"
+    }
   },
   "cmd": {
     "title": "命令 (execute)",

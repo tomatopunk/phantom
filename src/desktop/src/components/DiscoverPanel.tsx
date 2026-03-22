@@ -17,11 +17,24 @@
  */
 
 import type { TFunction } from "i18next";
-import { useState } from "react";
-import { suggestedCommandForDiscoveryRow } from "../app/discoverCommands";
+import { useEffect, useState } from "react";
+import { discoveryCommandForProbe, type DiscoverProbeKind } from "../app/discoverCommands";
 import { technicalInputProps } from "../app/technicalInputProps";
 
 type Tab = "tp" | "kp" | "up";
+
+const QUICK_KINDS: DiscoverProbeKind[] = ["break", "trace", "hook", "watch"];
+
+const QUICK_BTN: Record<DiscoverProbeKind, string> = {
+  break:
+    "rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors border-rose-500/40 bg-rose-500/[0.06] hover:bg-rose-500/15 disabled:opacity-35 dark:border-rose-400/35",
+  trace:
+    "rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors border-sky-500/40 bg-sky-500/[0.06] hover:bg-sky-500/15 disabled:opacity-35 dark:border-sky-400/35",
+  hook:
+    "rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors border-violet-500/40 bg-violet-500/[0.06] hover:bg-violet-500/15 disabled:opacity-35 dark:border-violet-400/35",
+  watch:
+    "rounded border px-1.5 py-0.5 text-[10px] font-medium transition-colors border-amber-500/40 bg-amber-500/[0.06] hover:bg-amber-500/15 disabled:opacity-35 dark:border-amber-400/35",
+};
 
 type Props = {
   t: TFunction;
@@ -35,6 +48,8 @@ type Props = {
   runDiscover: () => void;
   connected: boolean;
   setCmd: (s: string) => void;
+  openConsole: () => void;
+  runCommandLine: (line: string) => Promise<void>;
 };
 
 function discTabLabel(t: TFunction, k: Tab) {
@@ -53,24 +68,44 @@ export function DiscoverPanel({
   runDiscover,
   connected,
   setCmd,
+  openConsole,
+  runCommandLine,
 }: Props) {
-  const [pickFlash, setPickFlash] = useState(false);
+  const [selectedLine, setSelectedLine] = useState<string | null>(null);
+  const [flash, setFlash] = useState("");
 
-  const onRowClick = (line: string) => {
-    const sug = suggestedCommandForDiscoveryRow(discTab, line, discBin);
-    if (sug) {
-      setCmd(sug);
-      setPickFlash(true);
-      window.setTimeout(() => setPickFlash(false), 1200);
+  useEffect(() => {
+    setSelectedLine(null);
+  }, [discTab, discLines]);
+
+  const showFlash = (msg: string) => {
+    setFlash(msg);
+    window.setTimeout(() => setFlash(""), 1600);
+  };
+
+  const onQuick = async (line: string, kind: DiscoverProbeKind, e: { shiftKey: boolean }) => {
+    const cmd = discoveryCommandForProbe(discTab, line, discBin, kind);
+    if (!cmd) return;
+    setCmd(cmd);
+    openConsole();
+    if (e.shiftKey) {
+      await runCommandLine(cmd);
+      showFlash(t("discover.quick.ran"));
+    } else {
+      showFlash(t("discover.quick.filled"));
     }
-    void navigator.clipboard.writeText(sug ?? line);
+    void navigator.clipboard.writeText(cmd);
+  };
+
+  const toggleSelect = (line: string) => {
+    setSelectedLine((s) => (s === line ? null : line));
   };
 
   return (
     <div className="flex flex-1 min-h-0 flex-col p-3">
       <p className="text-[11px] text-app-secondary mb-2 shrink-0 leading-snug">
         {t("discover.hint")}
-        {pickFlash ? <span className="ml-1 text-app-accent">{t("discover.filledRepl")}</span> : null}
+        {flash ? <span className="ml-1 text-app-accent">{flash}</span> : null}
       </p>
       <div className="flex flex-wrap gap-1 mb-2" role="tablist" aria-label={t("discover.aria")}>
         {(["tp", "kp", "up"] as const).map((k) => (
@@ -109,17 +144,55 @@ export function DiscoverPanel({
           {t("discover.list")}
         </button>
       </div>
-      <ul className="flex-1 min-h-0 overflow-auto font-mono-tight text-[10px] text-app-secondary space-y-0.5">
-        {discLines.map((line, i) => (
-          <li
-            key={`${i}-${line.slice(0, 12)}`}
-            className="cursor-pointer hover:text-app-accent truncate"
-            title={t("discover.rowTitle", { line })}
-            onClick={() => onRowClick(line)}
-          >
-            {line}
-          </li>
-        ))}
+      <ul className="flex-1 min-h-0 overflow-auto space-y-0.5 font-mono-tight text-[10px] text-app-secondary">
+        {discLines.map((line, i) => {
+          const open = selectedLine === line;
+          return (
+            <li
+              key={`${i}-${line.slice(0, 12)}`}
+              className={`rounded-md border border-transparent ${open ? "border-app-separator bg-app-field" : ""}`}
+            >
+              <button
+                type="button"
+                className="w-full truncate px-1.5 py-1 text-left hover:text-app-accent"
+                title={t("discover.rowExpandTitle")}
+                onClick={() => toggleSelect(line)}
+              >
+                {line}
+              </button>
+              {open ? (
+                <div
+                  className="flex flex-wrap gap-1 border-t border-app-separator/50 px-1.5 py-1.5"
+                  role="group"
+                  aria-label={t("discover.quick.ariaGroup")}
+                >
+                  {QUICK_KINDS.map((kind) => {
+                    const cmd = discoveryCommandForProbe(discTab, line, discBin, kind);
+                    const disabled = !connected || !cmd;
+                    let title = cmd ?? "";
+                    if (disabled) {
+                      if (kind === "break" && (discTab === "tp" || discTab === "up")) title = t("discover.quick.breakUnavailable");
+                      else if (!cmd) title = t("discover.quick.invalidRow");
+                    }
+                    return (
+                      <button
+                        key={kind}
+                        type="button"
+                        disabled={disabled}
+                        title={title}
+                        className={QUICK_BTN[kind]}
+                        onClick={(e) => void onQuick(line, kind, e)}
+                      >
+                        {t(`discover.quick.${kind}`)}
+                      </button>
+                    );
+                  })}
+                  <span className="w-full text-[9px] text-app-secondary/90 leading-snug pt-0.5">{t("discover.quick.shiftHint")}</span>
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

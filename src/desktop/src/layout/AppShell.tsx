@@ -17,13 +17,15 @@
  */
 
 import type { TFunction } from "i18next";
-import { useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 export type ToolSection = "overview" | "discover" | "session" | "console" | "hook";
 
 type Props = {
   t: TFunction;
+  /** Controlled sidebar tool (metrics / discover / session / console / hook). */
+  sidebarSection: ToolSection;
+  onSidebarSectionChange: (s: ToolSection) => void;
   overview: React.ReactNode;
   discover: React.ReactNode;
   session: React.ReactNode;
@@ -40,9 +42,17 @@ const NAV: { id: ToolSection; labelKey: string }[] = [
   { id: "hook", labelKey: "sidebar.nav.hook" },
 ];
 
-export function AppShell({ t, overview, discover, session, repl, hook, events }: Props) {
-  const [tool, setTool] = useState<ToolSection>("overview");
-
+export function AppShell({
+  t,
+  sidebarSection: tool,
+  onSidebarSectionChange: setTool,
+  overview,
+  discover,
+  session,
+  repl,
+  hook,
+  events,
+}: Props) {
   const panel =
     tool === "overview"
       ? overview

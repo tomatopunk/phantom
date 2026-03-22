@@ -20,6 +20,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { loadAgentHistory, rememberAgentAddress } from "./app/agentHistory";
 import { eventMatchesFilter, MAX_EVENTS } from "./app/eventUtils";
 import type { CpuJ, DebugEventPayload, NetDev, TaskRow } from "./app/types";
 import * as api from "./api";
@@ -35,7 +36,7 @@ import { MetricsDimensionPanel } from "./components/MetricsDimensionPanel";
 import { SessionProbesPanel } from "./components/SessionProbesPanel";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { usePhantomMenu } from "./hooks/usePhantomMenu";
-import { AppShell } from "./layout/AppShell";
+import { AppShell, type ToolSection } from "./layout/AppShell";
 
 export type { DebugEventPayload } from "./app/types";
 
@@ -49,6 +50,7 @@ export default function App() {
   }
 
   const [agent, setAgent] = useState("127.0.0.1:9090");
+  const [agentHistory, setAgentHistory] = useState<string[]>(() => loadAgentHistory());
   const [token, setToken] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
@@ -86,6 +88,7 @@ export default function App() {
   const [probeRefresh, setProbeRefresh] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [sidebarSection, setSidebarSection] = useState<ToolSection>("overview");
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -205,6 +208,7 @@ export default function App() {
       const sid = await api.connectAgent(agent.trim(), token);
       setSessionId(sid);
       setConnected(true);
+      setAgentHistory(rememberAgentAddress(agent.trim()));
     } catch (e) {
       setAppError(String(e));
     }
@@ -285,16 +289,27 @@ export default function App() {
     }
   };
 
-  const runCmd = async () => {
-    setCmdOut(t("common.ellipsis"));
-    try {
-      const r = await api.executeCmd(cmd);
-      setCmdOut(r.output?.trim() ? r.output : t("common.emptyOutput"));
-      setProbeRefresh((n) => n + 1);
-    } catch (e) {
-      setCmdOut(String(e));
-    }
-  };
+  const runCommandLine = useCallback(
+    async (line: string) => {
+      setAppError("");
+      setCmd(line);
+      setCmdOut(t("common.ellipsis"));
+      try {
+        const r = await api.executeCmd(line);
+        setCmdOut(r.output?.trim() ? r.output : t("common.emptyOutput"));
+        setProbeRefresh((n) => n + 1);
+      } catch (e) {
+        const msg = String(e);
+        setAppError(msg);
+        setCmdOut(msg);
+      }
+    },
+    [t],
+  );
+
+  const runCmd = useCallback(async () => {
+    await runCommandLine(cmd);
+  }, [cmd, runCommandLine]);
 
   const cpus = (metrics?.cpus as CpuJ[] | undefined) ?? [];
   const netDevs = (metrics?.net_devs as NetDev[] | undefined) ?? [];
@@ -310,6 +325,7 @@ export default function App() {
         t={t}
         agent={agent}
         setAgent={setAgent}
+        agentHistory={agentHistory}
         token={token}
         setToken={setToken}
         connected={connected}
@@ -326,6 +342,8 @@ export default function App() {
 
       <AppShell
         t={t}
+        sidebarSection={sidebarSection}
+        onSidebarSectionChange={setSidebarSection}
         overview={
           <MetricsDimensionPanel
             t={t}
@@ -360,6 +378,8 @@ export default function App() {
             runDiscover={runDiscover}
             connected={connected}
             setCmd={setCmd}
+            openConsole={() => setSidebarSection("console")}
+            runCommandLine={runCommandLine}
           />
         }
         session={<SessionProbesPanel connected={connected} refreshTrigger={probeRefresh} />}

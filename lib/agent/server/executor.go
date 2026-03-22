@@ -19,6 +19,7 @@ package server
 import (
 	"context"
 	"strings"
+	"unicode"
 
 	"github.com/cilium/ebpf/btf"
 	"github.com/tomatopunk/phantom/lib/agent/expression"
@@ -135,8 +136,62 @@ func (*commandExecutor) executeContinue(ctx context.Context, sess *session.Sessi
 	return &proto.ExecuteResponse{Ok: true, Output: "continue"}, nil
 }
 
+// splitCommandLine splits the REPL line on whitespace, respecting "..." and '...' so
+// e.g. --sec "pid>0" yields a sec value without quote characters (unlike strings.Fields).
 func splitCommandLine(line string) []string {
-	return strings.Fields(line)
+	out := make([]string, 0, 8)
+	var b strings.Builder
+	rs := []rune(line)
+	i := 0
+	flush := func() {
+		if b.Len() > 0 {
+			out = append(out, b.String())
+			b.Reset()
+		}
+	}
+	for i < len(rs) {
+		for i < len(rs) && unicode.IsSpace(rs[i]) {
+			i++
+		}
+		if i >= len(rs) {
+			break
+		}
+		switch rs[i] {
+		case '"':
+			i++
+			for i < len(rs) && rs[i] != '"' {
+				if rs[i] == '\\' && i+1 < len(rs) {
+					i++
+					b.WriteRune(rs[i])
+					i++
+					continue
+				}
+				b.WriteRune(rs[i])
+				i++
+			}
+			if i < len(rs) {
+				i++
+			}
+			flush()
+		case '\'':
+			i++
+			for i < len(rs) && rs[i] != '\'' {
+				b.WriteRune(rs[i])
+				i++
+			}
+			if i < len(rs) {
+				i++
+			}
+			flush()
+		default:
+			for i < len(rs) && !unicode.IsSpace(rs[i]) {
+				b.WriteRune(rs[i])
+				i++
+			}
+			flush()
+		}
+	}
+	return out
 }
 
 func errResponse(msg string) *proto.ExecuteResponse {

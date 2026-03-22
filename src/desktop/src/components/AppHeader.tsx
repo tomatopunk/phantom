@@ -18,10 +18,13 @@
 
 import type { TFunction } from "i18next";
 
+export const AGENT_HISTORY_DATALIST_ID = "phantom-agent-history";
+
 type Props = {
   t: TFunction;
   agent: string;
   setAgent: (v: string) => void;
+  agentHistory: string[];
   token: string;
   setToken: (v: string) => void;
   connected: boolean;
@@ -50,6 +53,7 @@ export function AppHeader({
   onDisconnect,
   onStartCap,
   onStopCap,
+  agentHistory,
 }: Props) {
   return (
     <header
@@ -58,6 +62,11 @@ export function AppHeader({
       aria-label={t("header.toolbarAria")}
     >
       <span className="mr-1 font-semibold tracking-tight text-app-accent">{t("header.brand")}</span>
+      <datalist id={AGENT_HISTORY_DATALIST_ID}>
+        {agentHistory.map((h) => (
+          <option key={h} value={h} />
+        ))}
+      </datalist>
       <label className="flex min-w-[10rem] flex-1 items-center gap-2">
         <span className="shrink-0 text-app-secondary">{t("header.agent")}</span>
         <input
@@ -65,7 +74,12 @@ export function AppHeader({
           value={agent}
           disabled={connected}
           onChange={(e) => setAgent(e.target.value)}
-          autoComplete="off"
+          list={AGENT_HISTORY_DATALIST_ID}
+          title={t("header.agentHistoryHint")}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          autoComplete="on"
         />
       </label>
       <label className="flex items-center gap-2">

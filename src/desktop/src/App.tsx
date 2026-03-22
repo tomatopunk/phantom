@@ -77,7 +77,7 @@ export default function App() {
   const [taskErr, setTaskErr] = useState("");
 
   const [discTab, setDiscTab] = useState<"tp" | "kp" | "up">("tp");
-  const [discPrefix, setDiscPrefix] = useState("sched");
+  const [discPrefix, setDiscPrefix] = useState("");
   const [discBin, setDiscBin] = useState("/bin/sh");
   const [discLines, setDiscLines] = useState<string[]>([]);
 

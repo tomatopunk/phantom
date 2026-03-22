@@ -69,14 +69,28 @@ export function EventsStreamPanel({
             {filtered.length === 0 ? (
               <div className="p-4 text-[11px] text-app-secondary leading-relaxed whitespace-pre-wrap">{emptyHint}</div>
             ) : (
-              <div
-                style={{
-                  height: `${rowVirtualizer.getTotalSize()}px`,
-                  width: "100%",
-                  position: "relative",
-                }}
-              >
-                {rowVirtualizer.getVirtualItems().map((vi) => {
+              <>
+                <div
+                  className="sticky top-0 z-10 flex shrink-0 border-b border-app-separator bg-app-bg/95 py-1 text-[10px] font-medium text-app-secondary backdrop-blur-sm"
+                  role="row"
+                >
+                  <span className="w-8 shrink-0 px-1">{t("events.colIndex")}</span>
+                  <span className="w-24 shrink-0 truncate">{t("events.colDelta")}</span>
+                  <span className="w-28 shrink-0 truncate">{t("events.colType")}</span>
+                  <span className="w-12 shrink-0">{t("events.colPid")}</span>
+                  <span className="w-12 shrink-0">{t("events.colTgid")}</span>
+                  <span className="w-8 shrink-0">{t("events.colCpu")}</span>
+                  <span className="w-16 shrink-0 truncate">{t("events.colProbe")}</span>
+                  <span className="min-w-0 flex-1 truncate pr-2">{t("events.colPayload")}</span>
+                </div>
+                <div
+                  style={{
+                    height: `${rowVirtualizer.getTotalSize()}px`,
+                    width: "100%",
+                    position: "relative",
+                  }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((vi) => {
                   const ev = filtered[vi.index];
                   const sel = selFi === vi.index;
                   return (
@@ -95,11 +109,12 @@ export function EventsStreamPanel({
                       <span className="w-12 shrink-0">{ev.tgid}</span>
                       <span className="w-8 shrink-0">{ev.cpu}</span>
                       <span className="w-16 shrink-0 truncate">{ev.probe_id}</span>
-                      <span className="flex-1 truncate text-app-secondary">{ev.payload_utf8.replace(/\s+/g, " ")}</span>
+                      <span className="min-w-0 flex-1 truncate pr-2 text-app-secondary">{ev.payload_utf8.replace(/\s+/g, " ")}</span>
                     </div>
                   );
-                })}
-              </div>
+                  })}
+                </div>
+              </>
             )}
           </div>
         </Panel>

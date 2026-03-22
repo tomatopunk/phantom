@@ -136,6 +136,14 @@
   },
   "events": {
     "panelTitle": "Events ({{filtered}} / buffer {{total}})",
+    "colIndex": "#",
+    "colDelta": "Δt",
+    "colType": "Type",
+    "colPid": "PID",
+    "colTgid": "TGID",
+    "colCpu": "CPU",
+    "colProbe": "Probe",
+    "colPayload": "Payload",
     "emptyDisconnected": "Not connected. Connect to the agent, then click Start capture to see events here.",
     "emptyNeedCapture": "Connected, but capture is off. Click Start capture in the header to subscribe to the event stream.",
     "emptyNoProbesYet": "Capture is on. If this stays empty, you likely have no probes attached yet:\n• Sidebar “CLI”: break, trace, hook add, watch, …\n• Sidebar “Hook”: compile & attach eBPF C\nEvents only appear when the kernel or target process actually hits those probes."

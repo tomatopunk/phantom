@@ -34,6 +34,8 @@ type Props = {
   setSelFi: (i: number | null) => void;
   relTimeNs: (first: number, cur: number) => string;
   selected: DebugEventPayload | null;
+  connected: boolean;
+  capturing: boolean;
 };
 
 export function EventsStreamPanel({
@@ -47,7 +49,15 @@ export function EventsStreamPanel({
   setSelFi,
   relTimeNs,
   selected,
+  connected,
+  capturing,
 }: Props) {
+  const emptyHint = !connected
+    ? t("events.emptyDisconnected")
+    : !capturing
+      ? t("events.emptyNeedCapture")
+      : t("events.emptyNoProbesYet");
+
   return (
     <Panel minSize={40} className="min-w-0 flex min-h-0 flex-1 flex-col bg-app-bg">
       <PanelGroup direction="vertical" className="flex-1 min-h-0">
@@ -56,37 +66,41 @@ export function EventsStreamPanel({
             {t("events.panelTitle", { filtered: filtered.length, total: eventCount })}
           </div>
           <div ref={parentRef} className="flex-1 overflow-auto font-mono-tight text-app-label">
-            <div
-              style={{
-                height: `${rowVirtualizer.getTotalSize()}px`,
-                width: "100%",
-                position: "relative",
-              }}
-            >
-              {rowVirtualizer.getVirtualItems().map((vi) => {
-                const ev = filtered[vi.index];
-                const sel = selFi === vi.index;
-                return (
-                  <div
-                    key={vi.key}
-                    className={`absolute top-0 left-0 w-full flex cursor-pointer border-b border-app-separator/40 text-[11px] ${
-                      sel ? "bg-app-accent-muted" : "hover:bg-app-hover"
-                    }`}
-                    style={{ height: `${vi.size}px`, transform: `translateY(${vi.start}px)` }}
-                    onClick={() => setSelFi(vi.index)}
-                  >
-                    <span className="w-8 shrink-0 px-1 text-app-secondary">{vi.index}</span>
-                    <span className="w-24 shrink-0 truncate">{relTimeNs(firstTs, ev.timestamp_ns)}</span>
-                    <span className="w-28 shrink-0 truncate text-amber-800 dark:text-amber-200/90">{ev.event_type_name}</span>
-                    <span className="w-12 shrink-0">{ev.pid}</span>
-                    <span className="w-12 shrink-0">{ev.tgid}</span>
-                    <span className="w-8 shrink-0">{ev.cpu}</span>
-                    <span className="w-16 shrink-0 truncate">{ev.probe_id}</span>
-                    <span className="flex-1 truncate text-app-secondary">{ev.payload_utf8.replace(/\s+/g, " ")}</span>
-                  </div>
-                );
-              })}
-            </div>
+            {filtered.length === 0 ? (
+              <div className="p-4 text-[11px] text-app-secondary leading-relaxed whitespace-pre-wrap">{emptyHint}</div>
+            ) : (
+              <div
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                {rowVirtualizer.getVirtualItems().map((vi) => {
+                  const ev = filtered[vi.index];
+                  const sel = selFi === vi.index;
+                  return (
+                    <div
+                      key={vi.key}
+                      className={`absolute top-0 left-0 w-full flex cursor-pointer border-b border-app-separator/40 text-[11px] ${
+                        sel ? "bg-app-accent-muted" : "hover:bg-app-hover"
+                      }`}
+                      style={{ height: `${vi.size}px`, transform: `translateY(${vi.start}px)` }}
+                      onClick={() => setSelFi(vi.index)}
+                    >
+                      <span className="w-8 shrink-0 px-1 text-app-secondary">{vi.index}</span>
+                      <span className="w-24 shrink-0 truncate">{relTimeNs(firstTs, ev.timestamp_ns)}</span>
+                      <span className="w-28 shrink-0 truncate text-amber-800 dark:text-amber-200/90">{ev.event_type_name}</span>
+                      <span className="w-12 shrink-0">{ev.pid}</span>
+                      <span className="w-12 shrink-0">{ev.tgid}</span>
+                      <span className="w-8 shrink-0">{ev.cpu}</span>
+                      <span className="w-16 shrink-0 truncate">{ev.probe_id}</span>
+                      <span className="flex-1 truncate text-app-secondary">{ev.payload_utf8.replace(/\s+/g, " ")}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </Panel>
 

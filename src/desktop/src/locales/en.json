@@ -86,12 +86,17 @@
     "uprobe": "Uprobe",
     "prefixPh": "prefix",
     "binaryPh": "binary",
-    "list": "List"
+    "list": "List",
+    "hint": "Click a row to fill a suggested command in the sidebar “CLI” box and copy it. Switching tabs clears the list—click List again.",
+    "rowTitle": "{{line}} — fill command & copy",
+    "filledRepl": "(filled)"
   },
   "cmd": {
     "title": "Command (execute)",
     "run": "Run",
-    "inputAria": "Command input"
+    "inputAria": "Command input",
+    "completionHint": "Tab inserts the highlighted completion; ↑/↓ to move; click a row to insert. Enter runs the full line.",
+    "completionAria": "Command completions"
   },
   "hook": {
     "title": "eBPF C editor (compile & attach)",
@@ -113,6 +118,14 @@
     "aria": "Session probe categories",
     "title": "Session probes",
     "refresh": "Refresh",
+    "hintRepl": "To add probes, open the sidebar “CLI” and run e.g. break <kprobe symbol>, trace pid tgid, watch <expr>. For tracepoints/uprobes, pick a row in “Find” to generate a hook add line. Full C programs: sidebar “Hook”.",
+    "bpEnabled": "On",
+    "bpDisabled": "Off",
+    "action": {
+      "delete": "Delete",
+      "disable": "Disable",
+      "enable": "Enable"
+    },
     "empty": "(none)",
     "tab": {
       "break": "Breakpoints",
@@ -122,7 +135,10 @@
     }
   },
   "events": {
-    "panelTitle": "Events ({{filtered}} / buffer {{total}})"
+    "panelTitle": "Events ({{filtered}} / buffer {{total}})",
+    "emptyDisconnected": "Not connected. Connect to the agent, then click Start capture to see events here.",
+    "emptyNeedCapture": "Connected, but capture is off. Click Start capture in the header to subscribe to the event stream.",
+    "emptyNoProbesYet": "Capture is on. If this stays empty, you likely have no probes attached yet:\n• Sidebar “CLI”: break, trace, hook add, watch, …\n• Sidebar “Hook”: compile & attach eBPF C\nEvents only appear when the kernel or target process actually hits those probes."
   },
   "detail": {
     "jsonTitle": "Detail JSON",

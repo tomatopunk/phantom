@@ -108,6 +108,7 @@ export function SessionProbesPanel({
           {t("sessionPanel.refresh")}
         </button>
       </div>
+      <p className="text-[11px] text-app-secondary leading-snug shrink-0">{t("sessionPanel.hintRepl")}</p>
       <div className="flex flex-wrap gap-1 shrink-0" role="tablist" aria-label={t("sessionPanel.aria")}>
         {(["break", "trace", "hook", "watch"] as const).map((k) => (
           <button
@@ -133,17 +134,38 @@ export function SessionProbesPanel({
               <span className="truncate max-w-[140px]" title={r.symbol}>
                 {r.symbol}
               </span>
-              <span className="text-app-secondary">{r.enabled ? "on" : "off"}</span>
+              <span
+                className={`shrink-0 rounded px-1 py-0.5 text-[10px] ${
+                  r.enabled ? "bg-app-accent-muted text-app-accent" : "bg-app-field text-app-secondary"
+                }`}
+              >
+                {r.enabled ? t("sessionPanel.bpEnabled") : t("sessionPanel.bpDisabled")}
+              </span>
               {r.condition && <span className="text-gray-600 truncate max-w-[100px] dark:text-gray-500">{r.condition}</span>}
-              <span className="ml-auto flex gap-0.5 shrink-0">
-                <button type="button" className="text-blue-700 hover:underline dark:text-blue-400" onClick={() => void runCmd(`delete ${r.id}`)}>
-                  del
+              <span className="ml-auto inline-flex flex-wrap justify-end gap-0.5 shrink-0">
+                <button
+                  type="button"
+                  disabled={busy}
+                  className="btn-app-danger px-1.5 py-0.5 text-[10px] leading-tight"
+                  onClick={() => void runCmd(`delete ${r.id}`)}
+                >
+                  {t("sessionPanel.action.delete")}
                 </button>
-                <button type="button" className="text-blue-700 hover:underline dark:text-blue-400" onClick={() => void runCmd(`disable ${r.id}`)}>
-                  off
+                <button
+                  type="button"
+                  disabled={busy}
+                  className="btn-app px-1.5 py-0.5 text-[10px] leading-tight"
+                  onClick={() => void runCmd(`disable ${r.id}`)}
+                >
+                  {t("sessionPanel.action.disable")}
                 </button>
-                <button type="button" className="text-blue-700 hover:underline dark:text-blue-400" onClick={() => void runCmd(`enable ${r.id}`)}>
-                  on
+                <button
+                  type="button"
+                  disabled={busy}
+                  className="btn-app-primary px-1.5 py-0.5 text-[10px] leading-tight"
+                  onClick={() => void runCmd(`enable ${r.id}`)}
+                >
+                  {t("sessionPanel.action.enable")}
                 </button>
               </span>
             </div>
@@ -153,8 +175,13 @@ export function SessionProbesPanel({
             <div key={r.id} className="flex gap-1 items-center border-b border-app-separator/40 py-1">
               <span className="text-app-accent">{r.id}</span>
               <span className="truncate flex-1">{r.expressions}</span>
-              <button type="button" className="text-blue-700 hover:underline shrink-0 dark:text-blue-400" onClick={() => void runCmd(`delete ${r.id}`)}>
-                del
+              <button
+                type="button"
+                disabled={busy}
+                className="btn-app-danger shrink-0 px-1.5 py-0.5 text-[10px] leading-tight"
+                onClick={() => void runCmd(`delete ${r.id}`)}
+              >
+                {t("sessionPanel.action.delete")}
               </button>
             </div>
           ))}
@@ -166,8 +193,13 @@ export function SessionProbesPanel({
                 <span className="truncate flex-1" title={r.attach}>
                   {r.attach}
                 </span>
-                <button type="button" className="text-blue-700 hover:underline shrink-0 dark:text-blue-400" onClick={() => void runCmd(`hook delete ${r.id}`)}>
-                  del
+                <button
+                  type="button"
+                  disabled={busy}
+                  className="btn-app-danger shrink-0 px-1.5 py-0.5 text-[10px] leading-tight"
+                  onClick={() => void runCmd(`hook delete ${r.id}`)}
+                >
+                  {t("sessionPanel.action.delete")}
                 </button>
               </div>
               {(r.filter || r.note) && (
@@ -184,8 +216,13 @@ export function SessionProbesPanel({
               <span className="text-app-accent">{r.id}</span>
               <span className="truncate">{r.expression}</span>
               <span className="text-app-secondary truncate">{r.last}</span>
-              <button type="button" className="text-blue-700 hover:underline ml-auto shrink-0 dark:text-blue-400" onClick={() => void runCmd(`delete ${r.id}`)}>
-                del
+              <button
+                type="button"
+                disabled={busy}
+                className="btn-app-danger ml-auto shrink-0 px-1.5 py-0.5 text-[10px] leading-tight"
+                onClick={() => void runCmd(`delete ${r.id}`)}
+              >
+                {t("sessionPanel.action.delete")}
               </button>
             </div>
           ))}

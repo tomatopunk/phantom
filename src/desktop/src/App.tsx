@@ -59,7 +59,14 @@ export default function App() {
 
   const eventsRef = useRef<DebugEventPayload[]>([]);
   const [tick, setTick] = useState(0);
-  const bump = useCallback(() => setTick((x) => x + 1), []);
+  const bumpRafRef = useRef<number | null>(null);
+  const scheduleListRefresh = useCallback(() => {
+    if (bumpRafRef.current != null) return;
+    bumpRafRef.current = requestAnimationFrame(() => {
+      bumpRafRef.current = null;
+      setTick((x) => x + 1);
+    });
+  }, []);
 
   const [metrics, setMetrics] = useState<Record<string, unknown> | null>(null);
   const [metricsAt, setMetricsAt] = useState<string | null>(null);
@@ -92,7 +99,7 @@ export default function App() {
         if (arr.length > MAX_EVENTS) {
           arr.splice(0, arr.length - MAX_EVENTS);
         }
-        bump();
+        scheduleListRefresh();
       });
       if (alive) pending.push(u1);
       else u1();
@@ -105,8 +112,12 @@ export default function App() {
     return () => {
       alive = false;
       pending.forEach((f) => f());
+      if (bumpRafRef.current != null) {
+        cancelAnimationFrame(bumpRafRef.current);
+        bumpRafRef.current = null;
+      }
     };
-  }, [bump]);
+  }, [scheduleListRefresh]);
 
   const eventCount = eventsRef.current.length;
   const filtered = useMemo(
@@ -163,8 +174,8 @@ export default function App() {
   const clearEvents = useCallback(() => {
     eventsRef.current = [];
     setSelFi(null);
-    bump();
-  }, [bump]);
+    setTick((x) => x + 1);
+  }, []);
 
   usePhantomMenu({
     exportJsonl,
@@ -255,6 +266,10 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    setDiscLines([]);
+  }, [discTab]);
+
   const runDiscover = async () => {
     setDiscLines([t("common.ellipsis")]);
     try {
@@ -275,6 +290,7 @@ export default function App() {
     try {
       const r = await api.executeCmd(cmd);
       setCmdOut(r.output?.trim() ? r.output : t("common.emptyOutput"));
+      setProbeRefresh((n) => n + 1);
     } catch (e) {
       setCmdOut(String(e));
     }
@@ -343,6 +359,7 @@ export default function App() {
             discLines={discLines}
             runDiscover={runDiscover}
             connected={connected}
+            setCmd={setCmd}
           />
         }
         session={<SessionProbesPanel connected={connected} refreshTrigger={probeRefresh} />}
@@ -360,6 +377,8 @@ export default function App() {
             setSelFi={setSelFi}
             relTimeNs={relTimeNs}
             selected={selected}
+            connected={connected}
+            capturing={capturing}
           />
         }
       />

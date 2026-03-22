@@ -28,7 +28,10 @@ use tokio::task::JoinHandle;
 
 #[derive(Clone)]
 struct AppState {
-    client: Arc<Mutex<Option<PhantomClient>>>,
+    /// Unary RPCs (execute, compile, discovery, metrics). Never use for `stream_events`.
+    exec_client: Arc<Mutex<Option<PhantomClient>>>,
+    /// Dedicated clone for the capture loop so heavy streaming never contends with execute on the same mutex.
+    stream_client: Arc<Mutex<Option<PhantomClient>>>,
     capture_task: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
@@ -178,16 +181,21 @@ async fn connect_agent(
         .open_session("")
         .await
         .map_err(|e| format!("open_session: {e}"))?;
-    let mut guard = state.client.lock().await;
-    *guard = Some(c);
+    let stream_peer = c.clone();
+    let mut eg = state.exec_client.lock().await;
+    let mut sg = state.stream_client.lock().await;
+    *eg = Some(c);
+    *sg = Some(stream_peer);
     Ok(sid)
 }
 
 #[tauri::command]
 async fn disconnect_agent(state: State<'_, AppState>) -> Result<(), String> {
     stop_capture_inner(&state.capture_task).await;
-    let mut guard = state.client.lock().await;
-    if let Some(mut c) = guard.take() {
+    let mut sg = state.stream_client.lock().await;
+    *sg = None;
+    let mut eg = state.exec_client.lock().await;
+    if let Some(mut c) = eg.take() {
         let _ = c.close_session().await;
     }
     Ok(())
@@ -199,12 +207,12 @@ async fn start_capture(app: AppHandle, state: State<'_, AppState>) -> Result<(),
 
     let app2 = app.clone();
     let capture_task = state.capture_task.clone();
-    let client = state.client.clone();
+    let stream_client = state.stream_client.clone();
     let h = tokio::spawn(async move {
         let mut attempt = 0u32;
         loop {
             let stream_result = {
-                let mut guard = client.lock().await;
+                let mut guard = stream_client.lock().await;
                 let c = match guard.as_mut() {
                     Some(c) => c,
                     None => break,
@@ -249,6 +257,8 @@ async fn start_capture(app: AppHandle, state: State<'_, AppState>) -> Result<(),
                             "payload_utf8": payload_utf8,
                         });
                         let _ = app2.emit("debug-event", j);
+                        // Let unary RPCs (execute / info) get scheduled under high event rates.
+                        tokio::task::yield_now().await;
                     }
                     Ok(None) => {
                         tokio::time::sleep(Duration::from_millis(stream_backoff_ms(attempt))).await;
@@ -283,7 +293,7 @@ async fn stop_capture(state: State<'_, AppState>) -> Result<(), String> {
 
 #[tauri::command]
 async fn fetch_host_metrics(state: State<'_, AppState>) -> Result<Value, String> {
-    let mut guard = state.client.lock().await;
+    let mut guard = state.exec_client.lock().await;
     let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
     let r = c
         .get_host_metrics()
@@ -294,7 +304,7 @@ async fn fetch_host_metrics(state: State<'_, AppState>) -> Result<Value, String>
 
 #[tauri::command]
 async fn fetch_task_tree(state: State<'_, AppState>, tgid: u32) -> Result<Value, String> {
-    let mut guard = state.client.lock().await;
+    let mut guard = state.exec_client.lock().await;
     let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
     let r = c
         .get_task_tree(tgid)
@@ -305,7 +315,7 @@ async fn fetch_task_tree(state: State<'_, AppState>, tgid: u32) -> Result<Value,
 
 #[tauri::command]
 async fn execute_cmd(state: State<'_, AppState>, command_line: String) -> Result<Value, String> {
-    let mut guard = state.client.lock().await;
+    let mut guard = state.exec_client.lock().await;
     let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
     let r = c
         .execute(&command_line)
@@ -325,7 +335,7 @@ async fn list_tracepoints_cmd(
     prefix: String,
     max_entries: u32,
 ) -> Result<Vec<String>, String> {
-    let mut guard = state.client.lock().await;
+    let mut guard = state.exec_client.lock().await;
     let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
     c.list_tracepoints(&prefix, max_entries)
         .await
@@ -338,7 +348,7 @@ async fn list_kprobes_cmd(
     prefix: String,
     max_entries: u32,
 ) -> Result<Vec<String>, String> {
-    let mut guard = state.client.lock().await;
+    let mut guard = state.exec_client.lock().await;
     let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
     c.list_kprobe_symbols(&prefix, max_entries)
         .await
@@ -352,7 +362,7 @@ async fn list_uprobes_cmd(
     prefix: String,
     max_entries: u32,
 ) -> Result<Vec<String>, String> {
-    let mut guard = state.client.lock().await;
+    let mut guard = state.exec_client.lock().await;
     let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
     c.list_uprobe_symbols(&binary_path, &prefix, max_entries)
         .await
@@ -366,7 +376,7 @@ async fn compile_hook(
     attach: String,
     program_name: String,
 ) -> Result<Value, String> {
-    let mut guard = state.client.lock().await;
+    let mut guard = state.exec_client.lock().await;
     let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
     let r = c
         .compile_and_attach(&source, &attach, &program_name)
@@ -378,7 +388,8 @@ async fn compile_hook(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let state = AppState {
-        client: Arc::new(Mutex::new(None)),
+        exec_client: Arc::new(Mutex::new(None)),
+        stream_client: Arc::new(Mutex::new(None)),
         capture_task: Arc::new(Mutex::new(None)),
     };
 

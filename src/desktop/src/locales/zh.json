@@ -86,12 +86,17 @@
     "uprobe": "Uprobe",
     "prefixPh": "prefix",
     "binaryPh": "binary",
-    "list": "列出"
+    "list": "列出",
+    "hint": "点击一行会将建议命令填入侧栏「命令」输入框并复制到剪贴板；切换到其它 tab 会清空下列表，请再点「列出」。",
+    "rowTitle": "{{line}} — 填入命令并复制",
+    "filledRepl": "（已填入命令）"
   },
   "cmd": {
     "title": "命令 (execute)",
     "run": "运行",
-    "inputAria": "命令行输入"
+    "inputAria": "命令行输入",
+    "completionHint": "Tab 插入当前高亮补全；↑/↓ 切换；鼠标点击条目插入。Enter 执行整行命令。",
+    "completionAria": "命令补全列表"
   },
   "hook": {
     "title": "eBPF C 编辑器（编译并附加）",
@@ -113,6 +118,14 @@
     "aria": "会话探针类别",
     "title": "会话探针",
     "refresh": "刷新",
+    "hintRepl": "添加探针：打开侧栏「命令」，例如 break <内核符号>、trace pid tgid、watch <表达式>；tracepoint/uprobe 可先用「发现」点选生成 hook add 命令。复杂 C 程序用「Hook」编译附加。",
+    "bpEnabled": "已启用",
+    "bpDisabled": "已关闭",
+    "action": {
+      "delete": "删除",
+      "disable": "停用",
+      "enable": "启用"
+    },
     "empty": "(无)",
     "tab": {
       "break": "断点",
@@ -122,7 +135,10 @@
     }
   },
   "events": {
-    "panelTitle": "事件 ({{filtered}} / 缓冲 {{total}})"
+    "panelTitle": "事件 ({{filtered}} / 缓冲 {{total}})",
+    "emptyDisconnected": "尚未连接 Agent。连接后点击顶部「开始捕获」，事件会出现在此列表。",
+    "emptyNeedCapture": "已连接，但尚未开始捕获。请点击顶部「开始捕获」以订阅调试事件流。",
+    "emptyNoProbesYet": "捕获已开启。若列表仍为空，通常是因为还没有附加会发事件的探针：\n• 侧栏「命令」：break / trace / hook add / watch 等\n• 侧栏「Hook」：编译并附加 eBPF C\n探针需在内核或目标进程有实际活动才会产生事件。"
   },
   "detail": {
     "jsonTitle": "详情 JSON",

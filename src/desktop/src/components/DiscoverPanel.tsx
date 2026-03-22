@@ -17,6 +17,9 @@
  */
 
 import type { TFunction } from "i18next";
+import { useState } from "react";
+import { suggestedCommandForDiscoveryRow } from "../app/discoverCommands";
+import { technicalInputProps } from "../app/technicalInputProps";
 
 type Tab = "tp" | "kp" | "up";
 
@@ -31,6 +34,7 @@ type Props = {
   discLines: string[];
   runDiscover: () => void;
   connected: boolean;
+  setCmd: (s: string) => void;
 };
 
 function discTabLabel(t: TFunction, k: Tab) {
@@ -48,9 +52,26 @@ export function DiscoverPanel({
   discLines,
   runDiscover,
   connected,
+  setCmd,
 }: Props) {
+  const [pickFlash, setPickFlash] = useState(false);
+
+  const onRowClick = (line: string) => {
+    const sug = suggestedCommandForDiscoveryRow(discTab, line, discBin);
+    if (sug) {
+      setCmd(sug);
+      setPickFlash(true);
+      window.setTimeout(() => setPickFlash(false), 1200);
+    }
+    void navigator.clipboard.writeText(sug ?? line);
+  };
+
   return (
     <div className="flex flex-1 min-h-0 flex-col p-3">
+      <p className="text-[11px] text-app-secondary mb-2 shrink-0 leading-snug">
+        {t("discover.hint")}
+        {pickFlash ? <span className="ml-1 text-app-accent">{t("discover.filledRepl")}</span> : null}
+      </p>
       <div className="flex flex-wrap gap-1 mb-2" role="tablist" aria-label={t("discover.aria")}>
         {(["tp", "kp", "up"] as const).map((k) => (
           <button
@@ -73,6 +94,7 @@ export function DiscoverPanel({
           value={discPrefix}
           onChange={(e) => setDiscPrefix(e.target.value)}
           placeholder={t("discover.prefixPh")}
+          {...technicalInputProps}
         />
         {discTab === "up" && (
           <input
@@ -80,6 +102,7 @@ export function DiscoverPanel({
             value={discBin}
             onChange={(e) => setDiscBin(e.target.value)}
             placeholder={t("discover.binaryPh")}
+            {...technicalInputProps}
           />
         )}
         <button type="button" disabled={!connected} className="btn-app text-xs shrink-0" onClick={runDiscover}>
@@ -91,8 +114,8 @@ export function DiscoverPanel({
           <li
             key={`${i}-${line.slice(0, 12)}`}
             className="cursor-pointer hover:text-app-accent truncate"
-            title={line}
-            onClick={() => navigator.clipboard.writeText(line)}
+            title={t("discover.rowTitle", { line })}
+            onClick={() => onRowClick(line)}
           >
             {line}
           </li>

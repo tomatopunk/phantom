@@ -64,12 +64,15 @@ func hookVariantForPA(pa *ParsedAttach) (secLine, ctxDecl, argInit string, err e
 }
 
 func ptRegsArgInit() string {
+	// PT_REGS_PARM6 is missing or not CO-RE-relocatable in some libbpf/kernel pairs,
+	// which breaks loading with "unsatisfied program reference". arg0–arg4 cover most
+	// kprobes; users needing a 6th arg should use hook attach with custom C.
 	return "\tlong arg0 = PT_REGS_PARM1(ctx);\n" +
 		"\tlong arg1 = PT_REGS_PARM2(ctx);\n" +
 		"\tlong arg2 = PT_REGS_PARM3(ctx);\n" +
 		"\tlong arg3 = PT_REGS_PARM4(ctx);\n" +
 		"\tlong arg4 = PT_REGS_PARM5(ctx);\n" +
-		"\tlong arg5 = PT_REGS_PARM6(ctx);\n" +
+		"\tlong arg5 = 0;\n" +
 		"\tlong ret = 0;\n"
 }
 

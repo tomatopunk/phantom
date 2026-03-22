@@ -23,7 +23,7 @@ import (
 )
 
 func TestAddWatchRemoveWatchListWatches(t *testing.T) {
-	sess := NewSession("test", "")
+	sess := NewSession("test", "", nil)
 	id1 := sess.AddWatch("pid")
 	if id1 == "" || id1 != "watch-1" {
 		t.Errorf("first watch id want watch-1 got %q", id1)
@@ -49,7 +49,7 @@ func TestAddWatchRemoveWatchListWatches(t *testing.T) {
 }
 
 func TestEvaluateWatchChanges(t *testing.T) {
-	sess := NewSession("test", "")
+	sess := NewSession("test", "", nil)
 	sess.AddWatch("pid")
 	sess.AddWatch("cpu")
 

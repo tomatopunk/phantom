@@ -268,6 +268,73 @@ func WaitForBreakHits(
 	return len(hits), out
 }
 
+// WaitForTraceSamples starts StreamEvents, runs trigger, and waits until at least minSamples
+// EVENT_TYPE_TRACE_SAMPLE events are seen or timeout. Used to assert hook-driven trace
+// after ProcessProbeEvent (hook path + trace command).
+func WaitForTraceSamples(
+	ctx context.Context,
+	c *grpcclient.Client,
+	minSamples int,
+	timeout time.Duration,
+	trigger func(),
+) (count int, events []*proto.DebugEvent) {
+	streamCtx, streamCancel := context.WithCancel(ctx)
+	defer streamCancel()
+
+	var mu sync.Mutex
+	var samples []*proto.DebugEvent
+	done := make(chan struct{})
+	go func() {
+		stream, err := c.StreamEvents(streamCtx)
+		if err != nil {
+			close(done)
+			return
+		}
+		for {
+			ev, err := stream.Recv()
+			if err != nil {
+				close(done)
+				return
+			}
+			if ev != nil && ev.GetEventType() == proto.EventType_EVENT_TYPE_TRACE_SAMPLE {
+				mu.Lock()
+				samples = append(samples, ev)
+				mu.Unlock()
+			}
+		}
+	}()
+
+	time.Sleep(e2eStreamAttachDelay)
+	trigger()
+
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		n := len(samples)
+		mu.Unlock()
+		if n >= minSamples {
+			streamCancel()
+			mu.Lock()
+			out := make([]*proto.DebugEvent, len(samples))
+			copy(out, samples)
+			mu.Unlock()
+			select {
+			case <-done:
+			case <-time.After(e2eStreamGoroutineWait):
+			}
+			return n, out
+		}
+		time.Sleep(e2ePollInterval)
+	}
+	streamCancel()
+	<-done
+	mu.Lock()
+	out := make([]*proto.DebugEvent, len(samples))
+	copy(out, samples)
+	mu.Unlock()
+	return len(samples), out
+}
+
 // ServeHTTP10 handles HTTP/1.0 GET on the listener (minimal response).
 func ServeHTTP10(t *testing.T, lis net.Listener) {
 	t.Helper()

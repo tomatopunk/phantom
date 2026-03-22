@@ -26,7 +26,7 @@ import (
 
 func TestExecuteBreakPrintTrace(t *testing.T) {
 	exec := newCommandExecutor("", "", nil, nil, nil)
-	mgr := session.NewManager("") // no kprobe path: break will fail
+	mgr := session.NewManager("", nil) // no bpf include: break compiles fail
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 
 	tests := []struct {
@@ -60,7 +60,7 @@ func TestExecuteBreakPrintTrace(t *testing.T) {
 
 func TestExecuteList(t *testing.T) {
 	exec := newCommandExecutor("", "", nil, nil, nil)
-	mgr := session.NewManager("")
+	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
 
@@ -91,7 +91,7 @@ func TestExecuteList(t *testing.T) {
 
 func TestExecuteBt(t *testing.T) {
 	exec := newCommandExecutor("", "", nil, nil, nil)
-	mgr := session.NewManager("")
+	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
 
@@ -115,7 +115,7 @@ func TestExecuteBt(t *testing.T) {
 //nolint:gocyclo // table-driven style test with many cases
 func TestExecuteWatchAndDeleteAndInfoWatch(t *testing.T) {
 	exec := newCommandExecutor("", "", nil, nil, nil)
-	mgr := session.NewManager("")
+	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
 
@@ -192,7 +192,7 @@ func TestExecuteWatchAndDeleteAndInfoWatch(t *testing.T) {
 //nolint:gocyclo // many hook add parse / execute branches in one test
 func TestExecuteHookAdd(t *testing.T) {
 	exec := newCommandExecutor("", "", nil, nil, nil) // no bpf include dir
-	mgr := session.NewManager("")
+	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
 
@@ -259,7 +259,7 @@ func TestExecuteHookAdd(t *testing.T) {
 
 func TestExecuteHookAttach(t *testing.T) {
 	exec := newCommandExecutor("", "", nil, nil, nil)
-	mgr := session.NewManager("")
+	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
 	ctx := context.Background()
 

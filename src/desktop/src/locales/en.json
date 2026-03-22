@@ -14,6 +14,8 @@
       "overviewShort": "Metrics",
       "discover": "List tracepoints, kprobes, uprobes",
       "discoverShort": "Find",
+      "probeRun": "Compose command from discovery, preview generated eBPF C",
+      "probeRunShort": "Run",
       "session": "Breakpoints, traces, hooks, watches",
       "sessionShort": "Probes",
       "console": "Execute agent commands",
@@ -89,7 +91,7 @@
     "prefixPh": "prefix",
     "binaryPh": "binary",
     "list": "List",
-    "hint": "Click List, then a row to expand. Four shortcuts map to breakpoints / traces / hooks / watches. Switching discovery kind clears the selection and list.",
+    "hint": "List, then expand a row. Click a quick action to open “Run” (edit command, preview full template C, then execute). Shift+click still runs in the CLI immediately. Kprobe: break uses the same template path as hook add; tracepoint/uprobe: use Hook for eBPF. Trace/watch need events from a probe. Switching kind clears the selection and list.",
     "rowExpandTitle": "Expand or collapse quick commands",
     "quick": {
       "break": "Breakpoint",
@@ -98,11 +100,43 @@
       "watch": "Watch",
       "filled": "(filled in CLI)",
       "ran": "(executed)",
-      "shiftHint": "Click: fill and open “CLI”. Shift+click: fill and run immediately. Command is copied to the clipboard.",
+      "openComposer": "(opened Run)",
+      "shiftHint": "Click: open “Run” page (preview eBPF, then execute). Shift+click: fill CLI and run immediately. Command is copied to the clipboard.",
       "ariaGroup": "Build probe command for selected row",
       "breakUnavailable": "Breakpoints only apply to kprobe kernel symbols.",
       "invalidRow": "Cannot build this command for the row (invalid format or disconnected)."
     }
+  },
+  "probeRun": {
+    "title": "Run from discovery",
+    "empty": "Expand a row in Discover and choose Break / Hook / Trace / Watch to compose a command here.",
+    "dismiss": "Clear",
+    "hookSec": "Template filter (--sec DSL)",
+    "traceExprs": "Trace expressions",
+    "watchExpr": "Watch expression",
+    "breakHint": "Breakpoint uses the agent template with kernel filter pid≥0 (same as break on the CLI).",
+    "breakKernelSec": "Kernel filter for preview: pid>=0",
+    "applyForm": "Apply form → command",
+    "refreshPreview": "Refresh preview",
+    "attach": "Attach",
+    "noTemplate": "No generated template C for this choice (trace/watch are agent-side only).",
+    "needConnect": "Connect to the agent to compile-check.",
+    "tab": {
+      "command": "Command",
+      "source": "Generated C",
+      "compile": "Clang"
+    },
+    "preview": {
+      "templateErr": "Template expansion failed"
+    },
+    "compile": {
+      "ok": "clang: OK (object built; not loaded)",
+      "fail": "clang: failed (see stderr below)",
+      "skipped": "Agent has no bpf include path — only source preview."
+    },
+    "run": "Execute",
+    "toConsole": "Send to CLI",
+    "ranOk": "Done."
   },
   "cmd": {
     "title": "Command (execute)",
@@ -131,7 +165,7 @@
     "aria": "Session probe categories",
     "title": "Session probes",
     "refresh": "Refresh",
-    "hintRepl": "To add probes, open the sidebar “CLI” and run e.g. break <kprobe symbol>, trace pid tgid, watch <expr>. For tracepoints/uprobes, pick a row in “Find” to generate a hook add line. Full C programs: sidebar “Hook”.",
+    "hintRepl": "break: prebuilt kprobe (agent needs -kprobe); filter hits with condition (user-side). hook add: template BPF for kprobe/tracepoint/uprobe. trace: after each break/hook hit, emit TRACE_SAMPLE columns (bpftrace-style). watch: STATE_CHANGE when an expression’s string value changes.",
     "bpEnabled": "On",
     "bpDisabled": "Off",
     "action": {
@@ -147,10 +181,10 @@
       "watch": "Watches"
     },
     "tabHint": {
-      "break": "Kprobe breakpoints: stop the session on hits (debugger-style). Commands: break, delete, enable, disable.",
-      "trace": "Sample expressions in probe context (e.g. pid, regs). Command: trace.",
-      "hook": "Attached eBPF programs (template or full C), often via ringbuf. Commands: hook add, hook delete.",
-      "watch": "Emit when a watched expression’s value changes. Command: watch."
+      "break": "Prebuilt kprobe (GDB-style); use condition for user-side filtering. Unlike hook add --sec (kernel-side filter in the template). Commands: break, tbreak, condition, delete, enable, disable.",
+      "trace": "Evaluate expressions on every probe event → TRACE_SAMPLE columns; good for tcpdump-style multi-field lines. Commands: trace, delete.",
+      "hook": "Template (kprobe/tracepoint/uprobe) or hook attach full C; ringbuf events. Remove with hook delete. Commands: hook add, hook attach, hook list, hook delete.",
+      "watch": "STATE_CHANGE when an expression’s string value changes vs last (state diff; not a hardware watchpoint). Commands: watch, delete."
     }
   },
   "events": {
@@ -165,7 +199,7 @@
     "colPayload": "Payload",
     "emptyDisconnected": "Not connected. Connect to the agent, then click Start capture to see events here.",
     "emptyNeedCapture": "Connected, but capture is off. Click Start capture in the header to subscribe to the event stream.",
-    "emptyNoProbesYet": "Capture is on. If this stays empty, you likely have no probes attached yet:\n• Sidebar “CLI”: break, trace, hook add, watch, …\n• Sidebar “Hook”: compile & attach eBPF C\nEvents only appear when the kernel or target process actually hits those probes."
+    "emptyNoProbesYet": "Capture is on. If this stays empty, you likely have no probes attached yet:\n• “CLI”: break (prebuilt kprobe), hook add, trace, watch\n• “Hook”: full C compile & attach\nThe kernel or process must actually hit those probes. L4/tcpdump-style: tcp_sendmsg/tcp_recvmsg. TC packet edit needs future attach types (not in CLI yet)."
   },
   "detail": {
     "jsonTitle": "Detail JSON",

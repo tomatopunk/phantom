@@ -238,6 +238,56 @@ func TestE2EForkTracepoint(t *testing.T) {
 	}
 }
 
+// TestE2EHookAddTraceSampleStream attaches a real tracepoint hook, registers trace pid tgid,
+// subscribes to the event stream, and asserts at least one TRACE_SAMPLE after a fork trigger.
+func TestE2EHookAddTraceSampleStream(t *testing.T) {
+	_, agentBin, kprobeObj, bpfInc := requireE2EScenarios(t)
+	agentAddr := "127.0.0.1:19101"
+	agentCmd := StartAgentWithBpfInclude(t, agentBin, kprobeObj, agentAddr, bpfInc)
+	defer StopAgentProcess(agentCmd)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	c, err := grpcclient.New(ctx, agentAddr, "")
+	if err != nil {
+		t.Fatalf("client: %v", err)
+	}
+	defer c.Close()
+	if _, cerr := c.Connect(ctx, ""); cerr != nil {
+		t.Fatalf("connect: %v", cerr)
+	}
+
+	hookLine := "hook add --point tracepoint:sched:sched_process_fork --lang c --code (void)0; --limit 64"
+	resp, err := c.Execute(ctx, hookLine)
+	if err != nil {
+		t.Fatalf("hook add: %v", err)
+	}
+	if !resp.GetOk() {
+		t.Fatalf("hook add: %s", resp.GetErrorMessage())
+	}
+
+	tr, err := c.Execute(ctx, "trace pid tgid")
+	if err != nil {
+		t.Fatalf("trace: %v", err)
+	}
+	if !tr.GetOk() {
+		t.Fatalf("trace: %s", tr.GetErrorMessage())
+	}
+
+	trigger := func() {
+		cmd := exec.CommandContext(ctx, "/bin/sh", "-c", "true")
+		_ = cmd.Run()
+	}
+	n, evs := WaitForTraceSamples(ctx, c, 1, 18*time.Second, trigger)
+	if n == 0 {
+		t.Fatal("expected at least one TRACE_SAMPLE on stream after hook hit + trace pid tgid")
+	}
+	payload := string(evs[0].GetPayload())
+	if !strings.Contains(payload, "pid=") || !strings.Contains(payload, "tgid=") {
+		t.Fatalf("TRACE_SAMPLE payload should contain pid= and tgid=, got %q", payload)
+	}
+}
+
 // TestE2EUprobeMarker attaches a uprobe on phantom_e2e_marker in the helper binary.
 func TestE2EUprobeMarker(t *testing.T) {
 	root, agentBin, kprobeObj, bpfInc := requireE2EScenarios(t)

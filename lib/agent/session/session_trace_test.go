@@ -23,7 +23,7 @@ import (
 )
 
 func TestEvaluateTraceSamples(t *testing.T) {
-	sess := NewSession("test", "")
+	sess := NewSession("test", "", nil)
 	// No traces: empty result
 	ev := &runtime.Event{PID: 42, Tgid: 40, CPU: 1}
 	samples := sess.EvaluateTraceSamples(ev)

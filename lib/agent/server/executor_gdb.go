@@ -66,12 +66,38 @@ func (*commandExecutor) executeDisable(_ context.Context, sess *session.Session,
 	return errResponse("disable: no breakpoint number " + id), nil
 }
 
-// executeEnable re-enables a breakpoint (Phase 2: we only flip Enabled; re-attach in later iteration).
-func (*commandExecutor) executeEnable(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
+// executeEnable re-enables a breakpoint; template break/tbreak hooks are recompiled and re-attached when needed.
+func (e *commandExecutor) executeEnable(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
 		return errResponse("enable: missing breakpoint id"), nil
 	}
 	id := args[0]
+	bp := sess.GetBreakpoint(id)
+	if bp == nil {
+		return errResponse("enable: no breakpoint number " + id), nil
+	}
+	if bp.KprobeHook {
+		if bp.HookID != "" && bp.Enabled {
+			return &proto.ExecuteResponse{Ok: true, Output: "breakpoint " + id + " enabled"}, nil
+		}
+		var success bool
+		if e.quota != nil && !e.quota.AllowHook(sess.ID) {
+			return errResponse("quota: max hooks reached"), nil
+		}
+		defer func() {
+			if !success && e.quota != nil {
+				e.quota.RemoveHook(sess.ID)
+			}
+		}()
+		resp, err := e.reattachKprobeBreak(ctx, sess, id, bp)
+		if err != nil {
+			return resp, err
+		}
+		if resp.GetOk() {
+			success = true
+		}
+		return resp, nil
+	}
 	if sess.EnableBreakpoint(id) {
 		return &proto.ExecuteResponse{Ok: true, Output: "breakpoint " + id + " enabled"}, nil
 	}
@@ -90,10 +116,10 @@ func (*commandExecutor) executeCondition(_ context.Context, sess *session.Sessio
 	return errResponse("condition: no breakpoint number " + id), nil
 }
 
-// executeInfo dispatches to info break, trace, watch, or session.
+// executeInfo dispatches to info break, trace, watch, hook, or session.
 func (e *commandExecutor) executeInfo(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	if len(args) < 1 {
-		return errResponse("info: usage info break|trace|watch|session"), nil
+		return errResponse("info: usage info break|trace|watch|hook|session"), nil
 	}
 	sub := strings.ToLower(args[0])
 	switch sub {
@@ -186,7 +212,8 @@ func (*commandExecutor) executeInfoSession(_ context.Context, sess *session.Sess
 	bps := sess.ListBreakpoints()
 	trs := sess.ListTraces()
 	wchs := sess.ListWatches()
-	output := fmt.Sprintf("session %s  breakpoints=%d  traces=%d  watches=%d\n", sess.ID, len(bps), len(trs), len(wchs))
+	hks := sess.ListHooks()
+	output := fmt.Sprintf("session %s  breakpoints=%d  traces=%d  watches=%d  hooks=%d\n", sess.ID, len(bps), len(trs), len(wchs), len(hks))
 	return &proto.ExecuteResponse{Ok: true, Output: output}, nil
 }
 
@@ -223,9 +250,7 @@ func (*commandExecutor) executeWatch(_ context.Context, sess *session.Session, a
 	}
 	expr := strings.Join(args, " ")
 	id := sess.AddWatch(expr)
-	if sess.Runtime() != nil {
-		sess.EnsureEventPump()
-	}
+	_ = sess.EnsureEventPump()
 	return &proto.ExecuteResponse{Ok: true, Output: "watch " + expr + " (" + id + ")"}, nil
 }
 
@@ -235,19 +260,19 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
 		cmd := strings.ToLower(args[0])
 		switch cmd {
 		case infoSubBreak, "b":
-			return &proto.ExecuteResponse{Ok: true, Output: "break <symbol>  set breakpoint at symbol"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "break <symbol>  template kprobe hook (needs agent --bpf-include); condition = user-side filter"}, nil
 		case "tbreak":
-			return &proto.ExecuteResponse{Ok: true, Output: "tbreak <symbol>  temporary breakpoint"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "tbreak <symbol>  temporary break (template hook, removed after first hit)"}, nil
 		case "print", "p":
-			return &proto.ExecuteResponse{Ok: true, Output: "print <expr>  print pid,tgid,cpu,event_type,timestamp_ns,probe_id"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "print <expr>  evaluate once on last probe event (pid, arg0.., ret, ...)"}, nil
 		case infoSubTrace, "t":
-			return &proto.ExecuteResponse{Ok: true, Output: "trace <expr...>  trace expressions"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "trace <expr...>  after each break/hook event emit TRACE_SAMPLE with evaluated columns"}, nil
 		case cmdDelete:
 			return &proto.ExecuteResponse{Ok: true, Output: "delete <id>  delete breakpoint, trace, or watch (hooks: hook delete <id>)"}, nil
 		case "enable", "disable":
 			return &proto.ExecuteResponse{Ok: true, Output: cmd + " <bp_id>  enable or disable breakpoint"}, nil
 		case "condition":
-			return &proto.ExecuteResponse{Ok: true, Output: "condition <bp_id> <expr>  set breakpoint condition"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "condition <bp_id> <expr>  user-side filter on BREAK_HIT (contrast: hook add --sec is kernel-side in template)"}, nil
 		case "info":
 			return &proto.ExecuteResponse{Ok: true, Output: "info break|trace|watch|hook|session  list state"}, nil
 		case cmdList:
@@ -255,31 +280,37 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
 		case "bt":
 			return &proto.ExecuteResponse{Ok: true, Output: "bt  backtrace (kernel stack of last event thread)"}, nil
 		case "watch":
-			return &proto.ExecuteResponse{Ok: true, Output: "watch <expr>  emit event when expression value changes"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "watch <expr>  emit STATE_CHANGE when expression string value changes vs last event"}, nil
 		case "continue", "c":
 			return &proto.ExecuteResponse{Ok: true, Output: "continue  continue execution"}, nil
 		case "hook":
-			return &proto.ExecuteResponse{Ok: true, Output: "hook add ...  template kprobe/tracepoint/uprobe C snippet; " +
-				"hook attach ...  full C from --file or --source (custom SEC); hook list | hook delete <id>"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "hook add ...  template BPF at kprobe:/tracepoint:/uprobe:; --sec is filter DSL in generated C (not ELF SEC name). " +
+				"hook attach ...  full C --file or --source. hook list | hook delete <id>"}, nil
 		default:
 			return &proto.ExecuteResponse{Ok: true, Output: "help " + cmd + ": unknown command"}, nil
 		}
 	}
 	output := `commands:
-  break, b <symbol>     set breakpoint
-  tbreak <symbol>       temporary breakpoint
-  print, p <expr>       print expression
-  trace, t <expr...>    trace expressions
-  delete <id>           delete breakpoint/trace/watch (hooks: hook delete)
-  enable <id>           enable breakpoint
-  disable <id>          disable breakpoint
-  condition <id> <expr> set condition
+  Probes:
+  break, b <sym>        template kprobe hook (agent --bpf-include); condition = user-side filter
+  tbreak <sym>          temporary break (template hook)
+  hook add|attach|list|delete   template or full C; see docs/command-spec.md
+
+  On each probe event:
+  print, p <expr>       evaluate once on last event
+  trace, t <expr...>    TRACE_SAMPLE columns after each break/hook hit
+  watch <expr>          STATE_CHANGE when value string changes
+
+  Breakpoint control:
+  delete <id>           breakpoint / trace / watch only (hooks: hook delete <id>)
+  enable|disable <id>   breakpoint only
+  condition <id> <expr> user-side filter (vs hook --sec kernel-side)
+
+  Other:
   info break|trace|watch|hook|session
-  list [symbol]         list kernel symbol(s)
-  bt                    backtrace (kernel stack)
-  watch <expr>          watch expression (emit on change)
-  continue, c           continue
-  hook add|attach|list|delete  eBPF hooks (see docs/command-spec.md)
+  list [symbol]         kallsyms / disasm
+  bt                    kernel stack for last event
+  continue, c
   help [cmd]
 `
 	return &proto.ExecuteResponse{Ok: true, Output: output}, nil

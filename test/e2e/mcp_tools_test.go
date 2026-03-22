@@ -37,7 +37,7 @@ func startDebuggerServerWithBackend(t *testing.T) (backend mcp.Backend, cleanup 
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	mgr := session.NewManager("")
+	mgr := session.NewManager("", nil)
 	ds := server.NewDebuggerServer(mgr)
 	srv := grpc.NewServer()
 	proto.RegisterDebuggerServiceServer(srv, ds)

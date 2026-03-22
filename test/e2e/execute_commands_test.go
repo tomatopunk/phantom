@@ -38,7 +38,7 @@ func startInProcessServer(t *testing.T) (addr string, cleanup func()) {
 		t.Fatalf("listen: %v", err)
 	}
 	addr = lis.Addr().String()
-	mgr := session.NewManager("")
+	mgr := session.NewManager("", nil)
 	srv := grpc.NewServer()
 	proto.RegisterDebuggerServiceServer(srv, server.NewDebuggerServer(mgr))
 	go func() { _ = srv.Serve(lis) }()
@@ -186,8 +186,12 @@ func TestExecuteCommandMatrix(t *testing.T) {
 		if !resp.GetOk() {
 			t.Fatalf("info session: %s", resp.GetErrorMessage())
 		}
-		if !strings.Contains(resp.GetOutput(), "session") {
-			t.Errorf("info session: output should contain session, got %q", resp.GetOutput())
+		out := resp.GetOutput()
+		if !strings.Contains(out, "session") {
+			t.Errorf("info session: output should contain session, got %q", out)
+		}
+		if !strings.Contains(out, "hooks=") {
+			t.Errorf("info session: output should include hooks= count, got %q", out)
 		}
 	})
 	t.Run("info_hooks", func(t *testing.T) {

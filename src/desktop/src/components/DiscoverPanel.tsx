@@ -18,7 +18,11 @@
 
 import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
-import { discoveryCommandForProbe, type DiscoverProbeKind } from "../app/discoverCommands";
+import {
+  discoveryCommandForProbe,
+  type DiscoverProbeKind,
+  type ProbeRunDraft,
+} from "../app/discoverCommands";
 import { technicalInputProps } from "../app/technicalInputProps";
 
 type Tab = "tp" | "kp" | "up";
@@ -49,6 +53,7 @@ type Props = {
   connected: boolean;
   setCmd: (s: string) => void;
   openConsole: () => void;
+  onOpenProbeRun: (draft: ProbeRunDraft) => void;
   runCommandLine: (line: string) => Promise<void>;
 };
 
@@ -69,6 +74,7 @@ export function DiscoverPanel({
   connected,
   setCmd,
   openConsole,
+  onOpenProbeRun,
   runCommandLine,
 }: Props) {
   const [selectedLine, setSelectedLine] = useState<string | null>(null);
@@ -86,15 +92,16 @@ export function DiscoverPanel({
   const onQuick = async (line: string, kind: DiscoverProbeKind, e: { shiftKey: boolean }) => {
     const cmd = discoveryCommandForProbe(discTab, line, discBin, kind);
     if (!cmd) return;
-    setCmd(cmd);
-    openConsole();
+    void navigator.clipboard.writeText(cmd);
     if (e.shiftKey) {
+      setCmd(cmd);
+      openConsole();
       await runCommandLine(cmd);
       showFlash(t("discover.quick.ran"));
-    } else {
-      showFlash(t("discover.quick.filled"));
+      return;
     }
-    void navigator.clipboard.writeText(cmd);
+    onOpenProbeRun({ tab: discTab, line, binaryPath: discBin, kind });
+    showFlash(t("discover.quick.openComposer"));
   };
 
   const toggleSelect = (line: string) => {

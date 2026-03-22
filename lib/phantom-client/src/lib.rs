@@ -27,7 +27,8 @@ pub use phantom::api::{
     CompileAndAttachResponse, DebugEvent, EventType, ExecuteRequest, ExecuteResponse,
     GetHostMetricsRequest, GetHostMetricsResponse, GetTaskTreeRequest, GetTaskTreeResponse,
     InspectElfRequest, ListKprobeSymbolsRequest, ListSessionsRequest, ListTracepointsRequest,
-    ListUprobeSymbolsRequest, OpenSessionRequest, OpenSessionResponse, StreamEventsRequest,
+    ListUprobeSymbolsRequest, OpenSessionRequest, OpenSessionResponse, PreviewHookTemplateRequest,
+    PreviewHookTemplateResponse, StreamEventsRequest,
 };
 
 use tonic::metadata::AsciiMetadataValue;
@@ -222,6 +223,26 @@ impl PhantomClient {
                 source: source.to_string(),
                 attach: attach.to_string(),
                 program_name: program_name.to_string(),
+            })))
+            .await
+            .map(|r| r.into_inner())
+    }
+
+    pub async fn preview_hook_template(
+        &mut self,
+        attach_point: &str,
+        sec_expression: &str,
+        code_snippet: &str,
+    ) -> Result<PreviewHookTemplateResponse, tonic::Status> {
+        if self.session_id.is_empty() {
+            return Err(tonic::Status::failed_precondition("not connected"));
+        }
+        self.inner
+            .preview_hook_template(self.with_auth(Request::new(PreviewHookTemplateRequest {
+                session_id: self.session_id.clone(),
+                attach_point: attach_point.to_string(),
+                sec_expression: sec_expression.to_string(),
+                code_snippet: code_snippet.to_string(),
             })))
             .await
             .map(|r| r.into_inner())

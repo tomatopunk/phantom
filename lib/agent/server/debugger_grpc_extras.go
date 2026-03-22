@@ -54,6 +54,23 @@ func (s *debuggerServer) CompileAndAttach(
 	return resp, nil
 }
 
+func (s *debuggerServer) PreviewHookTemplate(
+	ctx context.Context,
+	req *proto.PreviewHookTemplateRequest,
+) (*proto.PreviewHookTemplateResponse, error) {
+	sid := req.GetSessionId()
+	if sid == "" {
+		return &proto.PreviewHookTemplateResponse{Ok: false, ErrorMessage: "missing session_id"}, nil
+	}
+	if s.sessions.Get(sid) == nil {
+		return &proto.PreviewHookTemplateResponse{Ok: false, ErrorMessage: "session not found"}, nil
+	}
+	if s.cfg != nil && s.cfg.rateLimiter != nil && !s.cfg.rateLimiter.Allow(sid) {
+		return &proto.PreviewHookTemplateResponse{Ok: false, ErrorMessage: "rate limited"}, nil
+	}
+	return s.exec.previewHookTemplate(ctx, req.GetAttachPoint(), req.GetSecExpression(), req.GetCodeSnippet()), nil
+}
+
 func (*debuggerServer) ListTracepoints(_ context.Context, req *proto.ListTracepointsRequest) (*proto.ListTracepointsResponse, error) {
 	names, err := discovery.ListTracepoints(req.GetPrefix(), int(req.GetMaxEntries()))
 	if err != nil {

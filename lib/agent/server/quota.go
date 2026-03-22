@@ -16,7 +16,11 @@
 
 package server
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/tomatopunk/phantom/lib/agent/session"
+)
 
 // SessionQuota limits resources per session (breakpoints, traces, hooks).
 type SessionQuota struct {
@@ -112,3 +116,20 @@ func (q *SessionQuota) RemoveSession(sessionID string) {
 	delete(q.bySess, sessionID)
 	q.mu.Unlock()
 }
+
+type quotaSessionSink struct {
+	q *SessionQuota
+}
+
+// QuotaSessionSink returns a session.SessionQuotaSink that decrements hook/break counts on detach.
+// Returns nil when q is nil.
+func QuotaSessionSink(q *SessionQuota) session.SessionQuotaSink {
+	if q == nil {
+		return nil
+	}
+	return &quotaSessionSink{q: q}
+}
+
+func (s *quotaSessionSink) ReleaseHookSlot(sessionID string) { s.q.RemoveHook(sessionID) }
+
+func (s *quotaSessionSink) ReleaseBreakSlot(sessionID string) { s.q.RemoveBreak(sessionID) }

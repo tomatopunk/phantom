@@ -21,6 +21,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { loadAgentHistory, rememberAgentAddress } from "./app/agentHistory";
+import type { ProbeRunDraft } from "./app/discoverCommands";
 import { eventMatchesFilter, MAX_EVENTS } from "./app/eventUtils";
 import type { CpuJ, DebugEventPayload, NetDev, TaskRow } from "./app/types";
 import * as api from "./api";
@@ -33,6 +34,7 @@ import { EventsStreamPanel } from "./components/EventsStreamPanel";
 import { HookEditorPanel } from "./components/HookEditorPanel";
 import { InlineErrorBanner } from "./components/InlineErrorBanner";
 import { MetricsDimensionPanel } from "./components/MetricsDimensionPanel";
+import { ProbeRunPanel } from "./components/ProbeRunPanel";
 import { SessionProbesPanel } from "./components/SessionProbesPanel";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { usePhantomMenu } from "./hooks/usePhantomMenu";
@@ -89,6 +91,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [sidebarSection, setSidebarSection] = useState<ToolSection>("overview");
+  const [probeRunDraft, setProbeRunDraft] = useState<ProbeRunDraft | null>(null);
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -311,6 +314,11 @@ export default function App() {
     await runCommandLine(cmd);
   }, [cmd, runCommandLine]);
 
+  const openProbeRun = useCallback((d: ProbeRunDraft) => {
+    setProbeRunDraft(d);
+    setSidebarSection("probeRun");
+  }, []);
+
   const cpus = (metrics?.cpus as CpuJ[] | undefined) ?? [];
   const netDevs = (metrics?.net_devs as NetDev[] | undefined) ?? [];
   const hostname = String(metrics?.hostname ?? t("common.dash"));
@@ -379,7 +387,19 @@ export default function App() {
             connected={connected}
             setCmd={setCmd}
             openConsole={() => setSidebarSection("console")}
+            onOpenProbeRun={openProbeRun}
             runCommandLine={runCommandLine}
+          />
+        }
+        probeRun={
+          <ProbeRunPanel
+            t={t}
+            draft={probeRunDraft}
+            onDismissDraft={() => setProbeRunDraft(null)}
+            connected={connected}
+            runCommandLine={runCommandLine}
+            setCmd={setCmd}
+            openConsole={() => setSidebarSection("console")}
           />
         }
         session={<SessionProbesPanel connected={connected} refreshTrigger={probeRefresh} />}

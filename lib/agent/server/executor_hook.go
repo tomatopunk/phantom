@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/tomatopunk/phantom/lib/agent/hook"
+	"github.com/tomatopunk/phantom/lib/agent/probe"
 	"github.com/tomatopunk/phantom/lib/agent/session"
 	"github.com/tomatopunk/phantom/lib/proto"
 )
@@ -46,6 +47,40 @@ func (e *commandExecutor) withHookQuota(sess *session.Session, run func() (*prot
 	return resp, err
 }
 
+// attachCompiledHook compiles plan (Code or Sec), attaches the template program, registers the hook, and returns hook id.
+func (e *commandExecutor) attachCompiledHook(ctx context.Context, sess *session.Session, plan probe.HookPlan, opt *session.HookOpts) (hookID string, err error) {
+	snippet := plan.Code
+	var convErr error
+	if plan.Sec != "" {
+		snippet, convErr = hook.SecToSnippet(plan.Sec, plan.AttachPoint)
+		if convErr != nil {
+			return "", convErr
+		}
+	}
+	if e.hookIncludeDir == "" {
+		return "", fmt.Errorf("no bpf include dir configured")
+	}
+	cr, err := hook.Compile(ctx, snippet, plan.AttachPoint, e.hookIncludeDir)
+	if err != nil {
+		return "", err
+	}
+	if cr.ParsedAttach == nil {
+		if cr.Cleanup != nil {
+			cr.Cleanup()
+		}
+		return "", fmt.Errorf("internal: missing attach info")
+	}
+	detach, hookReader, err := hook.AttachProbeFromObject(cr.ObjectPath, cr.ParsedAttach, hook.HookTemplateProgramName, cr.Cleanup)
+	if err != nil {
+		if cr.Cleanup != nil {
+			cr.Cleanup()
+		}
+		return "", err
+	}
+	id := sess.AddHook(plan.AttachPoint, detach, hookReader, plan.Limit, opt)
+	return id, nil
+}
+
 // executeHookAdd compiles C snippet (from --code or from --sec) and attaches at the given point.
 func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
 	return e.withHookQuota(sess, func() (*proto.ExecuteResponse, error) {
@@ -57,30 +92,6 @@ func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Sess
 		if err != nil {
 			return errResponse("hook add: " + err.Error()), nil
 		}
-		snippet := plan.Code
-		if plan.Sec != "" {
-			snippet, err = hook.SecToSnippet(plan.Sec, plan.AttachPoint)
-			if err != nil {
-				return errResponse("hook add: " + err.Error()), nil
-			}
-		}
-		if e.hookIncludeDir == "" {
-			return errResponse("hook add: no bpf include dir configured"), nil
-		}
-		cr, err := hook.Compile(ctx, snippet, plan.AttachPoint, e.hookIncludeDir)
-		if err != nil {
-			return errResponse("hook add: " + err.Error()), nil
-		}
-		if cr.ParsedAttach == nil {
-			return errResponse("hook add: internal: missing attach info"), nil
-		}
-		detach, hookReader, err := hook.AttachProbeFromObject(cr.ObjectPath, cr.ParsedAttach, hook.HookTemplateProgramName, cr.Cleanup)
-		if err != nil {
-			if cr.Cleanup != nil {
-				cr.Cleanup()
-			}
-			return errResponse("hook add: " + err.Error()), nil
-		}
 		opt := &session.HookOpts{}
 		if plan.Sec != "" {
 			opt.FilterExpr = plan.Sec
@@ -88,7 +99,10 @@ func (e *commandExecutor) executeHookAdd(ctx context.Context, sess *session.Sess
 		} else {
 			opt.Note = "hook add --code"
 		}
-		id := sess.AddHook(plan.AttachPoint, detach, hookReader, plan.Limit, opt)
+		id, aerr := e.attachCompiledHook(ctx, sess, plan, opt)
+		if aerr != nil {
+			return errResponse("hook add: " + aerr.Error()), nil
+		}
 		return &proto.ExecuteResponse{
 			Ok:     true,
 			Output: "hook set at " + plan.AttachPoint + " (" + id + ")",
@@ -286,9 +300,6 @@ func (e *commandExecutor) executeHookDelete(_ context.Context, sess *session.Ses
 	}
 	id := args[0]
 	if sess.RemoveHook(id) {
-		if e.quota != nil {
-			e.quota.RemoveHook(sess.ID)
-		}
 		return &proto.ExecuteResponse{Ok: true, Output: "hook " + id + " deleted"}, nil
 	}
 	return errResponse("hook delete: no hook " + id), nil

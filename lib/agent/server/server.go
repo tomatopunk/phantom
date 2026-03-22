@@ -26,6 +26,15 @@ import (
 	"google.golang.org/grpc"
 )
 
+// SessionManagerForAgent returns a session manager with quota sink wired when PrepareServerConfig sets quota.
+func SessionManagerForAgent(cfg *Config) *session.Manager {
+	if cfg == nil {
+		return session.NewManager("", nil)
+	}
+	sc := PrepareServerConfig(cfg)
+	return session.NewManager(cfg.KprobeObjectPath, QuotaSessionSink(sc.quota))
+}
+
 // Run starts the gRPC debugger server and blocks until ctx is canceled.
 func Run(ctx context.Context, cfg *Config) error {
 	if cfg == nil {
@@ -38,8 +47,9 @@ func Run(ctx context.Context, cfg *Config) error {
 	}
 	defer listener.Close()
 
-	mgr := session.NewManager(cfg.KprobeObjectPath)
-	dbg := NewDebuggerServerWithConfig(mgr, PrepareServerConfig(cfg))
+	sc := PrepareServerConfig(cfg)
+	mgr := session.NewManager(cfg.KprobeObjectPath, QuotaSessionSink(sc.quota))
+	dbg := NewDebuggerServerWithConfig(mgr, sc)
 
 	if cfg.HealthAddr != "" {
 		go func() { _ = ServeHealth(ctx, cfg.HealthAddr) }()

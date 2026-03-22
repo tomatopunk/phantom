@@ -61,10 +61,13 @@ type Session struct {
 	// Event subscribers get a copy of each event (e.g. StreamEvents RPC).
 	subscribersMu sync.Mutex
 	subscribers   []chan<- *runtime.Event
+
+	quotaSink SessionQuotaSink // optional; releases hook/break quota on detach
 }
 
 // NewSession creates a session with the given id and optional kprobe object path.
-func NewSession(id, kprobePath string) *Session {
+// quotaSink may be nil (tests); when set, hook/break detaches adjust session quota counts.
+func NewSession(id, kprobePath string, quotaSink SessionQuotaSink) *Session {
 	ctx, stop := context.WithCancel(context.Background())
 	s := &Session{
 		ID:          id,
@@ -74,9 +77,22 @@ func NewSession(id, kprobePath string) *Session {
 		traces:      make(map[string]*TraceState),
 		hooks:       make(map[string]*HookState),
 		watches:     make(map[string]*WatchState),
+		quotaSink:   quotaSink,
 	}
 	_ = ctx
 	return s
+}
+
+func (s *Session) releaseHookSlot() {
+	if s.quotaSink != nil {
+		s.quotaSink.ReleaseHookSlot(s.ID)
+	}
+}
+
+func (s *Session) releaseBreakSlot() {
+	if s.quotaSink != nil {
+		s.quotaSink.ReleaseBreakSlot(s.ID)
+	}
 }
 
 // EnsureRuntime loads the kprobe .o if path is set and returns the runtime (may be nil if path empty).
@@ -105,12 +121,30 @@ func (s *Session) Runtime() *runtime.Runtime {
 }
 
 // AddBreakpoint stores a breakpoint and returns its id.
-func (s *Session) AddBreakpoint(symbol string, detach func(), isTemp bool) string {
+// hookID is non-empty when this breakpoint is backed by a template hook (break/tbreak); detach is nil in that case.
+func (s *Session) AddBreakpoint(symbol string, detach func(), isTemp bool, hookID string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := s.nextBreakpointIDLocked()
-	s.breakpoints[id] = &BreakpointState{ID: id, Symbol: symbol, Detach: detach, Enabled: true, IsTemp: isTemp}
+	kh := hookID != ""
+	s.breakpoints[id] = &BreakpointState{
+		ID: id, Symbol: symbol, Detach: detach, Enabled: true, IsTemp: isTemp,
+		HookID: hookID, KprobeHook: kh,
+	}
 	return id
+}
+
+// LinkBreakpointHook sets HookID after re-attaching a disabled kprobe template breakpoint.
+func (s *Session) LinkBreakpointHook(bpID, hookID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	bp, ok := s.breakpoints[bpID]
+	if !ok || !bp.KprobeHook {
+		return false
+	}
+	bp.HookID = hookID
+	bp.Enabled = true
+	return true
 }
 
 // SetBreakpointCondition sets the condition expression for a breakpoint.
@@ -132,15 +166,25 @@ func (s *Session) nextBreakpointIDLocked() string {
 // RemoveBreakpoint detaches and removes the breakpoint.
 func (s *Session) RemoveBreakpoint(id string) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	bp, ok := s.breakpoints[id]
 	if !ok {
+		s.mu.Unlock()
 		return false
 	}
-	if bp.Detach != nil {
-		bp.Detach()
-	}
+	hookID := bp.HookID
+	detach := bp.Detach
 	delete(s.breakpoints, id)
+	s.mu.Unlock()
+	if hookID != "" {
+		s.removeHookProgram(hookID)
+		s.releaseHookSlot()
+		s.releaseBreakSlot()
+		return true
+	}
+	if detach != nil {
+		detach()
+	}
+	s.releaseBreakSlot()
 	return true
 }
 
@@ -159,15 +203,30 @@ func (s *Session) RemoveTemporaryBreakpointsOnHit() {
 	}
 }
 
+// RemoveTemporaryBreakpointsOnHitForHook removes enabled temporary breakpoints tied to hookID (template hook pump path).
+func (s *Session) RemoveTemporaryBreakpointsOnHitForHook(hookID string) {
+	list := s.ListBreakpoints()
+	for _, bp := range list {
+		if bp.IsTemp && bp.HookID == hookID {
+			s.RemoveBreakpoint(bp.ID)
+		}
+	}
+}
+
 // ShouldReportBreakHit returns true if this BREAK_HIT event should be reported (set last event, broadcast, remove tbreaks).
-// We only suppress when at least one breakpoint has a condition and every such condition fails for this event.
-func (s *Session) ShouldReportBreakHit(ev *runtime.Event) bool {
+// sourceHookID is empty for the legacy prebuilt kprobe ringbuf; for template hooks it is the hook id (e.g. hook-1).
+// We only suppress when at least one matching breakpoint has a condition and every such condition fails for this event.
+func (s *Session) ShouldReportBreakHit(ev *runtime.Event, sourceHookID string) bool {
 	list := s.ListBreakpoints()
 	var withCondition []*BreakpointState
 	for _, bp := range list {
-		if bp.Enabled && bp.Condition != "" {
-			withCondition = append(withCondition, bp)
+		if !bp.Enabled || bp.Condition == "" {
+			continue
 		}
+		if !breakpointMatchesHookSource(bp, sourceHookID) {
+			continue
+		}
+		withCondition = append(withCondition, bp)
 	}
 	if len(withCondition) == 0 {
 		return true
@@ -178,6 +237,13 @@ func (s *Session) ShouldReportBreakHit(ev *runtime.Event) bool {
 		}
 	}
 	return false
+}
+
+func breakpointMatchesHookSource(bp *BreakpointState, sourceHookID string) bool {
+	if sourceHookID == "" {
+		return bp.HookID == ""
+	}
+	return bp.HookID == sourceHookID
 }
 
 // GetBreakpoint returns breakpoint state by id.
@@ -199,11 +265,18 @@ func (s *Session) ListBreakpoints() []*BreakpointState {
 }
 
 // EnableBreakpoint enables a breakpoint (no-op if already enabled; re-attach if was disabled).
+// KprobeHook breakpoints disabled via DisableBreakpoint must be re-attached by the executor (returns false here).
 func (s *Session) EnableBreakpoint(id string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	bp, ok := s.breakpoints[id]
 	if !ok {
+		return false
+	}
+	if bp.KprobeHook {
+		if bp.HookID != "" && bp.Enabled {
+			return true
+		}
 		return false
 	}
 	if bp.Enabled && bp.Detach != nil {
@@ -227,16 +300,26 @@ func (s *Session) EnableBreakpoint(id string) bool {
 // DisableBreakpoint marks breakpoint disabled (detach and keep entry; enable will re-attach).
 func (s *Session) DisableBreakpoint(id string) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	bp, ok := s.breakpoints[id]
 	if !ok {
+		s.mu.Unlock()
 		return false
+	}
+	if bp.HookID != "" {
+		hid := bp.HookID
+		bp.HookID = ""
+		bp.Enabled = false
+		s.mu.Unlock()
+		s.removeHookProgram(hid)
+		s.releaseHookSlot()
+		return true
 	}
 	if bp.Detach != nil {
 		bp.Detach()
 		bp.Detach = nil
 	}
 	bp.Enabled = false
+	s.mu.Unlock()
 	return true
 }
 
@@ -317,12 +400,12 @@ func (s *Session) nextHookIDLocked() string {
 	return fmtID("hook", s.nextHookID)
 }
 
-// RemoveHook cancels the hook's event pump (so the reader is closed) and detaches the hook.
-func (s *Session) RemoveHook(id string) bool {
+// removeHookProgram detaches BPF and stops the hook pump; caller must not hold s.mu.
+func (s *Session) removeHookProgram(id string) bool {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	h, ok := s.hooks[id]
 	if !ok {
+		s.mu.Unlock()
 		return false
 	}
 	if h.Cancel != nil {
@@ -332,6 +415,31 @@ func (s *Session) RemoveHook(id string) bool {
 		h.Detach()
 	}
 	delete(s.hooks, id)
+	s.mu.Unlock()
+	return true
+}
+
+// RemoveHook cancels the hook's event pump and detaches. If a breakpoint owned this hook, removes it too.
+func (s *Session) RemoveHook(id string) bool {
+	var bpID string
+	s.mu.Lock()
+	for bid, bp := range s.breakpoints {
+		if bp.HookID == id {
+			bpID = bid
+			break
+		}
+	}
+	if bpID != "" {
+		delete(s.breakpoints, bpID)
+	}
+	s.mu.Unlock()
+	if !s.removeHookProgram(id) {
+		return false
+	}
+	s.releaseHookSlot()
+	if bpID != "" {
+		s.releaseBreakSlot()
+	}
 	return true
 }
 

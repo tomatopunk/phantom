@@ -28,6 +28,9 @@ import (
 	"github.com/tomatopunk/phantom/lib/proto"
 )
 
+// breakTemplateSec is the kernel-side filter for break/tbreak template hooks (always true for real PIDs).
+const breakTemplateSec = "pid>=0"
+
 // commandExecutor parses command lines and drives session runtime + state.
 type commandExecutor struct {
 	hookIncludeDir string // path to bpf/include for C hook compile
@@ -61,39 +64,64 @@ func (e *commandExecutor) executeTbreak(ctx context.Context, sess *session.Sessi
 func (e *commandExecutor) executeBreakOrTbreak(
 	ctx context.Context, sess *session.Session, args []string, cmdPrefix string, isTemp bool,
 ) (*proto.ExecuteResponse, error) {
-	_ = ctx
 	if len(args) < 1 {
 		return errResponse(cmdPrefix + ": missing symbol"), nil
 	}
-	plan := e.planner.PlanBreak(args[0])
-	rt, err := sess.EnsureRuntime()
+	sym := strings.TrimSpace(args[0])
+	limit := 0
+	if isTemp {
+		limit = 1
+	}
+	plan, err := e.planner.PlanHook("kprobe:"+sym, "", breakTemplateSec, limit)
 	if err != nil {
 		return errResponse(cmdPrefix + ": " + err.Error()), nil
 	}
-	if rt == nil {
-		return errResponse(cmdPrefix + ": no kprobe object path configured"), nil
+	note := "break"
+	if isTemp {
+		note = "tbreak"
 	}
-	detach, err := rt.AttachKprobe(plan.Symbol)
-	if err != nil {
-		return errResponse(cmdPrefix + ": " + err.Error()), nil
+	opt := &session.HookOpts{FilterExpr: breakTemplateSec, Note: note}
+	hookID, aerr := e.attachCompiledHook(ctx, sess, plan, opt)
+	if aerr != nil {
+		return errResponse(cmdPrefix + ": " + aerr.Error()), nil
 	}
-	id := sess.AddBreakpoint(plan.Symbol, detach, isTemp)
-	sess.EnsureEventPump()
+	id := sess.AddBreakpoint(sym, nil, isTemp, hookID)
 	msg := "breakpoint set at "
 	if isTemp {
 		msg = "temporary breakpoint set at "
 	}
 	return &proto.ExecuteResponse{
 		Ok:     true,
-		Output: msg + plan.Symbol + " (" + id + ")",
+		Output: msg + sym + " (" + id + ")",
 		Result: &proto.ExecuteResponse_Breakpoint{
 			Breakpoint: &proto.BreakpointResult{
 				BreakpointId: id,
-				Symbol:       plan.Symbol,
+				Symbol:       sym,
 				Enabled:      true,
 			},
 		},
 	}, nil
+}
+
+// reattachKprobeBreak recompiles and attaches the template hook for a disabled KprobeHook breakpoint.
+func (e *commandExecutor) reattachKprobeBreak(ctx context.Context, sess *session.Session, bpID string, bp *session.BreakpointState) (*proto.ExecuteResponse, error) {
+	if bp.Symbol == "" {
+		return errResponse("enable: breakpoint has no symbol"), nil
+	}
+	plan, err := e.planner.PlanHook("kprobe:"+bp.Symbol, "", breakTemplateSec, 0)
+	if err != nil {
+		return errResponse("enable: " + err.Error()), nil
+	}
+	opt := &session.HookOpts{FilterExpr: breakTemplateSec, Note: "break"}
+	hookID, aerr := e.attachCompiledHook(ctx, sess, plan, opt)
+	if aerr != nil {
+		return errResponse("enable: " + aerr.Error()), nil
+	}
+	if !sess.LinkBreakpointHook(bpID, hookID) {
+		_ = sess.RemoveHook(hookID)
+		return errResponse("enable: lost breakpoint " + bpID), nil
+	}
+	return &proto.ExecuteResponse{Ok: true, Output: "breakpoint " + bpID + " enabled"}, nil
 }
 
 func (*commandExecutor) executePrint(_ context.Context, sess *session.Session, args []string) (*proto.ExecuteResponse, error) {
@@ -118,9 +146,8 @@ func (e *commandExecutor) executeTrace(_ context.Context, sess *session.Session,
 	}
 	plan := e.planner.PlanTrace(args)
 	id := sess.AddTrace(plan.Expressions, nil)
-	if sess.Runtime() != nil {
-		sess.EnsureEventPump()
-	}
+	// Main kprobe ringbuf (if loaded); hook events also drive trace via ProcessProbeEvent.
+	_ = sess.EnsureEventPump()
 	return &proto.ExecuteResponse{
 		Ok:     true,
 		Output: "tracing " + strings.Join(plan.Expressions, ", ") + " (" + id + ")",

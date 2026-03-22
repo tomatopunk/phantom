@@ -29,7 +29,6 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/tomatopunk/phantom/lib/agent/mcp"
 	"github.com/tomatopunk/phantom/lib/agent/server"
-	"github.com/tomatopunk/phantom/lib/agent/session"
 )
 
 func main() {
@@ -65,8 +64,9 @@ func main() {
 	defer stop()
 
 	if *enableMCP {
-		mgr := session.NewManager(cfg.KprobeObjectPath)
-		dbg := server.NewDebuggerServerWithConfig(mgr, server.PrepareServerConfig(&cfg))
+		mgr := server.SessionManagerForAgent(&cfg)
+		sc := server.PrepareServerConfig(&cfg)
+		dbg := server.NewDebuggerServerWithConfig(mgr, sc)
 		backend := server.NewMCPServerBackend(dbg)
 		mcpSrv := mcp.NewServer(backend)
 		if err := mcpSrv.Run(ctx); err != nil && ctx.Err() == nil {

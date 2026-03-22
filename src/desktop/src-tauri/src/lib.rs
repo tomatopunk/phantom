@@ -19,6 +19,7 @@ use std::time::Duration;
 
 use phantom_client::{
     CompileAndAttachResponse, GetHostMetricsResponse, GetTaskTreeResponse, PhantomClient,
+    PreviewHookTemplateResponse,
 };
 use serde_json::{json, Value};
 use tauri::menu::{MenuBuilder, MenuItem, PredefinedMenuItem, SubmenuBuilder};
@@ -128,6 +129,31 @@ fn task_tree_json(r: GetTaskTreeResponse) -> Value {
         "tgid": r.tgid,
         "tasks": tasks,
         "error_message": r.error_message,
+    })
+}
+
+fn preview_template_json(r: PreviewHookTemplateResponse) -> Value {
+    let diags: Vec<Value> = r
+        .diagnostics
+        .iter()
+        .map(|d| {
+            json!({
+                "path": d.path,
+                "line": d.line,
+                "column": d.column,
+                "severity": d.severity,
+                "message": d.message,
+            })
+        })
+        .collect();
+    json!({
+        "ok": r.ok,
+        "error_message": r.error_message,
+        "generated_source_c": r.generated_source_c,
+        "compile_attempted": r.compile_attempted,
+        "compile_ok": r.compile_ok,
+        "compiler_output": r.compiler_output,
+        "diagnostics": diags,
     })
 }
 
@@ -385,6 +411,22 @@ async fn compile_hook(
     Ok(compile_json(r))
 }
 
+#[tauri::command]
+async fn preview_hook_template(
+    state: State<'_, AppState>,
+    attach_point: String,
+    sec_expression: String,
+    code_snippet: String,
+) -> Result<Value, String> {
+    let mut guard = state.exec_client.lock().await;
+    let c = guard.as_mut().ok_or_else(|| "not connected".to_string())?;
+    let r = c
+        .preview_hook_template(&attach_point, &sec_expression, &code_snippet)
+        .await
+        .map_err(|e| format!("preview_hook_template: {e}"))?;
+    Ok(preview_template_json(r))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let state = AppState {
@@ -478,6 +520,7 @@ pub fn run() {
             list_kprobes_cmd,
             list_uprobes_cmd,
             compile_hook,
+            preview_hook_template,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Phantom desktop");

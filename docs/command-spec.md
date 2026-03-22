@@ -6,19 +6,19 @@ Commands are sent as a single line via `Execute(session_id, command_line)`. The 
 
 | Command | Alias | Args | Description |
 |---------|-------|------|-------------|
-| `break <sym>` | `b` | symbol | Set breakpoint (kprobe). Returns breakpoint id and symbol. Uprobe not yet supported. |
-| `tbreak <sym>` | — | symbol | Temporary breakpoint (auto-delete on first hit). |
+| `break <sym>` | `b` | symbol | **Template** kprobe at a kernel symbol (same compile/attach path as `hook add --sec`; agent needs `--bpf-include`). Returns breakpoint id and consumes a **hook** slot as well as a breakpoint slot when quota is enabled. For uprobes/tracepoints use **`hook add`**. |
+| `tbreak <sym>` | — | symbol | Temporary breakpoint (template hook with `--limit 1`; auto-delete on first hit). |
 | `print <expr>` | `p` | expression | Print value (e.g. `pid`, `arg0`, `ret`) from last event context. |
-| `trace <expr>` | `t` | one or more | Start tracing expressions. Returns trace id. |
+| `trace <expr>` | `t` | one or more | Register expressions; after **each** qualifying probe event (legacy main kprobe ringbuf **or** any hook pump), emit `TRACE_SAMPLE` with evaluated columns. Returns trace id. |
 | `continue` | `c` | — | Continue execution. |
-| `delete <id>` | — | breakpoint id | Remove breakpoint by id. |
+| `delete <id>` | — | id | Remove a **breakpoint**, **trace**, or **watch** by id. Hooks use `hook delete <id>`. |
 | `disable <id>` | — | breakpoint id | Disable breakpoint. |
 | `enable <id>` | — | breakpoint id | Re-enable breakpoint. |
-| `condition <id> <expr>` | — | id, expression | Breakpoint condition; BREAK_HIT only when condition passes. |
-| `info` (break, trace, hook, session) | — | subcommand | List breakpoints, traces, hooks, or session info. |
+| `condition <id> <expr>` | — | id, expression | **User-side** filter on a breakpoint id; suppresses `BREAK_HIT` when the expression is false. Contrast `hook add --sec`, which is a **kernel-side** filter compiled into the template. |
+| `info` | — | `break` \| `trace` \| `watch` \| `hook` \| `session` | List breakpoints, traces, watches, hooks, or session summary (includes hook count). |
 | `list [sym]` | — | optional symbol | List source/disasm near symbol; may return "symbol not available". |
 | `bt` | — | — | Backtrace; returns "not supported" if unavailable. |
-| `watch <expr>` | — | expression | Watchpoint (emit when value changes). |
+| `watch <expr>` | — | expression | Register an expression; when its **string value** changes vs the previous event, emit `STATE_CHANGE` (state diff; not a hardware memory watchpoint). |
 | `help [cmd]` | — | optional command | Short help for command or global. |
 | `hook add ...` | — | see below | Template C hook: `--point` (`kprobe:`, `tracepoint:sub:event`, `uprobe:/path:sym`, `uretprobe:/path:sym`), `--lang c`, and either `--code` or `--sec`. Optional `--limit N`. |
 | `hook attach ...` | — | see below | Full C program on the agent: `--attach` (same formats as `hook add --point`), **`--file /abs/path.c`** *or* **`--source '…'`**, optional **`--program`** ELF program name. Use this for custom `SEC("…")` and maps (same path as gRPC `CompileAndAttach`). |
@@ -38,7 +38,14 @@ Commands are sent as a single line via `Execute(session_id, command_line)`. The 
 - **Fields for `--sec` (all attach points):** `pid`, `tgid`, `cpu`, `arg0`…`arg5`, `ret`.
 - **Socket fields (only for `kprobe:tcp_sendmsg` and `kprobe:tcp_recvmsg`):** `sport`, `dport`, `saddr`, `daddr`. Using these on any other attach point returns an error. Example: `hook add --point kprobe:tcp_sendmsg --lang c --sec "sport==22 or dport==22" --limit 2`.
 - **Tracepoint template:** Handler receives `void *ctx`; `arg0`…`arg5` are zero unless your `--code` reads the tracepoint payload from `ctx`.
-- Hook events are merged into the session event stream.
+- Hook events (including those backing `break` / `tbreak`) are merged into the session event stream; they drive `print`, `trace`, and `watch` the same way as legacy prebuilt kprobe hits when that path is loaded.
+
+## Typical scenarios (capability bounds)
+
+- **Tcpdump-style L4:** `break tcp_sendmsg` or `hook add --point kprobe:tcp_sendmsg --lang c --sec "sport==22 or dport==22"`, plus `trace pid tgid sport dport` for per-hit columns. Socket fields `sport`/`dport`/`saddr`/`daddr` apply only to `kprobe:tcp_sendmsg` and `kprobe:tcp_recvmsg` in `--sec` (see above). Automated e2e: `test/e2e/tcpdump_style_test.go` (set `E2E_NETWORK=1`).
+- **Hook + trace on stream:** Full path `hook add` (tracepoint) → `trace pid tgid` → gRPC `StreamEvents` must yield `EVENT_TYPE_TRACE_SAMPLE` with `pid=` / `tgid=` in the payload. Automated e2e: `TestE2EHookAddTraceSampleStream` in `test/e2e/scenarios_test.go` (set `E2E_SCENARIOS=1`, same agent/BPF prerequisites as other scenario tests).
+- **L7 / request context:** Usually needs **user-space** uprobes (e.g. libc/TLS) via `hook add --point uprobe:…` or **`hook attach`** with custom C and maps; raw `tcp_*` kprobes often see buffer pointers, not HTTP text.
+- **TC (traffic control), XDP, clsact:** **Not** supported as `hook add --point tc:…` today; attach kinds are `kprobe`, `tracepoint`, `uprobe`, `uretprobe` only. Extending the loader would be a separate change; until then use **`hook attach`** only if your program attaches to a **supported** hook type.
 
 ## hook attach (details)
 
@@ -69,7 +76,7 @@ Built-in names: `pid`, `tgid`, `comm`, `cpu`, `arg0` … `arg5`, `ret`. Values a
 - `missing session_id` — request had no session.
 - `session not found` — session was closed or never created.
 - `rate limited` — per-session rate limit exceeded.
-- `quota: max breakpoints reached` — session breakpoint quota exceeded (and similar for trace/hook).
+- `quota: max breakpoints reached` / `quota: max hooks reached` — `break` / `tbreak` reserve **both** a breakpoint and a hook slot when quotas are enabled (and similar messages for trace-only or hook-only limits).
 - `break: missing symbol` — break command had no argument.
 - `hook add: missing --code or --sec` — neither `--code` nor `--sec` was given.
 - `hook add: cannot use both --code and --sec (use one)` — both were given.

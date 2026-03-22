@@ -116,6 +116,9 @@ func (s *debuggerServer) Execute(ctx context.Context, req *proto.ExecuteRequest)
 	if err != nil {
 		return nil, err
 	}
+	if s.cfg != nil && s.cfg.quota != nil && !resp.GetOk() {
+		rollbackBreakTbreakQuota(s.cfg.quota, sid, line)
+	}
 	IncCommandsTotal(sid, resp.GetOk())
 	if s.cfg != nil && s.cfg.audit != nil {
 		errMsg := resp.GetErrorMessage()
@@ -252,9 +255,13 @@ func checkQuota(q *SessionQuota, sessionID, line string) string {
 	}
 	verb := strings.ToLower(parts[0])
 	switch verb {
-	case "break", "b":
+	case "break", "b", "tbreak":
 		if !q.AllowBreak(sessionID) {
 			return "quota: max breakpoints reached"
+		}
+		if !q.AllowHook(sessionID) {
+			q.RemoveBreak(sessionID)
+			return "quota: max hooks reached"
 		}
 	case "trace", "t":
 		if !q.AllowTrace(sessionID) {
@@ -273,4 +280,17 @@ func checkQuota(q *SessionQuota, sessionID, line string) string {
 		}
 	}
 	return ""
+}
+
+// rollbackBreakTbreakQuota reverses pre-reserved break+hook quota when execute fails after checkQuota.
+func rollbackBreakTbreakQuota(q *SessionQuota, sessionID, line string) {
+	parts := strings.Fields(line)
+	if len(parts) == 0 {
+		return
+	}
+	switch strings.ToLower(parts[0]) {
+	case "break", "b", "tbreak":
+		q.RemoveBreak(sessionID)
+		q.RemoveHook(sessionID)
+	}
 }

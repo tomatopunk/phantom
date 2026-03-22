@@ -26,7 +26,7 @@ import (
 
 func TestReplVerbAliases(t *testing.T) {
 	exec := newCommandExecutor("", "", nil, nil, nil)
-	mgr := session.NewManager("")
+	mgr := session.NewManager("", nil)
 	sess, _ := mgr.GetOrCreate(context.Background(), "alias-test")
 	ctx := context.Background()
 

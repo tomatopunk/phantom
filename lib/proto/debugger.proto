@@ -28,6 +28,8 @@ service DebuggerService {
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
   rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
   rpc CompileAndAttach(CompileAndAttachRequest) returns (CompileAndAttachResponse);
+  // PreviewHookTemplate expands --sec (or inline code) into full template C and optionally runs clang (no attach, no quota).
+  rpc PreviewHookTemplate(PreviewHookTemplateRequest) returns (PreviewHookTemplateResponse);
   rpc ListTracepoints(ListTracepointsRequest) returns (ListTracepointsResponse);
   rpc ListKprobeSymbols(ListKprobeSymbolsRequest) returns (ListKprobeSymbolsResponse);
   rpc ListUprobeSymbols(ListUprobeSymbolsRequest) returns (ListUprobeSymbolsResponse);
@@ -149,6 +151,23 @@ message CompileAndAttachResponse {
   string attach_point = 4;
   repeated CompileDiagnostic diagnostics = 5;
   string compiler_output = 6;  // full stderr for detail panel
+}
+
+message PreviewHookTemplateRequest {
+  string session_id = 1;
+  string attach_point = 2;     // e.g. kprobe:do_sys_open
+  string sec_expression = 3;   // filter DSL; empty if using code_snippet
+  string code_snippet = 4;     // raw C snippet body; empty if using sec_expression
+}
+
+message PreviewHookTemplateResponse {
+  bool ok = 1;
+  string error_message = 2;
+  string generated_source_c = 3;
+  bool compile_attempted = 4;
+  bool compile_ok = 5;
+  string compiler_output = 6;
+  repeated CompileDiagnostic diagnostics = 7;
 }
 
 message ListTracepointsRequest {

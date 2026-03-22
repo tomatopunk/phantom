@@ -26,11 +26,13 @@ type Manager struct {
 	mu         sync.RWMutex
 	byID       map[string]*Session
 	kprobePath string
+	quotaSink  SessionQuotaSink
 }
 
 // NewManager returns a session manager; kprobePath is used when creating new sessions for real eBPF load.
-func NewManager(kprobePath string) *Manager {
-	return &Manager{byID: make(map[string]*Session), kprobePath: kprobePath}
+// quotaSink may be nil (tests); when set, sessions release hook/break quota on detach.
+func NewManager(kprobePath string, quotaSink SessionQuotaSink) *Manager {
+	return &Manager{byID: make(map[string]*Session), kprobePath: kprobePath, quotaSink: quotaSink}
 }
 
 // GetOrCreate returns an existing session by id or creates a new one.
@@ -40,7 +42,7 @@ func (m *Manager) GetOrCreate(_ context.Context, id string) (*Session, error) {
 	if s, ok := m.byID[id]; ok {
 		return s, nil
 	}
-	s := NewSession(id, m.kprobePath)
+	s := NewSession(id, m.kprobePath, m.quotaSink)
 	m.byID[id] = s
 	return s, nil
 }

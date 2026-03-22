@@ -24,6 +24,10 @@ type BreakpointState struct {
 	Enabled   bool
 	IsTemp    bool
 	Condition string // optional expr; when set, event is only reported if condition passes (evaluated later)
+	// HookID is set when this breakpoint uses a template kprobe hook (break/tbreak path); empty after disable.
+	HookID string
+	// KprobeHook is true when the breakpoint was created via break/tbreak (template hook); used to re-enable after disable.
+	KprobeHook bool
 }
 
 // TraceState holds one trace's expressions and optional detach.

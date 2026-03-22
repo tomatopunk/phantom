@@ -85,3 +85,22 @@ export type CompileHookResult = {
 export function compileHook(source: string, attach: string, programName: string) {
   return invoke<CompileHookResult>("compile_hook", { source, attach, programName });
 }
+
+export type HookTemplatePreview = {
+  ok: boolean;
+  error_message: string;
+  generated_source_c: string;
+  compile_attempted: boolean;
+  compile_ok: boolean;
+  compiler_output: string;
+  diagnostics: CompileDiagnostic[];
+};
+
+/** Expands template --sec to full C on the agent; optional clang when bpf-include is configured. Does not attach. */
+export function previewHookTemplate(attachPoint: string, secExpression: string, codeSnippet: string) {
+  return invoke<HookTemplatePreview>("preview_hook_template", {
+    attachPoint,
+    secExpression,
+    codeSnippet,
+  });
+}

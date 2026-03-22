@@ -23,10 +23,10 @@ import (
 )
 
 func TestRemoveTemporaryBreakpointsOnHit(t *testing.T) {
-	sess := NewSession("test", "")
+	sess := NewSession("test", "", nil)
 	// Add one normal and one temporary breakpoint (detach can be nil for test).
-	idPerm := sess.AddBreakpoint("do_sys_open", nil, false)
-	idTemp := sess.AddBreakpoint("other_sym", nil, true)
+	idPerm := sess.AddBreakpoint("do_sys_open", nil, false, "")
+	idTemp := sess.AddBreakpoint("other_sym", nil, true, "")
 
 	list := sess.ListBreakpoints()
 	if len(list) != 2 {
@@ -51,40 +51,40 @@ func TestShouldReportBreakHit(t *testing.T) {
 	ev := &runtime.Event{PID: 1, Tgid: 1, CPU: 0}
 
 	// No breakpoints -> report
-	sess := NewSession("test", "")
-	if !sess.ShouldReportBreakHit(ev) {
+	sess := NewSession("test", "", nil)
+	if !sess.ShouldReportBreakHit(ev, "") {
 		t.Error("no breakpoints: should report")
 	}
 
 	// One breakpoint, no condition -> report
-	sess.AddBreakpoint("sym", nil, false)
-	if !sess.ShouldReportBreakHit(ev) {
+	sess.AddBreakpoint("sym", nil, false, "")
+	if !sess.ShouldReportBreakHit(ev, "") {
 		t.Error("one bp no condition: should report")
 	}
 
 	// One breakpoint, condition passes (pid 1)
-	sess2 := NewSession("test2", "")
-	sess2.AddBreakpoint("sym", nil, false)
+	sess2 := NewSession("test2", "", nil)
+	sess2.AddBreakpoint("sym", nil, false, "")
 	sess2.SetBreakpointCondition("bp-1", "pid")
-	if !sess2.ShouldReportBreakHit(ev) {
+	if !sess2.ShouldReportBreakHit(ev, "") {
 		t.Error("condition pid with ev.PID=1: should report")
 	}
 
 	// One breakpoint, condition fails (pid 1 but we check cpu)
-	sess3 := NewSession("test3", "")
-	sess3.AddBreakpoint("sym", nil, false)
+	sess3 := NewSession("test3", "", nil)
+	sess3.AddBreakpoint("sym", nil, false, "")
 	sess3.SetBreakpointCondition("bp-1", "cpu") // cpu=0 is false
-	if sess3.ShouldReportBreakHit(ev) {
+	if sess3.ShouldReportBreakHit(ev, "") {
 		t.Error("condition cpu=0: should not report")
 	}
 }
 
 func TestDisableEnableBreakpointReattach(t *testing.T) {
 	// Session without runtime (empty kprobe path): enable after disable cannot re-attach.
-	sess := NewSession("test", "")
+	sess := NewSession("test", "", nil)
 	detachCalled := false
 	detach := func() { detachCalled = true }
-	id := sess.AddBreakpoint("do_sys_open", detach, false)
+	id := sess.AddBreakpoint("do_sys_open", detach, false, "")
 
 	if !sess.DisableBreakpoint(id) {
 		t.Fatal("disable should succeed")

@@ -80,20 +80,20 @@ func zeroArgInit() string {
 	return "\tlong arg0 = 0, arg1 = 0, arg2 = 0, arg3 = 0, arg4 = 0, arg5 = 0;\n\tlong ret = 0;\n"
 }
 
-// Compile compiles the C snippet into an eBPF .o file with a timeout and size limit.
-func Compile(ctx context.Context, snippet, attachPoint, includeDir string) (CompileResult, error) {
+// BuildTemplateSource returns the full C source that Compile would pass to clang (template + snippet), without compiling.
+func BuildTemplateSource(snippet, attachPoint string) (string, error) {
 	pa, err := ParseFullAttachPoint(attachPoint)
 	if err != nil {
-		return CompileResult{}, err
+		return "", err
 	}
 	secLine, ctxDecl, argInit, err := hookVariantForPA(pa)
 	if err != nil {
-		return CompileResult{}, err
+		return "", err
 	}
 	// Sandbox: limit snippet size (e.g. 8KB).
 	const maxSnippetLen = 8192
 	if len(snippet) > maxSnippetLen {
-		return CompileResult{}, fmt.Errorf("snippet too long")
+		return "", fmt.Errorf("snippet too long")
 	}
 	prologue := PrologueC(AttachPrologueKey(attachPoint))
 	tpl := string(hookTemplate)
@@ -102,6 +102,19 @@ func Compile(ctx context.Context, snippet, attachPoint, includeDir string) (Comp
 	tpl = strings.Replace(tpl, placeholderArgInit, argInit, 1)
 	tpl = strings.Replace(tpl, placeholderPrologue, prologue, 1)
 	tpl = strings.Replace(tpl, placeholderSnippet, snippet, 1)
+	return tpl, nil
+}
+
+// Compile compiles the C snippet into an eBPF .o file with a timeout and size limit.
+func Compile(ctx context.Context, snippet, attachPoint, includeDir string) (CompileResult, error) {
+	tpl, err := BuildTemplateSource(snippet, attachPoint)
+	if err != nil {
+		return CompileResult{}, err
+	}
+	pa, err := ParseFullAttachPoint(attachPoint)
+	if err != nil {
+		return CompileResult{}, err
+	}
 	dir, err := os.MkdirTemp("", "phantom-hook-")
 	if err != nil {
 		return CompileResult{}, err

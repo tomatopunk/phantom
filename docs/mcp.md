@@ -24,3 +24,5 @@ MCP over **stdin/stdout** uses the same session model as gRPC. Tools that run co
 Numeric arguments may be JSON numbers (e.g. `max_entries`).
 
 REPL equivalents for `run_command` / `add_c_hook`: [command-spec.md](command-spec.md). `compile_and_attach` vs template hooks: [ebpf-parameters.md](ebpf-parameters.md).
+
+`trace` / `watch` apply to **both** prebuilt kprobe hits (`break`) and **`hook add` / `hook attach`** events: each probe event updates the session’s last-event context and can emit `TRACE_SAMPLE` / `STATE_CHANGE` derivatives. Use `info session` for counts (`hooks=`, etc.).

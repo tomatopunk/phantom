@@ -19,15 +19,16 @@
 import type { TFunction } from "i18next";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
-export type ToolSection = "overview" | "discover" | "session" | "console" | "hook";
+export type ToolSection = "overview" | "discover" | "probeRun" | "session" | "console" | "hook";
 
 type Props = {
   t: TFunction;
-  /** Controlled sidebar tool (metrics / discover / session / console / hook). */
+  /** Controlled sidebar tool (metrics / discover / probe run / session / console / hook). */
   sidebarSection: ToolSection;
   onSidebarSectionChange: (s: ToolSection) => void;
   overview: React.ReactNode;
   discover: React.ReactNode;
+  probeRun: React.ReactNode;
   session: React.ReactNode;
   repl: React.ReactNode;
   hook: React.ReactNode;
@@ -37,6 +38,7 @@ type Props = {
 const NAV: { id: ToolSection; labelKey: string }[] = [
   { id: "overview", labelKey: "sidebar.nav.overview" },
   { id: "discover", labelKey: "sidebar.nav.discover" },
+  { id: "probeRun", labelKey: "sidebar.nav.probeRun" },
   { id: "session", labelKey: "sidebar.nav.session" },
   { id: "console", labelKey: "sidebar.nav.console" },
   { id: "hook", labelKey: "sidebar.nav.hook" },
@@ -48,6 +50,7 @@ export function AppShell({
   onSidebarSectionChange: setTool,
   overview,
   discover,
+  probeRun,
   session,
   repl,
   hook,
@@ -58,11 +61,13 @@ export function AppShell({
       ? overview
       : tool === "discover"
         ? discover
-        : tool === "session"
-          ? session
-          : tool === "console"
-            ? repl
-            : hook;
+        : tool === "probeRun"
+          ? probeRun
+          : tool === "session"
+            ? session
+            : tool === "console"
+              ? repl
+              : hook;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
@@ -117,6 +122,18 @@ function SidebarGlyph({ kind, active }: { kind: ToolSection; active: boolean }) 
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
           <circle cx="10.5" cy="10.5" r="5.5" stroke={stroke} strokeWidth={sw} />
           <path d="M15 15L20 20" stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+        </svg>
+      );
+    case "probeRun":
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M8 5v14l11-7-11-7z"
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinejoin="round"
+            fill="none"
+          />
         </svg>
       );
     case "session":

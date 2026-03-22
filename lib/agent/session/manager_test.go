@@ -22,7 +22,7 @@ import (
 )
 
 func TestManagerGetOrCreateAndClose(t *testing.T) {
-	mgr := NewManager("")
+	mgr := NewManager("", nil)
 	ctx := context.Background()
 	s1, err := mgr.GetOrCreate(ctx, "s1")
 	if err != nil {

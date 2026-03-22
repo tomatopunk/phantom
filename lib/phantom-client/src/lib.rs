@@ -28,7 +28,7 @@ pub use phantom::api::{
     GetHostMetricsRequest, GetHostMetricsResponse, GetTaskTreeRequest, GetTaskTreeResponse,
     InspectElfRequest, ListHookMapsRequest, ListHookMapsResponse, ListKprobeSymbolsRequest,
     ListSessionsRequest, ListTracepointsRequest, ListUprobeSymbolsRequest, OpenSessionRequest,
-    OpenSessionResponse, PreviewHookTemplateRequest, PreviewHookTemplateResponse, ReadHookMapRequest,
+    OpenSessionResponse, ReadHookMapRequest,
     ReadHookMapResponse, StreamEventsRequest, ValidateCompileSourceRequest,
     ValidateCompileSourceResponse,
 };
@@ -215,6 +215,7 @@ impl PhantomClient {
         source: &str,
         attach: &str,
         program_name: &str,
+        limit: u32,
     ) -> Result<CompileAndAttachResponse, tonic::Status> {
         if self.session_id.is_empty() {
             return Err(tonic::Status::failed_precondition("not connected"));
@@ -225,26 +226,7 @@ impl PhantomClient {
                 source: source.to_string(),
                 attach: attach.to_string(),
                 program_name: program_name.to_string(),
-            })))
-            .await
-            .map(|r| r.into_inner())
-    }
-
-    pub async fn preview_hook_template(
-        &mut self,
-        attach_point: &str,
-        sec_expression: &str,
-        code_snippet: &str,
-    ) -> Result<PreviewHookTemplateResponse, tonic::Status> {
-        if self.session_id.is_empty() {
-            return Err(tonic::Status::failed_precondition("not connected"));
-        }
-        self.inner
-            .preview_hook_template(self.with_auth(Request::new(PreviewHookTemplateRequest {
-                session_id: self.session_id.clone(),
-                attach_point: attach_point.to_string(),
-                sec_expression: sec_expression.to_string(),
-                code_snippet: code_snippet.to_string(),
+                limit,
             })))
             .await
             .map(|r| r.into_inner())

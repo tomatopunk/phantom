@@ -1,41 +1,29 @@
 # eBPF hooks: parameters and extension strategies
 
-How **user-visible parameters** reach BPF programs, and how **`hook add --sec`** differs from BPF **`SEC("…")`**. REPL syntax: [command-spec.md](command-spec.md).
+How **user-visible parameters** reach BPF programs. REPL syntax: [command-spec.md](command-spec.md).
 
-## Two meanings of “sec”
+## BPF `SEC("…")` (ELF section)
 
-| Term | What it is |
-|------|------------|
-| **`hook add --sec`** | A small **condition DSL** (e.g. `pid==123 and arg0==0xff`). The agent turns it into a C `if (!cond) return 0;` in front of your `--code` snippet (or alone as the snippet body). It does **not** set the ELF section name. |
-| **BPF `SEC("…")`** | The **ELF section** that libbpf-style loaders use to classify programs (`kprobe`, `tracepoint/...`, `uprobe`, etc.). In the template path this is **generated for you** from `--point`. For full control, use **`break`**, **`hook attach`**, or **`CompileAndAttach`** with your own C source (same compile path; `break` also registers breakpoint state). |
+**`SEC("…")` in your C source** is the **ELF section** that libbpf-style loaders use to classify programs (`kprobe/…`, `tracepoint/…`, `uprobe`, etc.). You set it explicitly in every program loaded via **`break`**, **`hook attach`**, or gRPC **`CompileAndAttach`**.
 
-## Strategies for “parameters”
+There is **no** separate REPL “filter DSL” for hooks; express conditions in C (maps, CO-RE reads, early `return 0`, etc.).
 
-### 1. Template hook + `--sec` DSL (narrow, safe)
+## Full C: `break` / `hook attach` / `CompileAndAttach`
 
-- **Fields:** `pid`, `tgid`, `cpu`, `arg0`…`arg5`, `ret`, plus symbol-specific extras registered via **`hook.RegisterPrologue`** (see [`lib/agent/hook/prologue.go`](../lib/agent/hook/prologue.go)).
-- **Literals:** Decimal integers and **`0x` / `0X` hex** (e.g. `arg0==0xff`).
-- **Best for:** Fast filters without shipping a full `.c` file.
+- You write **`SEC("…")`**, maps, CO-RE reads, and constants in C.
+- **REPL:** `break --attach <point> --file /abs/path.c [--program name] [--limit N]` or `--source '…'` (breakpoint ids); `hook attach` with the same flags except no breakpoint row.
+- **gRPC:** `CompileAndAttach` with `source`, `attach`, optional `program_name`, optional `limit`.
+- **MCP:** `compile_and_attach` — same pipeline as gRPC ([mcp.md](mcp.md)). `add_c_hook` runs **`hook attach --source …`** with full C.
 
-### 2. Full C: `break` / `hook attach` / `CompileAndAttach` (maximum control)
+## Supported attach kinds
 
-- You write **`SEC("…")`**, maps, CO-RE reads, and any constants in C.
-- **REPL:** `break --attach <point> --file /abs/path.c [--program name]` or `--source '…'` (breakpoint ids); or `hook attach` with the same flags (hook list only).
-- **gRPC:** `CompileAndAttach` with `source`, `attach`, optional `program_name`.
-- **MCP:** `compile_and_attach` — same pipeline as gRPC ([mcp.md](mcp.md)).
-- **Best for:** Custom sections, tracepoint-specific `ctx` layout, BPF maps, and production-style programs.
-
-### 3. Runtime tunables (future / optional)
-
-- A **BPF map** (e.g. `config`) filled by the agent before attach would allow changing behavior per session without recompiling. This is **not** implemented in the agent today; the extension point would be new CLI/proto fields plus `Map.Update` after `NewCollection`.
-
-## `hook add --point` attach kinds
-
-Template compilation now supports:
+The loader accepts:
 
 - `kprobe:symbol`
 - `tracepoint:subsystem:event` (subsystem and event names: letters, digits, underscore only)
 - `uprobe:/absolute/path:symbol`
 - `uretprobe:/absolute/path:symbol`
 
-Tracepoint templates use `void *ctx` and zero `arg0`…`arg5` unless your `--code` reads from `ctx`. Kprobe/uprobe templates use `struct pt_regs *ctx` and `PT_REGS_PARM*`.
+## Runtime tunables (future / optional)
+
+A **BPF map** (e.g. `config`) filled by the agent before attach could allow changing behavior per session without recompiling. This is **not** implemented in the agent today; the extension point would be new CLI/proto fields plus `Map.Update` after `NewCollection`.

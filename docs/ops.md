@@ -55,7 +55,7 @@ Another process is using the listen port. Change `ListenAddr` or stop the other 
 
 ### Agent: hook compile / CO-RE or missing BTF
 
-- **`hook add` CO-RE** needs **kernel BTF**. If `/sys/kernel/btf/vmlinux` is missing (common on stripped or self-built kernels), set **`-vmlinux`** or **`PHANTOM_VMLINUX`** to a **vmlinux** ELF with `.BTF` for the **running** kernel, or install a distro **debug** kernel image. Agent also probes `/boot/vmlinux-$(uname -r)`, `/usr/lib/debug/boot/...`, and `/lib/modules/$(uname -r)/build/vmlinux` automatically.
+- **`hook attach` / `break` CO-RE** needs **kernel BTF**. If `/sys/kernel/btf/vmlinux` is missing (common on stripped or self-built kernels), set **`-vmlinux`** or **`PHANTOM_VMLINUX`** to a **vmlinux** ELF with `.BTF` for the **running** kernel, or install a distro **debug** kernel image. Agent also probes `/boot/vmlinux-$(uname -r)`, `/usr/lib/debug/boot/...`, and `/lib/modules/$(uname -r)/build/vmlinux` automatically.
 - Details: **[vmlinux.md](vmlinux.md)**.
 
 ### Rate limited / quota

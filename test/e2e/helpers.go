@@ -145,7 +145,7 @@ func StartAgent(t *testing.T, agentBin, kprobeObj, listenAddr string) *exec.Cmd 
 	return StartAgentWithBpfInclude(t, agentBin, kprobeObj, listenAddr, "")
 }
 
-// StartAgentWithBpfInclude starts the agent with kprobe and optional -bpf-include (needed for hook add / tracepoint / uprobe compile).
+// StartAgentWithBpfInclude starts the agent with kprobe and optional -bpf-include (needed for hook attach / tracepoint / uprobe compile).
 func StartAgentWithBpfInclude(t *testing.T, agentBin, kprobeObj, listenAddr, bpfIncludeDir string) *exec.Cmd {
 	t.Helper()
 	args := []string{"-listen", listenAddr, "-kprobe", kprobeObj}

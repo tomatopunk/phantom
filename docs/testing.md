@@ -89,7 +89,7 @@ E2E_HTTP10=1 E2E_NETWORK=1 E2E_SCENARIOS=1 go test -v ./test/e2e/ -run 'Test(Htt
 
 - **Network:** `tcp_sendmsg` (HTTP/1.0, HTTP/1.1, raw TCP) and **`tcp_recvmsg`** (client receives a response body).
 - **Files:** kprobe break on **`do_sys_open` / `do_sys_openat2`** (best-effort symbol from kallsyms) plus a local `Open`.
-- **Process:** **`tracepoint:sched:sched_process_fork`** via `hook add` (needs agent `-bpf-include`); triggers a child process.
+- **Process:** **`tracepoint:sched:sched_process_fork`** via `CompileAndAttach` / full C hook (needs agent `-bpf-include`); triggers a child process.
 - **User space:** **`uprobe`** on `phantom_e2e_marker` in [`test/e2e/uprobe_helper`](../test/e2e/uprobe_helper) (build with `make build-uprobe-e2e-helper`, or set `E2E_UPROBE_HELPER` to the binary path).
 
 Requires Linux, built `phantom-agent`, and `minikprobe.o` at the default path (or set `E2E_AGENT_BIN` / `E2E_KPROBE` / `PHANTOM_KPROBE` — see [`test/e2e/helpers.go`](../test/e2e/helpers.go)). Some scenarios skip if attach/compile fails (kernel variance).
@@ -143,15 +143,14 @@ phantom> info break
 
 **Useful event fields:** `EVENT_TYPE_BREAK_HIT`, `pid`, `tgid`, `cpu`, `probe_id`, `timestamp_ns`.
 
-## Port filtering with `hook add --sec`
+## Port filtering on TCP kprobes
 
-On `kprobe:tcp_sendmsg` and `kprobe:tcp_recvmsg`, socket fields `sport`, `dport`, `saddr`, and `daddr` are available in `--sec`. Optional `--limit N` detaches after N events.
+Filter by L4 in your **full C** (CO-RE reads on `struct sock`, etc.), then `trace` for columns. `hook attach --limit N` auto-detaches after N events.
 
-Example (SSH port, stop after two hits):
+Example shape (source on the agent as a `.c` file):
 
 ```
-phantom> hook add --point kprobe:tcp_sendmsg --lang c --sec "sport==22 or dport==22" --limit 2
-phantom> hook add --point kprobe:tcp_recvmsg --lang c --sec "sport==22 or dport==22" --limit 2
+phantom> hook attach --attach kprobe:tcp_sendmsg --file /tmp/tcp_hook.c --limit 2
 ```
 
 ## Go e2e: tcpdump-style tests only

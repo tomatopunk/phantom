@@ -26,7 +26,7 @@ import (
 
 type fakeMCPBackend struct {
 	executeFn           func(ctx context.Context, sessionID, commandLine string) (*proto.ExecuteResponse, error)
-	compileAndAttachFn  func(ctx context.Context, sessionID, source, attach, programName string) (*proto.CompileAndAttachResponse, error)
+	compileAndAttachFn  func(ctx context.Context, sessionID, source, attach, programName string, limit uint32) (*proto.CompileAndAttachResponse, error)
 	listTracepointsFn   func(ctx context.Context, prefix string, maxEntries uint32) ([]string, error)
 	listKprobeSymbolsFn func(ctx context.Context, prefix string, maxEntries uint32) ([]string, error)
 }
@@ -55,10 +55,10 @@ func (*fakeMCPBackend) ListHooks(context.Context, string) (string, error) {
 }
 
 func (f *fakeMCPBackend) CompileAndAttach(
-	ctx context.Context, sessionID, source, attach, programName string,
+	ctx context.Context, sessionID, source, attach, programName string, limit uint32,
 ) (*proto.CompileAndAttachResponse, error) {
 	if f.compileAndAttachFn != nil {
-		return f.compileAndAttachFn(ctx, sessionID, source, attach, programName)
+		return f.compileAndAttachFn(ctx, sessionID, source, attach, programName, limit)
 	}
 	return &proto.CompileAndAttachResponse{Ok: true, HookId: "h1", AttachPoint: attach}, nil
 }
@@ -127,7 +127,7 @@ func TestCompileAndAttachToolSuccessJSON(t *testing.T) {
 
 func TestCompileAndAttachToolLogicalError(t *testing.T) {
 	s := NewServer(&fakeMCPBackend{
-		compileAndAttachFn: func(_ context.Context, _, _, _, _ string) (*proto.CompileAndAttachResponse, error) {
+		compileAndAttachFn: func(_ context.Context, _, _, _, _ string, _ uint32) (*proto.CompileAndAttachResponse, error) {
 			return &proto.CompileAndAttachResponse{Ok: false, ErrorMessage: "compile bad"}, nil
 		},
 	})

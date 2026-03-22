@@ -114,9 +114,9 @@ func serveHTTP10WithBody(t *testing.T, lis net.Listener) {
 
 // TestTcpdumpStyleTcpRecvmsg asserts break hit on tcp_recvmsg when the client receives a response body.
 func TestTcpdumpStyleTcpRecvmsg(t *testing.T) {
-	agentBin, kprobeObj := requireE2ENetwork(t)
+	agentBin, kprobeObj, bpfInc := requireE2ENetwork(t)
 	agentAddr := "127.0.0.1:19097"
-	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
+	agentCmd := StartAgentWithBpfInclude(t, agentBin, kprobeObj, agentAddr, bpfInc)
 	defer StopAgentProcess(agentCmd)
 
 	var lc net.ListenConfig
@@ -138,12 +138,12 @@ func TestTcpdumpStyleTcpRecvmsg(t *testing.T) {
 	if _, cerr := c.Connect(ctx, ""); cerr != nil {
 		t.Fatalf("connect: %v", cerr)
 	}
-	br, err := c.Execute(ctx, `hook add --point kprobe:tcp_recvmsg --lang c --sec "pid>=0"`)
+	cr, err := c.CompileAndAttach(ctx, MinimalKprobeRingbufC("tcp_recvmsg"), "kprobe:tcp_recvmsg", "", 0)
 	if err != nil {
-		t.Fatalf("hook add tcp_recvmsg: %v", err)
+		t.Fatalf("CompileAndAttach tcp_recvmsg: %v", err)
 	}
-	if !br.GetOk() {
-		t.Fatalf("hook add tcp_recvmsg: %s", br.GetErrorMessage())
+	if !cr.GetOk() {
+		t.Fatalf("CompileAndAttach tcp_recvmsg: %s", cr.GetErrorMessage())
 	}
 
 	trigger := func() {
@@ -159,10 +159,10 @@ func TestTcpdumpStyleTcpRecvmsg(t *testing.T) {
 
 // TestE2EOpenBreak attaches a breakpoint on the best-effort open syscall symbol and triggers a local open.
 func TestE2EOpenBreak(t *testing.T) {
-	_, agentBin, kprobeObj, _ := requireE2EScenarios(t)
+	_, agentBin, kprobeObj, bpfInc := requireE2EScenarios(t)
 	sym := pickOpenKprobeSymbol(t)
 	agentAddr := "127.0.0.1:19098"
-	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
+	agentCmd := StartAgentWithBpfInclude(t, agentBin, kprobeObj, agentAddr, bpfInc)
 	defer StopAgentProcess(agentCmd)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -175,12 +175,12 @@ func TestE2EOpenBreak(t *testing.T) {
 	if _, cerr := c.Connect(ctx, ""); cerr != nil {
 		t.Fatalf("connect: %v", cerr)
 	}
-	resp, err := c.Execute(ctx, fmt.Sprintf(`hook add --point kprobe:%s --lang c --sec "pid>=0"`, sym))
+	cr, err := c.CompileAndAttach(ctx, MinimalKprobeRingbufC(sym), fmt.Sprintf("kprobe:%s", sym), "", 0)
 	if err != nil {
-		t.Fatalf("hook add: %v", err)
+		t.Fatalf("CompileAndAttach: %v", err)
 	}
-	if !resp.GetOk() {
-		t.Fatalf("hook add kprobe:%s not attached: %s", sym, resp.GetErrorMessage())
+	if !cr.GetOk() {
+		t.Fatalf("CompileAndAttach kprobe:%s not attached: %s", sym, cr.GetErrorMessage())
 	}
 
 	tmp := filepath.Join(os.TempDir(), fmt.Sprintf("phantom-e2e-open-%d", os.Getpid()))
@@ -201,7 +201,7 @@ func TestE2EOpenBreak(t *testing.T) {
 	}
 }
 
-// TestE2EForkTracepoint uses hook add on sched_process_fork and triggers a child process.
+// TestE2EForkTracepoint uses CompileAndAttach on sched_process_fork and triggers a child process.
 func TestE2EForkTracepoint(t *testing.T) {
 	_, agentBin, kprobeObj, bpfInc := requireE2EScenarios(t)
 	agentAddr := "127.0.0.1:19099"
@@ -219,13 +219,12 @@ func TestE2EForkTracepoint(t *testing.T) {
 		t.Fatalf("connect: %v", cerr)
 	}
 
-	line := "hook add --point tracepoint:sched:sched_process_fork --lang c --code (void)0; --limit 32"
-	resp, err := c.Execute(ctx, line)
+	cr, err := c.CompileAndAttach(ctx, MinimalTracepointRingbufC, "tracepoint:sched:sched_process_fork", "", 32)
 	if err != nil {
-		t.Fatalf("hook add: %v", err)
+		t.Fatalf("CompileAndAttach: %v", err)
 	}
-	if !resp.GetOk() {
-		t.Fatalf("fork tracepoint hook: %s", resp.GetErrorMessage())
+	if !cr.GetOk() {
+		t.Fatalf("fork tracepoint hook: %s", cr.GetErrorMessage())
 	}
 
 	trigger := func() {
@@ -257,13 +256,12 @@ func TestE2EHookAddTraceSampleStream(t *testing.T) {
 		t.Fatalf("connect: %v", cerr)
 	}
 
-	hookLine := "hook add --point tracepoint:sched:sched_process_fork --lang c --code (void)0; --limit 64"
-	resp, err := c.Execute(ctx, hookLine)
+	cr, err := c.CompileAndAttach(ctx, MinimalTracepointRingbufC, "tracepoint:sched:sched_process_fork", "", 64)
 	if err != nil {
-		t.Fatalf("hook add: %v", err)
+		t.Fatalf("CompileAndAttach: %v", err)
 	}
-	if !resp.GetOk() {
-		t.Fatalf("hook add: %s", resp.GetErrorMessage())
+	if !cr.GetOk() {
+		t.Fatalf("CompileAndAttach: %s", cr.GetErrorMessage())
 	}
 
 	tr, err := c.Execute(ctx, "trace pid tgid")
@@ -316,13 +314,12 @@ func TestE2EUprobeMarker(t *testing.T) {
 	}
 
 	point := "uprobe:" + absHelper + ":phantom_e2e_marker"
-	line := "hook add --point " + point + " --lang c --code (void)0; --limit 8"
-	resp, err := c.Execute(ctx, line)
+	cr, err := c.CompileAndAttach(ctx, MinimalUprobeRingbufC, point, "uprobe_e2e_marker", 8)
 	if err != nil {
-		t.Fatalf("hook add: %v", err)
+		t.Fatalf("CompileAndAttach: %v", err)
 	}
-	if !resp.GetOk() {
-		t.Fatalf("uprobe hook: %s", resp.GetErrorMessage())
+	if !cr.GetOk() {
+		t.Fatalf("uprobe hook: %s", cr.GetErrorMessage())
 	}
 
 	trigger := func() {

@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// Package e2e: MCP tools coverage (set_breakpoint, run_command, list_sessions, list_breakpoints, list_hooks, add_c_hook).
+// Package e2e: MCP tools coverage (set_breakpoint, run_command, list_sessions, list_breakpoints, list_hooks, hook attach path).
 package e2e
 
 import (
@@ -147,8 +147,8 @@ func TestMCPListHooks(t *testing.T) {
 	_ = text
 }
 
-// TestMCPAddCHook tests add_c_hook via Execute (hook add); expect error (no bpf include dir).
-func TestMCPAddCHook(t *testing.T) {
+// TestMCPAddCHookPath tests hook attach via Execute; expect error (no bpf include dir in test server).
+func TestMCPAddCHookPath(t *testing.T) {
 	backend, cleanup := startDebuggerServerWithBackend(t)
 	defer cleanup()
 	ctx := context.Background()
@@ -156,14 +156,14 @@ func TestMCPAddCHook(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := backend.Execute(ctx, sid, "hook add --point kprobe:do_sys_open --lang c --sec pid==1")
+	resp, err := backend.Execute(ctx, sid, "hook attach --attach kprobe:do_sys_open --source 'int x=0;'")
 	if err != nil {
-		t.Fatalf("Execute hook add: %v", err)
+		t.Fatalf("Execute hook attach: %v", err)
 	}
 	if resp.GetOk() {
-		t.Error("add_c_hook: expected ok=false (no bpf include dir)")
+		t.Error("hook attach: expected ok=false (no bpf include dir)")
 	}
 	if !strings.Contains(resp.GetErrorMessage(), "include") && !strings.Contains(resp.GetErrorMessage(), "bpf") {
-		t.Logf("add_c_hook error: %s", resp.GetErrorMessage())
+		t.Logf("hook attach error: %s", resp.GetErrorMessage())
 	}
 }

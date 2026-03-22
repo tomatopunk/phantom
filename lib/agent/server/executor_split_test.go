@@ -15,8 +15,8 @@ func TestSplitCommandLine(t *testing.T) {
 		want []string
 	}{
 		{
-			`hook add --point kprobe:tcp_connect --lang c --sec "pid>0"`,
-			[]string{"hook", "add", "--point", "kprobe:tcp_connect", "--lang", "c", "--sec", "pid>0"},
+			`hook attach --attach kprobe:tcp_connect --source 'int x=0;'`,
+			[]string{"hook", "attach", "--attach", "kprobe:tcp_connect", "--source", "int x=0;"},
 		},
 		{`a b c`, []string{"a", "b", "c"}},
 		{`'one two' c`, []string{"one two", "c"}},

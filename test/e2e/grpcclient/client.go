@@ -76,6 +76,21 @@ func (c *Client) Execute(ctx context.Context, commandLine string) (*proto.Execut
 	})
 }
 
+// CompileAndAttach compiles full eBPF C on the agent and attaches (same as hook attach / gRPC).
+func (c *Client) CompileAndAttach(ctx context.Context, source, attach, programName string, limit uint32) (*proto.CompileAndAttachResponse, error) {
+	if c.sessID == "" {
+		return nil, fmt.Errorf("not connected: call Connect first")
+	}
+	ctx = c.withAuth(ctx)
+	return c.debug.CompileAndAttach(ctx, &proto.CompileAndAttachRequest{
+		SessionId:    c.sessID,
+		Source:       source,
+		Attach:       attach,
+		ProgramName:  programName,
+		Limit:        limit,
+	})
+}
+
 // StreamEvents starts streaming debug events for the current session.
 func (c *Client) StreamEvents(ctx context.Context) (proto.DebuggerService_StreamEventsClient, error) {
 	if c.sessID == "" {

@@ -24,7 +24,7 @@
 | CLI | REPL and `discover` in `src/cli` |
 | Agent API | Auth, sessions, Execute, streams, discovery, compile/attach |
 | Discovery | `lib/agent/discovery`: tracefs, kallsyms, ELF symbols |
-| Hook compile | `lib/agent/hook`: clang CO-RE, templates for `hook add`, `CompileRaw` + attach for `break` / `hook attach` / `CompileAndAttach` |
+| Hook compile | `lib/agent/hook`: clang CO-RE, `CompileRaw` + attach for `break` / `hook attach` / `CompileAndAttach` |
 | Executor | Parse line, dispatch verbs, return proto result |
 | Session | Per-session state; quota and rate limiter |
 | Probe | User-space ELF resolution for uprobes |

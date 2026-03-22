@@ -202,22 +202,13 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 		}
 		point := str("attach_point")
 		code := str("code")
-		sec := str("sec")
 		if point == "" {
 			return "", fmt.Errorf("attach_point required")
 		}
-		if code != "" && sec != "" {
-			return "", fmt.Errorf("cannot use both code and sec (use one)")
+		if code == "" {
+			return "", fmt.Errorf("code required (full eBPF C source; use compile_and_attach for gRPC-native attach)")
 		}
-		if code == "" && sec == "" {
-			return "", fmt.Errorf("code or sec required")
-		}
-		var cmd string
-		if code != "" {
-			cmd = "hook add --point " + point + " --lang c --code " + quoteCode(code)
-		} else {
-			cmd = "hook add --point " + point + " --lang c --sec " + sec
-		}
+		cmd := "hook attach --attach " + point + " --source " + quoteCode(code)
 		return ExecuteCommandLine(ctx, s.backend, sid, cmd)
 	case "compile_and_attach":
 		sid := str("session_id")
@@ -233,7 +224,11 @@ func (s *Server) runTool(ctx context.Context, name string, args map[string]any) 
 			return "", fmt.Errorf("attach required")
 		}
 		programName := str("program_name")
-		resp, err := s.backend.CompileAndAttach(ctx, sid, source, attach, programName)
+		limit, err := uint32FromArgs(args, "limit", 0)
+		if err != nil {
+			return "", err
+		}
+		resp, err := s.backend.CompileAndAttach(ctx, sid, source, attach, programName, limit)
 		if err != nil {
 			return "", err
 		}

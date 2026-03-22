@@ -396,7 +396,6 @@ func (s *Session) AddHook(attachPoint string, detach func(), reader *ringbuf.Rea
 	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel stored in HookState and called when hook is removed
 	hs := &HookState{ID: id, AttachPoint: attachPoint, Detach: detach, Cancel: cancel, Limit: limit, Coll: coll}
 	if opt != nil {
-		hs.FilterExpr = opt.FilterExpr
 		hs.Note = opt.Note
 	}
 	s.hooks[id] = hs

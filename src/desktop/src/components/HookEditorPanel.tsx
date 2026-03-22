@@ -135,35 +135,8 @@ export function HookEditorPanel({
   const applyPreset = () => {
     if (!selectedPreset) return;
     setAttach(selectedPreset.attach);
-    if (selectedPreset.mode === "full_c" && selectedPreset.cTemplate) {
+    if (selectedPreset.cTemplate) {
       setSrc(selectedPreset.cTemplate);
-    }
-  };
-
-  const runTemplatePreset = async () => {
-    if (!selectedPreset || selectedPreset.mode !== "template_sec" || !selectedPreset.sec) return;
-    setBusy(true);
-    clearAgentDiagnostics();
-    try {
-      const secEsc = selectedPreset.sec.replace(/"/g, '\\"');
-      const cmd = `hook add --point ${selectedPreset.attach} --lang c --sec "${secEsc}"`;
-      await api.executeCmd(cmd);
-      onProbesChanged?.();
-    } catch (e) {
-      const msg = String(e);
-      setCompilerOut(msg);
-      setAgentProblems([
-        {
-          key: "tpl-err",
-          source: "agent",
-          line: 1,
-          column: 1,
-          message: msg,
-          detail: msg,
-        },
-      ]);
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -174,7 +147,7 @@ export function HookEditorPanel({
     setBusy(true);
     clearAgentDiagnostics();
     try {
-      const r = await api.compileHook(src, attach, programName);
+      const r = await api.compileHook(src, attach, programName, 0);
       if (r.ok) {
         if (monaco && model) monaco.editor.setModelMarkers(model, "agent", []);
         onProbesChanged?.();
@@ -250,16 +223,6 @@ export function HookEditorPanel({
         <button type="button" className="btn-app text-[10px]" disabled={!selectedPreset} onClick={applyPreset}>
           {t("hookEditor.loadPreset")}
         </button>
-        {selectedPreset?.mode === "template_sec" && (
-          <button
-            type="button"
-            disabled={!connected || busy}
-            className="btn-app text-[10px]"
-            onClick={() => void runTemplatePreset()}
-          >
-            {t("hookEditor.applyTemplate")}
-          </button>
-        )}
       </div>
       {selectedPreset && <p className="text-[10px] text-app-secondary shrink-0">{selectedPreset.description}</p>}
       <div className="flex min-h-[200px] flex-1 flex-col overflow-hidden rounded-md border border-app-separator">
@@ -296,7 +259,7 @@ export function HookEditorPanel({
           {t("hookEditor.compileAttach")}
         </button>
       </div>
-      <div className="text-[10px] text-app-secondary shrink-0">{t("hookEditor.hintSec")}</div>
+      <div className="text-[10px] text-app-secondary shrink-0">{t("hookEditor.hintCompile")}</div>
       <div className="max-h-28 overflow-auto shrink-0 rounded-md border border-app-separator bg-app-field">
         <div className="px-2 py-1 text-app-secondary text-[10px] border-b border-app-separator/60">{t("hookEditor.problems")}</div>
         {problems.length === 0 ? (

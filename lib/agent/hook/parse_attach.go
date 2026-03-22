@@ -108,21 +108,3 @@ func validateBPFTraceIdent(s, field string) error {
 	}
 	return nil
 }
-
-// AttachPrologueKey returns the symbol/event name used for RegisterPrologue / --sec extra fields.
-func AttachPrologueKey(attachPoint string) string {
-	pa, err := ParseFullAttachPoint(attachPoint)
-	if err != nil {
-		return ""
-	}
-	switch pa.Kind {
-	case AttachKprobe:
-		return strings.TrimSpace(pa.KprobeSymbol)
-	case AttachUprobe, AttachUretprobe:
-		return strings.TrimSpace(pa.UprobeSymbol)
-	case AttachTracepoint:
-		return strings.TrimSpace(pa.TraceEvent)
-	default:
-		return ""
-	}
-}

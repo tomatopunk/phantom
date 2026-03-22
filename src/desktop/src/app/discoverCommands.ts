@@ -7,9 +7,6 @@ export type DiscoverTab = "tp" | "kp" | "up";
 /** Maps to session panel categories + REPL verbs. */
 export type DiscoverProbeKind = "break" | "trace" | "hook" | "watch";
 
-/** How `hook add` supplies the template body: DSL filter vs your C snippet. */
-export type HookBodyMode = "sec" | "code";
-
 /** Payload when opening the probe run composer from discovery. */
 export type ProbeRunDraft = {
   tab: DiscoverTab;
@@ -33,13 +30,8 @@ export function escapeForShellDoubleQuotes(s: string): string {
 }
 
 export type ProbeCommandOptions = {
-  /** `--sec` DSL when hook body mode is `sec` (default pid>0). */
-  hookSec?: string;
   traceExprs?: string;
   watchExpr?: string;
-  hookBodyMode?: HookBodyMode;
-  /** Template body when `hookBodyMode === "code"` (mutually exclusive with --sec on agent). */
-  hookCodeSnippet?: string;
   /** User eBPF C for `break` / `tbreak` (CompileRaw). */
   breakUserSource?: string;
   /** Override attach point for break (default from discovery row, e.g. kprobe:sym). */
@@ -48,62 +40,146 @@ export type ProbeCommandOptions = {
   breakProgram?: string;
 };
 
-/**
- * One `hook add` line: exactly one of sec (DSL) or code (snippet), per agent rules.
- */
-export function buildHookAddCommandLine(point: string, opts: ProbeCommandOptions): string | null {
-  const mode: HookBodyMode = opts.hookBodyMode ?? "sec";
-  if (mode === "code") {
-    const c = (opts.hookCodeSnippet ?? "").trim();
-    if (!c) return null;
-    return `hook add --point ${point} --lang c --code "${escapeForShellDoubleQuotes(c)}"`;
+const RINGBUF_MAP = `struct {
+\t__uint(type, BPF_MAP_TYPE_RINGBUF);
+\t__uint(max_entries, 256 * 1024);
+} events SEC(".maps");`;
+
+/** Default full-C hook for `kprobe:symbol` (ringbuf + pid). */
+export function defaultHookSourceForKprobe(symbol: string): string {
+  const sym = symbol.trim();
+  return `#include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_tracing.h>
+
+char LICENSE[] SEC("license") = "Dual BSD/GPL";
+
+struct event {
+\t__u32 pid;
+};
+
+${RINGBUF_MAP}
+
+SEC("kprobe/${sym}")
+int BPF_PROG(kprobe_hook, struct pt_regs *regs)
+{
+\tstruct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+\tif (!e)
+\t\treturn 0;
+\te->pid = bpf_get_current_pid_tgid() >> 32;
+\tbpf_ringbuf_submit(e, 0);
+\treturn 0;
+}
+`;
+}
+
+/** Default full-C hook for `tracepoint:sub:event`. */
+export function defaultHookSourceForTracepoint(sub: string, ev: string): string {
+  return `#include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_tracing.h>
+
+char LICENSE[] SEC("license") = "Dual BSD/GPL";
+
+struct event {
+\t__u32 pid;
+};
+
+${RINGBUF_MAP}
+
+SEC("tracepoint/${sub}/${ev}")
+int BPF_PROG(tp_hook, void *ctx)
+{
+\tstruct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+\tif (!e)
+\t\treturn 0;
+\te->pid = bpf_get_current_pid_tgid() >> 32;
+\tbpf_ringbuf_submit(e, 0);
+\treturn 0;
+}
+`;
+}
+
+/** Default full-C for uprobe / uretprobe (program name \`uprobe_hook\`; pick via --program if needed). */
+export const defaultHookSourceForUprobe = `#include <linux/bpf.h>
+#include <bpf/bpf_helpers.h>
+#include <bpf/bpf_tracing.h>
+
+char LICENSE[] SEC("license") = "Dual BSD/GPL";
+
+struct event {
+\t__u32 pid;
+};
+
+${RINGBUF_MAP}
+
+SEC("uprobe")
+int uprobe_hook(struct pt_regs *ctx)
+{
+\tstruct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+\tif (!e)
+\t\treturn 0;
+\te->pid = bpf_get_current_pid_tgid() >> 32;
+\tbpf_ringbuf_submit(e, 0);
+\treturn 0;
+}
+`;
+
+/** Full C source for an attach string such as \`kprobe:foo\` or \`tracepoint:a:b\`. */
+export function defaultHookSourceForAttach(attach: string): string {
+  const a = attach.trim();
+  if (a.startsWith("kprobe:")) {
+    return defaultHookSourceForKprobe(a.slice("kprobe:".length));
   }
-  const sec = (opts.hookSec ?? "pid>0").trim();
-  if (!sec) return null;
-  return `hook add --point ${point} --lang c --sec "${escapeForShellDoubleQuotes(sec)}"`;
+  if (a.startsWith("tracepoint:")) {
+    const rest = a.slice("tracepoint:".length);
+    const idx = rest.indexOf(":");
+    if (idx <= 0) return defaultHookSourceForKprobe("do_nanosleep");
+    const sub = rest.slice(0, idx);
+    const ev = rest.slice(idx + 1);
+    return defaultHookSourceForTracepoint(sub, ev);
+  }
+  if (a.startsWith("uprobe:") || a.startsWith("uretprobe:")) {
+    return defaultHookSourceForUprobe;
+  }
+  return defaultHookSourceForKprobe("do_nanosleep");
 }
 
 /**
- * Attaches a probe for the discovery row so ringbuf events are produced.
- * Used to prefix `trace` / `watch` (those verbs alone do not load eBPF).
- * Always uses **`hook add`** (never `break`) so trace/watch stay separate from breakpoint semantics.
- */
-export function buildAttachCommandForDiscoveryRow(
-  draft: ProbeRunDraft,
-  opts: ProbeCommandOptions = {},
-): string | null {
-  const trimmed = draft.line.trim();
-  if (!trimmed || trimmed === ELLIPSIS) return null;
-
-  const hookSec = opts.hookSec ?? "pid>0";
-
-  if (draft.tab === "kp") {
-    return buildHookAddCommandLine(`kprobe:${trimmed}`, { ...opts, hookBodyMode: "sec", hookSec });
-  }
-
-  if (draft.tab === "tp") {
-    const tp = parseTracepoint(trimmed);
-    if (!tp) return null;
-    return buildHookAddCommandLine(`tracepoint:${tp.sub}:${tp.ev}`, { ...opts, hookBodyMode: "sec", hookSec });
-  }
-
-  const bin = draft.binaryPath.trim() || "/bin/sh";
-  return buildHookAddCommandLine(`uprobe:${bin}:${trimmed}`, { ...opts, hookBodyMode: "sec", hookSec });
-}
-
-/**
- * Commands to run in order. For `trace` / `watch`, includes attach first, then the verb
- * (REPL accepts one line per Execute; the desktop runs these sequentially).
+ * REPL lines only (no hook attach: desktop uses compile_hook for full C).
+ * For \`trace\` / \`watch\`, returns the trace/watch command only — load the hook via compile first in the Run panel.
  */
 export function buildProbeRunLines(draft: ProbeRunDraft, opts: ProbeCommandOptions = {}): string[] {
   const primary = buildProbeCommand(draft, opts);
   if (!primary) return [];
-  if (draft.kind !== "trace" && draft.kind !== "watch") {
-    return [primary];
-  }
-  const attach = buildAttachCommandForDiscoveryRow(draft, opts);
-  if (!attach) return [primary];
-  return [attach, primary];
+  return [primary];
+}
+
+/** Whether a discovery row can use this quick action (Run panel / optional REPL). */
+export function discoveryQuickActionAvailable(
+  tab: DiscoverTab,
+  line: string,
+  _binaryPath: string,
+  kind: DiscoverProbeKind,
+): boolean {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed === ELLIPSIS) return false;
+  if (kind === "break" && (tab === "tp" || tab === "up")) return false;
+  if (tab === "tp" && !parseTracepoint(trimmed)) return false;
+  return true;
+}
+
+/**
+ * Default options so `discoveryCommandForProbe` can build a `break` REPL line for kprobe rows
+ * (full ringbuf C template). Hook/trace/watch do not need this for command text.
+ */
+export function defaultBreakOptsForDiscoveryKprobe(line: string): Pick<ProbeCommandOptions, "breakUserSource" | "breakAttach"> {
+  const sym = line.trim();
+  if (!sym || sym === ELLIPSIS) return {};
+  return {
+    breakUserSource: defaultHookSourceForKprobe(sym),
+    breakAttach: `kprobe:${sym}`,
+  };
 }
 
 export function buildProbeCommand(draft: ProbeRunDraft, opts: ProbeCommandOptions = {}): string | null {
@@ -127,10 +203,7 @@ export function buildProbeCommand(draft: ProbeRunDraft, opts: ProbeCommandOption
       return cmd;
     }
     if (draft.kind === "trace") return `trace ${traceExprs}`;
-    if (draft.kind === "hook") {
-      const line = buildHookAddCommandLine(`kprobe:${trimmed}`, opts);
-      return line;
-    }
+    if (draft.kind === "hook") return null;
     if (draft.kind === "watch") return `watch ${watchExpr}`;
     return null;
   }
@@ -140,19 +213,14 @@ export function buildProbeCommand(draft: ProbeRunDraft, opts: ProbeCommandOption
     if (!tp) return null;
     if (draft.kind === "break") return null;
     if (draft.kind === "trace") return `trace ${traceExprs}`;
-    if (draft.kind === "hook") {
-      return buildHookAddCommandLine(`tracepoint:${tp.sub}:${tp.ev}`, opts);
-    }
+    if (draft.kind === "hook") return null;
     if (draft.kind === "watch") return `watch ${watchExpr}`;
     return null;
   }
 
-  const bin = draft.binaryPath.trim() || "/bin/sh";
   if (draft.kind === "break") return null;
   if (draft.kind === "trace") return `trace ${traceExprs}`;
-  if (draft.kind === "hook") {
-    return buildHookAddCommandLine(`uprobe:${bin}:${trimmed}`, opts);
-  }
+  if (draft.kind === "hook") return null;
   if (draft.kind === "watch") return `watch ${watchExpr}`;
   return null;
 }
@@ -163,19 +231,17 @@ export function discoveryCommandForProbe(
   binaryPath: string,
   kind: DiscoverProbeKind,
 ): string | null {
-  const lines = buildProbeRunLines({ tab, line, binaryPath, kind }, {});
+  const breakDefaults = kind === "break" && tab === "kp" ? defaultBreakOptsForDiscoveryKprobe(line) : {};
+  const lines = buildProbeRunLines({ tab, line, binaryPath, kind }, breakDefaults);
   if (lines.length === 0) return null;
   return lines.join("\n");
 }
 
-/**
- * Attach point for template preview (agent PreviewHookTemplate). Null when no generated eBPF C (trace/watch).
- */
+/** Attach point for hook compile when draft is \`hook\` (not trace/watch/break). */
 export function templateAttachPointForDraft(draft: ProbeRunDraft): string | null {
   const trimmed = draft.line.trim();
   if (!trimmed || trimmed === ELLIPSIS) return null;
   if (draft.kind === "trace" || draft.kind === "watch") return null;
-  // User-program `break` does not use the hook template preview.
   if (draft.kind === "break") return null;
   if (draft.tab === "kp") {
     if (draft.kind === "hook") return `kprobe:${trimmed}`;
@@ -206,51 +272,10 @@ export function templateAttachPointForEventSource(draft: ProbeRunDraft): string 
   return `uprobe:${bin}:${trimmed}`;
 }
 
-/** Hook / compile preview attach point (includes trace/watch paired attach). */
+/** Hook compile attach point (hook row, or trace/watch paired attach). */
 export function templateAttachPointForPreview(draft: ProbeRunDraft): string | null {
   if (draft.kind === "trace" || draft.kind === "watch") {
     return templateAttachPointForEventSource(draft);
   }
   return templateAttachPointForDraft(draft);
 }
-
-/**
- * Sec expression or code snippet for PreviewHookTemplate (mutually exclusive on agent).
- */
-export function templatePreviewSecAndCode(
-  draft: ProbeRunDraft,
-  hookSec: string,
-  _breakKernelSecUnused: string,
-  hookBodyMode: HookBodyMode,
-  hookCodeSnippet: string,
-): { sec: string; code: string } {
-  if (draft.kind === "trace" || draft.kind === "watch") {
-    return { sec: hookSec.trim() || "pid>0", code: "" };
-  }
-  if (draft.kind === "break") {
-    return { sec: "", code: "" };
-  }
-  if (draft.kind === "hook") {
-    if (hookBodyMode === "code") {
-      return { sec: "", code: hookCodeSnippet };
-    }
-    return { sec: hookSec.trim() || "pid>0", code: "" };
-  }
-  return { sec: "", code: "" };
-}
-
-/** True when preview API can run (attach + sec xor code). */
-export function templatePreviewReady(
-  draft: ProbeRunDraft,
-  hookSec: string,
-  breakKernelSec: string,
-  hookBodyMode: HookBodyMode,
-  hookCodeSnippet: string,
-): boolean {
-  if (draft.kind === "break") return false;
-  const attach = templateAttachPointForPreview(draft);
-  if (!attach) return false;
-  const { sec, code } = templatePreviewSecAndCode(draft, hookSec, breakKernelSec, hookBodyMode, hookCodeSnippet);
-  return (sec !== "" && code === "") || (sec === "" && code.trim() !== "");
-}
-

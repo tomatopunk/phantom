@@ -18,145 +18,26 @@ package hook
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 )
 
-//go:embed embed/hook.c
-var hookTemplate []byte
-
-const (
-	placeholderPrologue = "{{PROLOGUE}}"
-	placeholderSnippet  = "{{SNIPPET}}"
-	placeholderSecLine  = "{{SEC_LINE}}"
-	placeholderCtxDecl  = "{{CTX_DECL}}"
-	placeholderArgInit  = "{{ARG_INIT}}"
-	ctxDeclPtRegs       = `struct pt_regs *ctx`
-)
-
 // CompileResult holds the path to the compiled .o and cleanup to remove temp dir.
-// ParsedAttach is set by Compile (template hook) for attach routing; nil for CompileRaw.
+// ParsedAttach is nil for CompileRaw (attach point is supplied separately).
 type CompileResult struct {
 	ObjectPath   string
 	ParsedAttach *ParsedAttach
 	Cleanup      func() // call when hook is detached to remove temp dir
 }
 
-func hookVariantForPA(pa *ParsedAttach) (secLine, ctxDecl, argInit string, err error) {
-	switch pa.Kind {
-	case AttachKprobe:
-		return `SEC("kprobe")`, ctxDeclPtRegs, ptRegsArgInit(), nil
-	case AttachUprobe:
-		return `SEC("uprobe")`, ctxDeclPtRegs, ptRegsArgInit(), nil
-	case AttachUretprobe:
-		return `SEC("uretprobe")`, ctxDeclPtRegs, ptRegsArgInit(), nil
-	case AttachTracepoint:
-		return fmt.Sprintf(`SEC("tracepoint/%s/%s")`, pa.TraceGroup, pa.TraceEvent), `void *ctx`, zeroArgInit(), nil
-	default:
-		return "", "", "", fmt.Errorf("internal: unknown attach kind")
-	}
-}
-
-func ptRegsArgInit() string {
-	// PT_REGS_PARM6 is missing or not CO-RE-relocatable in some libbpf/kernel pairs,
-	// which breaks loading with "unsatisfied program reference". arg0–arg4 cover most
-	// kprobes; users needing a 6th arg should use hook attach with custom C.
-	return "\tlong arg0 = PT_REGS_PARM1(ctx);\n" +
-		"\tlong arg1 = PT_REGS_PARM2(ctx);\n" +
-		"\tlong arg2 = PT_REGS_PARM3(ctx);\n" +
-		"\tlong arg3 = PT_REGS_PARM4(ctx);\n" +
-		"\tlong arg4 = PT_REGS_PARM5(ctx);\n" +
-		"\tlong arg5 = 0;\n" +
-		"\tlong ret = 0;\n"
-}
-
-func zeroArgInit() string {
-	return "\tlong arg0 = 0, arg1 = 0, arg2 = 0, arg3 = 0, arg4 = 0, arg5 = 0;\n\tlong ret = 0;\n"
-}
-
-// BuildTemplateSource returns the full C source that Compile would pass to clang (template + snippet), without compiling.
-func BuildTemplateSource(snippet, attachPoint string) (string, error) {
-	pa, err := ParseFullAttachPoint(attachPoint)
-	if err != nil {
-		return "", err
-	}
-	secLine, ctxDecl, argInit, err := hookVariantForPA(pa)
-	if err != nil {
-		return "", err
-	}
-	// Sandbox: limit snippet size (e.g. 8KB).
-	const maxSnippetLen = 8192
-	if len(snippet) > maxSnippetLen {
-		return "", fmt.Errorf("snippet too long")
-	}
-	prologue := PrologueC(AttachPrologueKey(attachPoint))
-	tpl := string(hookTemplate)
-	tpl = strings.Replace(tpl, placeholderSecLine, secLine, 1)
-	tpl = strings.Replace(tpl, placeholderCtxDecl, ctxDecl, 1)
-	tpl = strings.Replace(tpl, placeholderArgInit, argInit, 1)
-	tpl = strings.Replace(tpl, placeholderPrologue, prologue, 1)
-	tpl = strings.Replace(tpl, placeholderSnippet, snippet, 1)
-	return tpl, nil
-}
-
-// Compile compiles the C snippet into an eBPF .o file with a timeout and size limit.
-func Compile(ctx context.Context, snippet, attachPoint, includeDir string) (CompileResult, error) {
-	tpl, err := BuildTemplateSource(snippet, attachPoint)
-	if err != nil {
-		return CompileResult{}, err
-	}
-	pa, err := ParseFullAttachPoint(attachPoint)
-	if err != nil {
-		return CompileResult{}, err
-	}
-	dir, err := os.MkdirTemp("", "phantom-hook-")
-	if err != nil {
-		return CompileResult{}, err
-	}
-	srcPath := filepath.Join(dir, "hook.c")
-	const srcMode = 0o600
-	if err := os.WriteFile(srcPath, []byte(tpl), srcMode); err != nil {
-		os.RemoveAll(dir)
-		return CompileResult{}, err
-	}
-	outPath := filepath.Join(dir, "hook.o")
-	args := []string{
-		"-target", "bpf",
-		"-O2",
-		"-g", // BTF for CO-RE relocations
-	}
-	args = append(args, bpfTargetArchDefines()...)
-	args = append(args, hostClangBPFForceIncludes()...)
-	args = append(args, "-c", srcPath, "-o", outPath)
-	if includeDir != "" {
-		args = append(args, "-I", includeDir)
-	}
-	for _, inc := range hostClangBPFExtraIncludes() {
-		args = append(args, "-I", inc)
-	}
-	const compileTimeout = 30 * time.Second
-	compileCtx, cancel := context.WithTimeout(ctx, compileTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(compileCtx, "clang", args...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		os.RemoveAll(dir)
-		return CompileResult{}, &CompileFailed{Stderr: out, Err: err}
-	}
-	cleanup := func() { os.RemoveAll(dir) }
-	paCopy := *pa
-	return CompileResult{ObjectPath: outPath, ParsedAttach: &paCopy, Cleanup: cleanup}, nil
-}
-
 // MaxRawSourceLen is the maximum C source size for CompileRaw and hook attach --file.
 const MaxRawSourceLen = 256 * 1024
 
-// CompileRaw compiles a full C source file to BPF .o (CO-RE flags, same as hook template builds).
+// CompileRaw compiles a full C source file to BPF .o (CO-RE flags).
 func CompileRaw(ctx context.Context, source, includeDir string) (CompileResult, error) {
 	if len(source) > MaxRawSourceLen {
 		return CompileResult{}, fmt.Errorf("source too long (max %d bytes)", MaxRawSourceLen)

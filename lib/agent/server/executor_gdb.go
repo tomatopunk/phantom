@@ -292,7 +292,7 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
 		case "continue", "c":
 			return &proto.ExecuteResponse{Ok: true, Output: "continue  continue execution"}, nil
 		case "hook":
-			return &proto.ExecuteResponse{Ok: true, Output: "hook add ...  template BPF (--point, --sec or --code). hook attach ...  same as break (full C). hook list | hook delete <id>"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "hook attach ...  full eBPF C (same flags as break; no breakpoint id). hook list | hook delete <id>  (hook add removed)"}, nil
 		default:
 			return &proto.ExecuteResponse{Ok: true, Output: "help " + cmd + ": unknown command"}, nil
 		}
@@ -301,7 +301,7 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
   Probes:
   break, b  --attach P (--source S | --file /abs.c) [--program N] [--limit L]  user eBPF (like hook attach)
   tbreak    same; default --limit 1
-  hook add|attach|list|delete   hook add: template --point + --sec|--code; hook attach: full C; see docs/command-spec.md
+  hook attach|list|delete   hook attach: full C (--attach, --source|--file, [--program], [--limit]); see docs/command-spec.md
 
   On each probe event:
   print, p <expr>       evaluate once on last event
@@ -311,7 +311,7 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
   Breakpoint control:
   delete <id>           breakpoint / trace / watch only (hooks: hook delete <id>)
   enable|disable <id>   breakpoint only
-  condition <id> <expr> user-side filter (vs hook --sec kernel-side)
+  condition <id> <expr> user-side filter on BREAK_HIT
 
   Other:
   info break|trace|watch|hook|session

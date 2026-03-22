@@ -10,7 +10,7 @@ export type CommandSuggestResult = {
 
 const INFO_SUB = ["break", "trace", "watch", "hook", "session"];
 
-const HOOK_SUB = ["add", "attach", "delete", "list"];
+const HOOK_SUB = ["attach", "delete", "list"];
 
 const VERBS = [
   "break",
@@ -46,8 +46,8 @@ const SNIPPETS = [
   "help break",
   "help hook",
   "help trace",
-  'hook add --point kprobe:do_nanosleep --lang c --sec "pid>0"',
-  'hook add --point tracepoint:sched:sched_switch --lang c --sec "pid>0"',
+  'hook attach --attach kprobe:do_nanosleep --file /tmp/myhook.c',
+  'hook attach --attach tracepoint:sched:sched_switch --file /tmp/tp.c --limit 64',
   "hook list",
   "trace pid tgid comm",
   "watch tgid",

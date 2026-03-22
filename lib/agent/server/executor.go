@@ -34,7 +34,7 @@ type commandExecutor struct {
 	vmlinuxPath    string // optional: path to vmlinux for list disasm (Linux)
 	btfSpec        *btf.Spec
 	planner        *probe.Planner
-	quota          *SessionQuota // optional: rollback hook slot on failed hook add; decrement on delete
+	quota          *SessionQuota // optional: rollback hook slot on failed hook attach; decrement on delete
 }
 
 func newCommandExecutor(

@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -44,9 +45,11 @@ func TestHttp10CaptureE2E(t *testing.T) {
 	root := FindRepoRoot(t)
 	agentBin, kprobeObj := E2EConfig(t, root)
 	SkipIfMissing(t, agentBin, kprobeObj)
+	bpfInc := filepath.Join(root, "src", "agent", "bpf", "include")
+	SkipIfMissing(t, bpfInc)
 
 	agentAddr := "127.0.0.1:19091"
-	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
+	agentCmd := StartAgentWithBpfInclude(t, agentBin, kprobeObj, agentAddr, bpfInc)
 	defer StopAgentProcess(agentCmd)
 
 	var lc net.ListenConfig
@@ -68,12 +71,12 @@ func TestHttp10CaptureE2E(t *testing.T) {
 	if _, cerr := c.Connect(ctx, ""); cerr != nil {
 		t.Fatalf("connect: %v", cerr)
 	}
-	br, err := c.Execute(ctx, `hook add --point kprobe:tcp_sendmsg --lang c --sec "pid>=0"`)
+	cr, err := c.CompileAndAttach(ctx, MinimalKprobeRingbufC("tcp_sendmsg"), "kprobe:tcp_sendmsg", "", 0)
 	if err != nil {
-		t.Fatalf("hook add tcp_sendmsg: %v", err)
+		t.Fatalf("CompileAndAttach tcp_sendmsg: %v", err)
 	}
-	if !br.GetOk() {
-		t.Fatalf("hook add tcp_sendmsg: %s", br.GetErrorMessage())
+	if !cr.GetOk() {
+		t.Fatalf("CompileAndAttach tcp_sendmsg: %s", cr.GetErrorMessage())
 	}
 
 	trigger := func() {

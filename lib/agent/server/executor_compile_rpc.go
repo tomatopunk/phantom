@@ -85,7 +85,7 @@ func (e *commandExecutor) compileAndAttach(
 	sess *session.Session,
 	req *proto.CompileAndAttachRequest,
 ) *proto.CompileAndAttachResponse {
-	return e.tryCompileAttachHook(ctx, sess, req.GetSource(), req.GetAttach(), req.GetProgramName(), 0, "CompileAndAttach")
+	return e.tryCompileAttachHook(ctx, sess, req.GetSource(), req.GetAttach(), req.GetProgramName(), int(req.GetLimit()), "CompileAndAttach")
 }
 
 // validateCompileSource runs clang only (no attach, no quota).

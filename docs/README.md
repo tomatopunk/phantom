@@ -7,7 +7,7 @@ English technical docs for Phantom. **Scope and shipped baseline** are defined i
 | [roadmap.md](roadmap.md) | What exists today, near-term baseline (delivered), later directions |
 | [architecture.md](architecture.md) | Components and data flow |
 | [command-spec.md](command-spec.md) | REPL / `Execute` commands |
-| [ebpf-parameters.md](ebpf-parameters.md) | `--sec` DSL vs BPF `SEC`, attach kinds |
+| [ebpf-parameters.md](ebpf-parameters.md) | BPF `SEC`, attach kinds, full C hooks |
 | [mcp.md](mcp.md) | MCP stdio tools (same semantics as gRPC) |
 | [testing.md](testing.md) | Tests, e2e, BPF build notes |
 | [ops.md](ops.md) | Deploy and troubleshooting |

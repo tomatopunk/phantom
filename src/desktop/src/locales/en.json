@@ -91,7 +91,7 @@
     "prefixPh": "prefix",
     "binaryPh": "binary",
     "list": "List",
-    "hint": "List, then expand a row. Click a quick action to open “Run” (edit command, preview full template C, then execute). Shift+click still runs in the CLI immediately. Kprobe: break uses the same template path as hook add; tracepoint/uprobe: use Hook for eBPF. Trace/watch need events from a probe. Switching kind clears the selection and list.",
+    "hint": "List, then expand a row. Click a quick action to open “Run” (edit full C, compile & attach, or break/trace). Shift+click still runs in the CLI immediately. Trace/watch need a hook or break producing events. Switching kind clears the selection and list.",
     "rowExpandTitle": "Expand or collapse quick commands",
     "quick": {
       "break": "Breakpoint",
@@ -104,22 +104,20 @@
       "shiftHint": "Click: open “Run” page (preview eBPF, then execute). Shift+click: fill CLI and run immediately. Command is copied to the clipboard.",
       "ariaGroup": "Build probe command for selected row",
       "breakUnavailable": "Breakpoints only apply to kprobe kernel symbols.",
-      "invalidRow": "Cannot build this command for the row (invalid format or disconnected)."
+      "invalidRow": "Cannot build this command for the row (invalid format or disconnected).",
+      "opensRunPanel": "Opens Run — edit full C, then compile or execute.",
+      "shiftNeedsComposer": "Shift+run needs a REPL line — open Run first (Hook uses compile there)."
     }
   },
   "probeRun": {
     "title": "Run from discovery",
     "empty": "Expand a row in Discover and choose Break / Hook / Trace / Watch to compose a command here.",
     "dismiss": "Clear",
-    "hookVsBreakHint": "`hook add` uses our template (`--point`, `--sec` or `--code`). `break` compiles your full eBPF C (your `SEC`), same flags as `hook attach`, and registers breakpoint ids / condition / disable.",
-    "hookBodyMode": "Hook body",
-    "hookBodySec": "DSL filter (--sec)",
-    "hookBodyCode": "Custom C (--code)",
-    "hookSec": "Hook template filter (--sec DSL)",
-    "hookCodeSnippet": "C snippet injected into the hook template (before ringbuf output)",
-    "pairProbeSec": "Paired probe filter (--sec) for hook add before trace/watch",
-    "pairProbePreviewSec": "Paired hook filter: {{sec}}",
-    "hookPreviewCode": "Preview: custom --code snippet",
+    "hookVsBreakHint": "`hook attach` / Compile & attach: your full eBPF C (same flags as `break`). `break` also registers breakpoint ids / condition / disable.",
+    "hookAttach": "Attach (e.g. kprobe:do_sys_open)",
+    "hookProgram": "Program name (optional)",
+    "hookCompileAttach": "Compile & attach",
+    "compileAttachRun": "Compile & attach",
     "breakAttach": "Attach (--attach, e.g. kprobe:do_sys_open)",
     "breakProgram": "Program name (--program, optional)",
     "breakProgramPh": "ELF program symbol",
@@ -127,21 +125,15 @@
     "breakUserEbpfHint": "Break loads your complete C on the agent (CompileRaw). You choose SEC in source; include a ringbuf map so events stream. Optional --program selects the entry to attach.",
     "traceExprs": "Trace expressions",
     "watchExpr": "Watch expression",
-    "hookPreviewSec": "Paired hook filter (--sec): {{sec}}",
-    "traceWatchPairHint": "Trace/watch only register agent-side handlers. This run list starts with hook add on the row (including kprobe — not break), then trace or watch.",
+    "traceWatchPairHint": "Run performs compile & attach for this row first, then executes trace or watch below.",
     "multiLineConsoleClipboard": "Full multi-line script copied to clipboard. CLI shows the first line only; run the rest from the Run panel or paste.",
     "applyForm": "Apply form → command",
-    "refreshPreview": "Refresh preview",
-    "attach": "Attach",
-    "noTemplate": "No generated template C for this choice (trace/watch are agent-side only).",
+    "noTemplate": "Nothing to show for this choice.",
     "needConnect": "Connect to the agent to compile-check.",
     "tab": {
       "command": "Command",
-      "source": "Generated C",
+      "source": "Source C",
       "compile": "Clang"
-    },
-    "preview": {
-      "templateErr": "Template expansion failed"
     },
     "compile": {
       "ok": "clang: OK (object built; not loaded)",
@@ -169,9 +161,8 @@
   "hookEditor": {
     "presetPlaceholder": "Built-in preset…",
     "loadPreset": "Load",
-    "applyTemplate": "Apply template (hook add)",
     "compileAttach": "Compile & attach",
-    "hintSec": "BPF SEC(\"…\") here is the ELF section; REPL --sec is a filter DSL — see docs/command-spec.md",
+    "hintCompile": "Full C with your own SEC(\"…\"); needs a ringbuf map. Same path as REPL hook attach / gRPC CompileAndAttach.",
     "problems": "Problems",
     "noProblems": "No issues",
     "sourceLocal": "local"
@@ -180,7 +171,7 @@
     "aria": "Session probe categories",
     "title": "Session probes",
     "refresh": "Refresh",
-    "hintRepl": "break / tbreak: compile and attach your full eBPF C (--attach + --source|--file). hook add: template BPF (--point + --sec|--code). trace: after each break/hook hit, emit TRACE_SAMPLE columns. watch: STATE_CHANGE when an expression’s string value changes.",
+    "hintRepl": "break / tbreak: full eBPF C (--attach + --source|--file). hook attach: same compile path without breakpoint id. trace / watch: need a hook or break producing ringbuf events.",
     "bpEnabled": "On",
     "bpDisabled": "Off",
     "action": {
@@ -199,13 +190,13 @@
     "tabHint": {
       "break": "User eBPF: your C with SEC(\"…\"); same flags as hook attach / CompileAndAttach. condition still filters hits client-side. Commands: break, tbreak, condition, delete, enable, disable.",
       "trace": "Evaluate expressions on every probe event → TRACE_SAMPLE columns; good for tcpdump-style multi-field lines. Commands: trace, delete.",
-      "hook": "Template hook add or hook attach (same compile path as break without breakpoint id). Ringbuf events. Below: read-only BPF maps for a loaded hook id. Commands: hook add, hook attach, hook list, hook delete.",
+      "hook": "hook attach: full eBPF C (same compile path as break, no breakpoint id). Ringbuf events. Commands: hook attach, hook list, hook delete.",
       "watch": "STATE_CHANGE when an expression’s string value changes vs last (state diff; not a hardware watchpoint). Commands: watch, delete."
     }
   },
   "hookMaps": {
     "title": "BPF maps (loaded program)",
-    "hint": "Uses hook id from info hook (template hook add, hook attach, or user break load). Read-only hex dump of map entries.",
+    "hint": "Uses hook id from info hook (hook attach or break load). Read-only hex dump of map entries.",
     "hookId": "Program id",
     "hookIdPh": "e.g. h1",
     "listMaps": "List maps",
@@ -231,7 +222,7 @@
     "colPayload": "Payload",
     "emptyDisconnected": "Not connected. Connect to the agent, then click Start capture to see events here.",
     "emptyNeedCapture": "Connected, but capture is off. Click Start capture in the header to subscribe to the event stream.",
-    "emptyNoProbesYet": "Capture is on. If this stays empty, you likely have no probes attached yet:\n• “CLI”: break (your eBPF C), hook add (template), trace, watch\n• “Hook”: full C compile & attach\nThe kernel or process must actually hit those probes. L4/tcpdump-style: tcp_sendmsg/tcp_recvmsg. TC packet edit needs future attach types (not in CLI yet)."
+    "emptyNoProbesYet": "Capture is on. If this stays empty, you likely have no probes attached yet:\n• “CLI”: break (your eBPF C), hook attach, trace, watch\n• “Hook”: full C compile & attach\nThe kernel or process must actually hit those probes. L4/tcpdump-style: tcp_sendmsg/tcp_recvmsg. TC packet edit needs future attach types (not in CLI yet)."
   },
   "detail": {
     "jsonTitle": "Detail JSON",

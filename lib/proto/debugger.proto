@@ -30,8 +30,6 @@ service DebuggerService {
   rpc CompileAndAttach(CompileAndAttachRequest) returns (CompileAndAttachResponse);
   // ValidateCompileSource runs clang on source only (no attach, no quota).
   rpc ValidateCompileSource(ValidateCompileSourceRequest) returns (ValidateCompileSourceResponse);
-  // PreviewHookTemplate expands --sec (or inline code) into full template C and optionally runs clang (no attach, no quota).
-  rpc PreviewHookTemplate(PreviewHookTemplateRequest) returns (PreviewHookTemplateResponse);
   // ListHookMaps enumerates BPF maps for a loaded hook (includes user-program break loads).
   rpc ListHookMaps(ListHookMapsRequest) returns (ListHookMapsResponse);
   // ReadHookMap returns up to max_entries key/value pairs (raw bytes) from a map.
@@ -139,6 +137,7 @@ message CompileAndAttachRequest {
   string source = 2;
   string attach = 3;
   string program_name = 4;  // optional ELF section program name; if empty, first matching probe type is used
+  uint32 limit = 5;         // optional: auto-detach hook after this many events (0 = no limit)
 }
 
 // CompileDiagnostic is one clang-style diagnostic line (parsed from compiler stderr).
@@ -206,23 +205,6 @@ message ReadHookMapResponse {
   bool ok = 1;
   string error_message = 2;
   repeated MapEntry entries = 3;
-}
-
-message PreviewHookTemplateRequest {
-  string session_id = 1;
-  string attach_point = 2;     // e.g. kprobe:do_sys_open
-  string sec_expression = 3;   // filter DSL; empty if using code_snippet
-  string code_snippet = 4;     // raw C snippet body; empty if using sec_expression
-}
-
-message PreviewHookTemplateResponse {
-  bool ok = 1;
-  string error_message = 2;
-  string generated_source_c = 3;
-  bool compile_attempted = 4;
-  bool compile_ok = 5;
-  string compiler_output = 6;
-  repeated CompileDiagnostic diagnostics = 7;
 }
 
 message ListTracepointsRequest {

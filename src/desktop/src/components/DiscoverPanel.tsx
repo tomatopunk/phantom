@@ -20,6 +20,7 @@ import type { TFunction } from "i18next";
 import { useEffect, useState } from "react";
 import {
   discoveryCommandForProbe,
+  discoveryQuickActionAvailable,
   type DiscoverProbeKind,
   type ProbeRunDraft,
 } from "../app/discoverCommands";
@@ -90,8 +91,18 @@ export function DiscoverPanel({
   };
 
   const onQuick = async (line: string, kind: DiscoverProbeKind, e: { shiftKey: boolean }) => {
+    if (!discoveryQuickActionAvailable(discTab, line, discBin, kind)) return;
     const cmd = discoveryCommandForProbe(discTab, line, discBin, kind);
-    if (!cmd) return;
+    // Hook (and similar) have no one-line REPL until compile_hook in Run panel — still open composer.
+    if (!cmd) {
+      if (e.shiftKey) {
+        showFlash(t("discover.quick.shiftNeedsComposer"));
+        return;
+      }
+      onOpenProbeRun({ tab: discTab, line, binaryPath: discBin, kind });
+      showFlash(t("discover.quick.openComposer"));
+      return;
+    }
     void navigator.clipboard.writeText(cmd);
     if (e.shiftKey) {
       const lines = cmd.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
@@ -179,11 +190,14 @@ export function DiscoverPanel({
                 >
                   {QUICK_KINDS.map((kind) => {
                     const cmd = discoveryCommandForProbe(discTab, line, discBin, kind);
-                    const disabled = !connected || !cmd;
+                    const available = discoveryQuickActionAvailable(discTab, line, discBin, kind);
+                    const disabled = !connected || !available;
                     let title = cmd ?? "";
                     if (disabled) {
                       if (kind === "break" && (discTab === "tp" || discTab === "up")) title = t("discover.quick.breakUnavailable");
-                      else if (!cmd) title = t("discover.quick.invalidRow");
+                      else if (!available) title = t("discover.quick.invalidRow");
+                    } else if (!cmd && kind === "hook") {
+                      title = t("discover.quick.opensRunPanel");
                     }
                     return (
                       <button

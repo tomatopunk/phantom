@@ -2,7 +2,7 @@
   {
     "id": "sched_switch_tp",
     "name": "sched:sched_switch (tracepoint)",
-    "description": "Full C on tracepoint sched/sched_switch — ringbuf template.",
+    "description": "Full C on tracepoint sched/sched_switch — ringbuf.",
     "mode": "full_c",
     "attach": "tracepoint:sched:sched_switch",
     "sec": null,
@@ -10,21 +10,21 @@
   },
   {
     "id": "sys_enter_openat",
-    "name": "syscalls:sys_enter_openat (filter pid)",
-    "description": "Template hook with --sec filter (adjust tgid).",
-    "mode": "template_sec",
+    "name": "syscalls:sys_enter_openat",
+    "description": "Full C tracepoint — ringbuf sample per openat enter (adjust filter in C if needed).",
+    "mode": "full_c",
     "attach": "tracepoint:syscalls:sys_enter_openat",
-    "sec": "tgid==1",
-    "cTemplate": null
+    "sec": null,
+    "cTemplate": "#include <linux/bpf.h>\n#include <bpf/bpf_helpers.h>\n#include <bpf/bpf_tracing.h>\n\nchar LICENSE[] SEC(\"license\") = \"Dual BSD/GPL\";\n\nstruct event {\n  __u32 pid;\n};\n\nstruct {\n  __uint(type, BPF_MAP_TYPE_RINGBUF);\n  __uint(max_entries, 256 * 1024);\n} events SEC(\".maps\");\n\nSEC(\"tracepoint/syscalls/sys_enter_openat\")\nint BPF_PROG(tp_sys_enter_openat, void *ctx)\n{\n  struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);\n  if (!e)\n    return 0;\n  e->pid = bpf_get_current_pid_tgid() >> 32;\n  bpf_ringbuf_submit(e, 0);\n  return 0;\n}\n"
   },
   {
     "id": "kprobe_do_sys_open",
-    "name": "kprobe:do_sys_open (template)",
-    "description": "Minimal template kprobe with pid filter.",
-    "mode": "template_sec",
+    "name": "kprobe:do_sys_open",
+    "description": "Full C kprobe — ringbuf sample per hit.",
+    "mode": "full_c",
     "attach": "kprobe:do_sys_open",
-    "sec": "pid>0",
-    "cTemplate": null
+    "sec": null,
+    "cTemplate": "#include <linux/bpf.h>\n#include <bpf/bpf_helpers.h>\n#include <bpf/bpf_tracing.h>\n\nchar LICENSE[] SEC(\"license\") = \"Dual BSD/GPL\";\n\nstruct event {\n  __u32 pid;\n};\n\nstruct {\n  __uint(type, BPF_MAP_TYPE_RINGBUF);\n  __uint(max_entries, 256 * 1024);\n} events SEC(\".maps\");\n\nSEC(\"kprobe/do_sys_open\")\nint BPF_PROG(kprobe_do_sys_open, struct pt_regs *regs)\n{\n  struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);\n  if (!e)\n    return 0;\n  e->pid = bpf_get_current_pid_tgid() >> 32;\n  bpf_ringbuf_submit(e, 0);\n  return 0;\n}\n"
   },
   {
     "id": "minimal_ringbuf_kprobe",

@@ -1,13 +1,13 @@
 # vmlinux, kernel BTF, and custom kernels
 
-The Phantom agent uses kernel **BTF** (BPF Type Format) for **CO-RE** in eBPF that references kernel types (e.g. `hook add`). When available, `list <symbol>` also uses an **unstripped vmlinux ELF** for disassembly via `objdump`.
+The Phantom agent uses kernel **BTF** (BPF Type Format) for **CO-RE** in eBPF that references kernel types (e.g. `hook attach` / `break` user programs). When available, `list <symbol>` also uses an **unstripped vmlinux ELF** for disassembly via `objdump`.
 
 ## Feature matrix
 
 | Feature | Depends on | Notes |
 |---------|------------|--------|
 | **kprobe / break** (repo `minikprobe.o`) | Running kernel, kallsyms | BTF not strictly required. |
-| **`hook add` CO-RE** (`BPF_CORE_READ`, etc.) | **Kernel BTF** or a **vmlinux ELF** with `.BTF` | Without BTF, compile/attach may fail. |
+| **User hook / break CO-RE** (`BPF_CORE_READ`, etc.) | **Kernel BTF** or a **vmlinux ELF** with `.BTF` | Without BTF, compile/attach may fail. |
 | **`list <kernel-symbol>` disassembly** | A **vmlinux** file whose addresses match **kallsyms**, plus `objdump` or `llvm-objdump` on the host | `list` still works with kallsyms only; there will be no Disassembly section. |
 
 ## Agent BTF load order
@@ -71,5 +71,5 @@ CI on GitHub **ubuntu-latest** normally has BTF and does **not** need vmlinux. O
 ## Troubleshooting
 
 - Log line **`kernel BTF unavailable`**: enable `CONFIG_DEBUG_INFO_BTF`, or set **`-vmlinux`**, or install a debug vmlinux, or verify your self-built artifact path.
-- **`hook add` compile errors** mentioning BTF/types: usually **missing or mismatched BTF** vs the running kernel; align **vmlinux** or sysfs BTF with the **same** kernel build.
+- **User C compile errors** mentioning BTF/types: usually **missing or mismatched BTF** vs the running kernel; align **vmlinux** or sysfs BTF with the **same** kernel build.
 - **`list` without Disassembly**: set **`-vmlinux`** and install **binutils** (`objdump`); addresses must match the running kernel’s **kallsyms** (same build).

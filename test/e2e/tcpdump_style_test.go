@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -32,7 +33,7 @@ import (
 
 const e2eNetworkEnv = "E2E_NETWORK"
 
-func requireE2ENetwork(t *testing.T) (agentBin, kprobeObj string) {
+func requireE2ENetwork(t *testing.T) (agentBin, kprobeObj, bpfInclude string) {
 	t.Helper()
 	if runtime.GOOS != LinuxGOOS {
 		t.Skip("tcpdump-style e2e only on Linux")
@@ -43,14 +44,16 @@ func requireE2ENetwork(t *testing.T) (agentBin, kprobeObj string) {
 	root := FindRepoRoot(t)
 	agentBin, kprobeObj = E2EConfig(t, root)
 	SkipIfMissing(t, agentBin, kprobeObj)
-	return agentBin, kprobeObj
+	bpfInclude = filepath.Join(root, "src", "agent", "bpf", "include")
+	SkipIfMissing(t, bpfInclude)
+	return agentBin, kprobeObj, bpfInclude
 }
 
 // TestTcpdumpStyleHttp10 asserts break hit + L3/L4 metadata on HTTP/1.0 traffic (poll-based wait).
 func TestTcpdumpStyleHttp10(t *testing.T) {
-	agentBin, kprobeObj := requireE2ENetwork(t)
+	agentBin, kprobeObj, bpfInc := requireE2ENetwork(t)
 	agentAddr := "127.0.0.1:19094"
-	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
+	agentCmd := StartAgentWithBpfInclude(t, agentBin, kprobeObj, agentAddr, bpfInc)
 	defer StopAgentProcess(agentCmd)
 
 	var lc net.ListenConfig
@@ -72,12 +75,12 @@ func TestTcpdumpStyleHttp10(t *testing.T) {
 	if _, cerr := c.Connect(ctx, ""); cerr != nil {
 		t.Fatalf("connect: %v", cerr)
 	}
-	br, err := c.Execute(ctx, `hook add --point kprobe:tcp_sendmsg --lang c --sec "pid>=0"`)
+	cr, err := c.CompileAndAttach(ctx, MinimalKprobeRingbufC("tcp_sendmsg"), "kprobe:tcp_sendmsg", "", 0)
 	if err != nil {
-		t.Fatalf("hook add tcp_sendmsg: %v", err)
+		t.Fatalf("CompileAndAttach tcp_sendmsg: %v", err)
 	}
-	if !br.GetOk() {
-		t.Fatalf("hook add tcp_sendmsg: %s", br.GetErrorMessage())
+	if !cr.GetOk() {
+		t.Fatalf("CompileAndAttach tcp_sendmsg: %s", cr.GetErrorMessage())
 	}
 
 	trigger := func() {
@@ -99,9 +102,9 @@ func TestTcpdumpStyleHttp10(t *testing.T) {
 
 // TestTcpdumpStyleHttp11 asserts break hit on HTTP/1.1 traffic.
 func TestTcpdumpStyleHttp11(t *testing.T) {
-	agentBin, kprobeObj := requireE2ENetwork(t)
+	agentBin, kprobeObj, bpfInc := requireE2ENetwork(t)
 	agentAddr := "127.0.0.1:19095"
-	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
+	agentCmd := StartAgentWithBpfInclude(t, agentBin, kprobeObj, agentAddr, bpfInc)
 	defer StopAgentProcess(agentCmd)
 
 	var lcHTTP11 net.ListenConfig
@@ -123,12 +126,12 @@ func TestTcpdumpStyleHttp11(t *testing.T) {
 	if _, cerr := c.Connect(ctx, ""); cerr != nil {
 		t.Fatalf("connect: %v", cerr)
 	}
-	br, err := c.Execute(ctx, `hook add --point kprobe:tcp_sendmsg --lang c --sec "pid>=0"`)
+	cr, err := c.CompileAndAttach(ctx, MinimalKprobeRingbufC("tcp_sendmsg"), "kprobe:tcp_sendmsg", "", 0)
 	if err != nil {
-		t.Fatalf("hook add tcp_sendmsg: %v", err)
+		t.Fatalf("CompileAndAttach tcp_sendmsg: %v", err)
 	}
-	if !br.GetOk() {
-		t.Fatalf("hook add tcp_sendmsg: %s", br.GetErrorMessage())
+	if !cr.GetOk() {
+		t.Fatalf("CompileAndAttach tcp_sendmsg: %s", cr.GetErrorMessage())
 	}
 
 	trigger := func() {
@@ -144,9 +147,9 @@ func TestTcpdumpStyleHttp11(t *testing.T) {
 
 // TestTcpdumpStyleRawTcp asserts break hit on raw TCP (non-HTTP) traffic.
 func TestTcpdumpStyleRawTcp(t *testing.T) {
-	agentBin, kprobeObj := requireE2ENetwork(t)
+	agentBin, kprobeObj, bpfInc := requireE2ENetwork(t)
 	agentAddr := "127.0.0.1:19096"
-	agentCmd := StartAgent(t, agentBin, kprobeObj, agentAddr)
+	agentCmd := StartAgentWithBpfInclude(t, agentBin, kprobeObj, agentAddr, bpfInc)
 	defer StopAgentProcess(agentCmd)
 
 	var lcRaw net.ListenConfig
@@ -168,12 +171,12 @@ func TestTcpdumpStyleRawTcp(t *testing.T) {
 	if _, cerr := c.Connect(ctx, ""); cerr != nil {
 		t.Fatalf("connect: %v", cerr)
 	}
-	br, err := c.Execute(ctx, `hook add --point kprobe:tcp_sendmsg --lang c --sec "pid>=0"`)
+	cr, err := c.CompileAndAttach(ctx, MinimalKprobeRingbufC("tcp_sendmsg"), "kprobe:tcp_sendmsg", "", 0)
 	if err != nil {
-		t.Fatalf("hook add tcp_sendmsg: %v", err)
+		t.Fatalf("CompileAndAttach tcp_sendmsg: %v", err)
 	}
-	if !br.GetOk() {
-		t.Fatalf("hook add tcp_sendmsg: %s", br.GetErrorMessage())
+	if !cr.GetOk() {
+		t.Fatalf("CompileAndAttach tcp_sendmsg: %s", cr.GetErrorMessage())
 	}
 
 	trigger := func() {

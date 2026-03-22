@@ -287,7 +287,7 @@ func checkQuota(q *SessionQuota, sessionID, line string) string {
 			return ""
 		}
 		sub := strings.ToLower(parts[1])
-		if sub != "add" && sub != "attach" {
+		if sub != "attach" {
 			return ""
 		}
 		if !q.AllowHook(sessionID) {

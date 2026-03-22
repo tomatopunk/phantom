@@ -287,3 +287,35 @@ func TestExecuteHookAttach(t *testing.T) {
 		t.Errorf("hook attach compile path: want no bpf include dir, got %q", resp.GetErrorMessage())
 	}
 }
+
+func TestParseBreakArgs(t *testing.T) {
+	sym, sec, msg := parseBreakArgs("break", []string{"do_sys_open"})
+	if msg != "" {
+		t.Fatalf("want ok, got %q", msg)
+	}
+	if sym != "do_sys_open" || sec != breakDefaultKernelSec {
+		t.Fatalf("got sym=%q sec=%q", sym, sec)
+	}
+	sym, sec, msg = parseBreakArgs("tbreak", []string{"tcp_sendmsg", "--sec", "sport==22"})
+	if msg != "" || sym != "tcp_sendmsg" || sec != "sport==22" {
+		t.Fatalf("got sym=%q sec=%q msg=%q", sym, sec, msg)
+	}
+	_, _, msg = parseBreakArgs("break", []string{"tracepoint:sched:foo"})
+	if msg == "" || !strings.Contains(msg, "bare kernel symbol") {
+		t.Fatalf("want bare symbol error, got %q", msg)
+	}
+}
+
+func TestExecuteBreakKernelFilterValidation(t *testing.T) {
+	exec := newCommandExecutor("", "", nil, nil, nil)
+	mgr := session.NewManager("", nil)
+	sess, _ := mgr.GetOrCreate(context.Background(), "test-session")
+	ctx := context.Background()
+	resp, err := exec.execute(ctx, sess, `break do_sys_open --sec "sport==22"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.GetOk() {
+		t.Fatal("want sport rejected on do_sys_open for break --sec")
+	}
+}

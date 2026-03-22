@@ -94,9 +94,13 @@ export function DiscoverPanel({
     if (!cmd) return;
     void navigator.clipboard.writeText(cmd);
     if (e.shiftKey) {
-      setCmd(cmd);
+      const lines = cmd.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      if (lines.length === 0) return;
+      setCmd(lines[0]);
       openConsole();
-      await runCommandLine(cmd);
+      for (const ln of lines) {
+        await runCommandLine(ln);
+      }
       showFlash(t("discover.quick.ran"));
       return;
     }

@@ -160,7 +160,11 @@ func (*commandExecutor) executeInfoBreak(_ context.Context, sess *session.Sessio
 		if bp.Condition != "" {
 			cond = " condition " + bp.Condition
 		}
-		lines = append(lines, fmt.Sprintf("%s%s  %s  enabled=%s%s", bp.ID, tmp, bp.Symbol, en, cond))
+		kf := ""
+		if bp.KprobeHook && strings.TrimSpace(bp.KernelFilterExpr) != "" {
+			kf = " kernel_sec=" + bp.KernelFilterExpr
+		}
+		lines = append(lines, fmt.Sprintf("%s%s  %s  enabled=%s%s%s", bp.ID, tmp, bp.Symbol, en, cond, kf))
 	}
 	output := "breakpoints:\n"
 	if len(lines) == 0 {
@@ -260,9 +264,9 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
 		cmd := strings.ToLower(args[0])
 		switch cmd {
 		case infoSubBreak, "b":
-			return &proto.ExecuteResponse{Ok: true, Output: "break <symbol>  template kprobe hook (needs agent --bpf-include); condition = user-side filter"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "break <symbol> [--sec <expr>]  built-in kprobe template only (bare symbol); kernel filter DSL same as hook add --sec; default pid>=0. condition = user-side filter"}, nil
 		case "tbreak":
-			return &proto.ExecuteResponse{Ok: true, Output: "tbreak <symbol>  temporary break (template hook, removed after first hit)"}, nil
+			return &proto.ExecuteResponse{Ok: true, Output: "tbreak <symbol> [--sec <expr>]  temporary built-in kprobe break"}, nil
 		case "print", "p":
 			return &proto.ExecuteResponse{Ok: true, Output: "print <expr>  evaluate once on last probe event (pid, arg0.., ret, ...)"}, nil
 		case infoSubTrace, "t":
@@ -292,8 +296,8 @@ func (*commandExecutor) executeHelp(_ context.Context, args []string) (*proto.Ex
 	}
 	output := `commands:
   Probes:
-  break, b <sym>        template kprobe hook (agent --bpf-include); condition = user-side filter
-  tbreak <sym>          temporary break (template hook)
+  break, b <sym> [--sec e]  built-in kprobe template only; optional kernel --sec (same DSL as hook); hook add for other attach kinds
+  tbreak <sym> [--sec e]    temporary built-in kprobe break
   hook add|attach|list|delete   template or full C; see docs/command-spec.md
 
   On each probe event:

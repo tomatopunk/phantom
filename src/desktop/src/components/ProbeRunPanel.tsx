@@ -8,9 +8,9 @@ import type { TFunction } from "i18next";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as api from "../api";
 import {
-  buildProbeCommand,
+  buildProbeRunLines,
   type ProbeRunDraft,
-  templateAttachPointForDraft,
+  templateAttachPointForPreview,
   templateSecForDraft,
 } from "../app/discoverCommands";
 import { technicalInputProps } from "../app/technicalInputProps";
@@ -37,6 +37,7 @@ export function ProbeRunPanel({
   openConsole,
 }: Props) {
   const [hookSec, setHookSec] = useState("pid>0");
+  const [breakKernelSec, setBreakKernelSec] = useState("pid>=0");
   const [traceExprs, setTraceExprs] = useState("pid tgid comm");
   const [watchExpr, setWatchExpr] = useState("pid");
   const [cmdLine, setCmdLine] = useState("");
@@ -49,9 +50,10 @@ export function ProbeRunPanel({
   useEffect(() => {
     if (!draft) return;
     setHookSec("pid>0");
+    setBreakKernelSec("pid>=0");
     setTraceExprs(draft.tab === "kp" ? "pid tgid comm" : "pid tgid");
     setWatchExpr("pid");
-    setCmdLine(buildProbeCommand(draft, {}) ?? "");
+    setCmdLine(buildProbeRunLines(draft, {}).join("\n\n"));
     setPreview(null);
     setPreviewLoadErr("");
     setRunOut("");
@@ -59,13 +61,16 @@ export function ProbeRunPanel({
   }, [draft]);
 
   const cmdFromForm = useMemo(
-    () => (draft ? buildProbeCommand(draft, { hookSec, traceExprs, watchExpr }) : null),
-    [draft, hookSec, traceExprs, watchExpr],
+    () =>
+      draft
+        ? buildProbeRunLines(draft, { hookSec, breakKernelSec, traceExprs, watchExpr }).join("\n\n") || null
+        : null,
+    [draft, hookSec, breakKernelSec, traceExprs, watchExpr],
   );
 
-  const attachForPreview = draft ? templateAttachPointForDraft(draft) : null;
+  const attachForPreview = draft ? templateAttachPointForPreview(draft) : null;
   const secForPreview =
-    draft && attachForPreview ? templateSecForDraft(draft, hookSec) : null;
+    draft && attachForPreview ? templateSecForDraft(draft, hookSec, breakKernelSec) : null;
 
   const loadPreview = useCallback(async () => {
     if (!connected || !attachForPreview || !secForPreview) {
@@ -93,11 +98,16 @@ export function ProbeRunPanel({
   }, [editorTab, loadPreview]);
 
   const onRun = async () => {
-    const line = cmdLine.trim();
-    if (!line) return;
+    const lines = cmdLine
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (lines.length === 0) return;
     setRunOut(t("common.ellipsis"));
     try {
-      await runCommandLine(line);
+      for (const ln of lines) {
+        await runCommandLine(ln);
+      }
       setRunOut(t("probeRun.ranOk"));
     } catch (e) {
       setRunOut(String(e));
@@ -105,10 +115,16 @@ export function ProbeRunPanel({
   };
 
   const onFillConsole = () => {
-    const line = cmdLine.trim();
-    if (!line) return;
-    setCmd(line);
+    const raw = cmdLine.trim();
+    if (!raw) return;
+    const lines = raw.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    const first = lines[0] ?? "";
+    setCmd(first);
     openConsole();
+    if (lines.length > 1) {
+      void navigator.clipboard.writeText(raw);
+      setRunOut(t("probeRun.multiLineConsoleClipboard"));
+    }
   };
 
   const tabBtn = (id: EditorTab, label: string) => (
@@ -152,13 +168,26 @@ export function ProbeRunPanel({
       </div>
 
       <div className="rounded-md border border-app-separator/80 bg-app-field/40 p-2 space-y-2 text-[10px] shrink-0">
-        {draft.kind === "hook" ? (
+        {draft.kind === "hook" ||
+        ((draft.kind === "trace" || draft.kind === "watch") && draft.tab !== "kp") ? (
           <label className="flex flex-col gap-0.5">
             <span className="text-app-secondary">{t("probeRun.hookSec")}</span>
             <input
               className="w-full rounded border border-app-separator bg-app-bg px-1.5 py-1 font-mono-tight text-app-label"
               value={hookSec}
               onChange={(e) => setHookSec(e.target.value)}
+              {...technicalInputProps}
+            />
+          </label>
+        ) : null}
+        {draft.kind === "break" ||
+        ((draft.kind === "trace" || draft.kind === "watch") && draft.tab === "kp") ? (
+          <label className="flex flex-col gap-0.5">
+            <span className="text-app-secondary">{t("probeRun.breakKernelSec")}</span>
+            <input
+              className="w-full rounded border border-app-separator bg-app-bg px-1.5 py-1 font-mono-tight text-app-label"
+              value={breakKernelSec}
+              onChange={(e) => setBreakKernelSec(e.target.value)}
               {...technicalInputProps}
             />
           </label>
@@ -186,7 +215,10 @@ export function ProbeRunPanel({
           </label>
         ) : null}
         {draft.kind === "break" && draft.tab === "kp" ? (
-          <p className="text-app-secondary/90 leading-snug">{t("probeRun.breakHint")}</p>
+          <p className="text-app-secondary/90 leading-snug">{t("probeRun.breakBuiltInHint")}</p>
+        ) : null}
+        {draft.kind === "trace" || draft.kind === "watch" ? (
+          <p className="text-app-secondary/90 leading-snug">{t("probeRun.traceWatchPairHint")}</p>
         ) : null}
         <div className="flex flex-wrap gap-1">
           <button
@@ -209,8 +241,10 @@ export function ProbeRunPanel({
         {showTemplate ? (
           <div className="font-mono-tight text-[9px] text-app-secondary break-all">
             {t("probeRun.attach")} {attachForPreview}
-            {draft.kind === "break" ? (
-              <span className="block pt-0.5">{t("probeRun.breakKernelSec")}</span>
+            {draft.kind === "break" || ((draft.kind === "trace" || draft.kind === "watch") && draft.tab === "kp") ? (
+              <span className="block pt-0.5">{t("probeRun.breakPreviewSec", { sec: breakKernelSec })}</span>
+            ) : (draft.kind === "trace" || draft.kind === "watch") && draft.tab !== "kp" ? (
+              <span className="block pt-0.5">{t("probeRun.hookPreviewSec", { sec: hookSec })}</span>
             ) : null}
           </div>
         ) : (

@@ -6,21 +6,21 @@ Commands are sent as a single line via `Execute(session_id, command_line)`. The 
 
 | Command | Alias | Args | Description |
 |---------|-------|------|-------------|
-| `break <sym>` | `b` | symbol | **Template** kprobe at a kernel symbol (same compile/attach path as `hook add --sec`; agent needs `--bpf-include`). Returns breakpoint id and consumes a **hook** slot as well as a breakpoint slot when quota is enabled. For uprobes/tracepoints use **`hook add`**. |
-| `tbreak <sym>` | — | symbol | Temporary breakpoint (template hook with `--limit 1`; auto-delete on first hit). |
+| `break <sym>` | `b` | symbol + optional kernel filter | **Built-in kprobe template only:** argument must be a **bare kernel symbol** (no `kprobe:`, `tracepoint:`, `uprobe:`, paths). The agent always generates `SEC("kprobe")` for this path; you do **not** pick the ELF section. Optional **`--sec` / `-s`** uses the **same filter DSL** as `hook add --sec` for that symbol (e.g. `pid`, `tgid`, `cpu`, `arg0`…; `sport`/`dport`/… only on `tcp_sendmsg`/`tcp_recvmsg`). Default kernel filter is `pid>=0` if `--sec` is omitted. **`condition`** is still **user-side** (suppress `BREAK_HIT` in the agent after the event). Tracepoints/uprobes/custom `SEC` → **`hook add`** or **`hook attach`**. Needs `--bpf-include`; uses a **hook** quota slot + breakpoint slot when quotas are enabled. |
+| `tbreak <sym>` | — | same as `break` | Temporary breakpoint (`--limit 1` on the template hook); auto-delete on first hit. |
 | `print <expr>` | `p` | expression | Print value (e.g. `pid`, `arg0`, `ret`) from last event context. |
-| `trace <expr>` | `t` | one or more | Register expressions; after **each** qualifying probe event (legacy main kprobe ringbuf **or** any hook pump), emit `TRACE_SAMPLE` with evaluated columns. Returns trace id. |
+| `trace <expr>` | `t` | one or more | Register expressions; after **each** qualifying probe event (legacy main kprobe ringbuf **or** any hook pump), emit `TRACE_SAMPLE` with evaluated columns. Returns trace id. **`trace` alone does not attach eBPF** — you need an active **`break`** / **`hook add`** / **`hook attach`** (or a loaded legacy kprobe object) so events reach the session. |
 | `continue` | `c` | — | Continue execution. |
 | `delete <id>` | — | id | Remove a **breakpoint**, **trace**, or **watch** by id. Hooks use `hook delete <id>`. |
 | `disable <id>` | — | breakpoint id | Disable breakpoint. |
 | `enable <id>` | — | breakpoint id | Re-enable breakpoint. |
-| `condition <id> <expr>` | — | id, expression | **User-side** filter on a breakpoint id; suppresses `BREAK_HIT` when the expression is false. Contrast `hook add --sec`, which is a **kernel-side** filter compiled into the template. |
+| `condition <id> <expr>` | — | id, expression | **User-side** filter on a breakpoint id; suppresses `BREAK_HIT` when the expression is false. Contrast **`break … --sec`** and **`hook add --sec`**, which are **kernel-side** filters in the generated C. |
 | `info` | — | `break` \| `trace` \| `watch` \| `hook` \| `session` | List breakpoints, traces, watches, hooks, or session summary (includes hook count). |
 | `list [sym]` | — | optional symbol | List source/disasm near symbol; may return "symbol not available". |
 | `bt` | — | — | Backtrace; returns "not supported" if unavailable. |
-| `watch <expr>` | — | expression | Register an expression; when its **string value** changes vs the previous event, emit `STATE_CHANGE` (state diff; not a hardware memory watchpoint). |
+| `watch <expr>` | — | expression | Register an expression; when its **string value** changes vs the previous event, emit `STATE_CHANGE` (state diff; not a hardware memory watchpoint). Same as `trace`: requires a probe producing events; the **first** event only seeds the baseline (no `STATE_CHANGE` until the value changes). |
 | `help [cmd]` | — | optional command | Short help for command or global. |
-| `hook add ...` | — | see below | Template C hook: `--point` (`kprobe:`, `tracepoint:sub:event`, `uprobe:/path:sym`, `uretprobe:/path:sym`), `--lang c`, and either `--code` or `--sec`. Optional `--limit N`. |
+| `hook add ...` | — | see below | **You choose the attach kind** via `--point`; the template emits the matching `SEC("kprobe")`, `SEC("tracepoint/…")`, `SEC("uprobe")`, etc. Either **`--code`** (snippet) or **`--sec`** (filter DSL). Optional `--limit N`. This is the path for **non–bare-symbol** probes (tracepoint, uprobe, explicit `kprobe:` spelling, custom snippet). |
 | `hook attach ...` | — | see below | Full C program on the agent: `--attach` (same formats as `hook add --point`), **`--file /abs/path.c`** *or* **`--source '…'`**, optional **`--program`** ELF program name. Use this for custom `SEC("…")` and maps (same path as gRPC `CompileAndAttach`). |
 | `quit` / `exit` / `q` | — | — | Exit REPL. |
 
@@ -38,6 +38,7 @@ Commands are sent as a single line via `Execute(session_id, command_line)`. The 
 - **Fields for `--sec` (all attach points):** `pid`, `tgid`, `cpu`, `arg0`…`arg5`, `ret`.
 - **Socket fields (only for `kprobe:tcp_sendmsg` and `kprobe:tcp_recvmsg`):** `sport`, `dport`, `saddr`, `daddr`. Using these on any other attach point returns an error. Example: `hook add --point kprobe:tcp_sendmsg --lang c --sec "sport==22 or dport==22" --limit 2`.
 - **Tracepoint template:** Handler receives `void *ctx`; `arg0`…`arg5` are zero unless your `--code` reads the tracepoint payload from `ctx`.
+- **`break` vs `hook add`:** Both use the same **C template** and clang pipeline for the probe *body*, and both get an auto-chosen `SEC(...)` from the attach kind. **`break`** is restricted to the **built-in kprobe** shape (`<symbol>` only) and is meant for debugger-style stops; **`hook add`** is the general tool for **any** `--point` and user-defined `--sec` / `--code`.
 - Hook events (including those backing `break` / `tbreak`) are merged into the session event stream; they drive `print`, `trace`, and `watch` the same way as legacy prebuilt kprobe hits when that path is loaded.
 
 ## Typical scenarios (capability bounds)
@@ -70,6 +71,24 @@ stdio JSON-RPC tools use the same command strings and attach semantics; see [mcp
 ## Expressions (print / trace)
 
 Built-in names: `pid`, `tgid`, `comm`, `cpu`, `arg0` … `arg5`, `ret`. Values are read from the last event context or the probe’s `pt_regs` (kernel) / ABI (user).
+
+## Event buffering
+
+Events flow through **three** layers: kernel ringbuf, agent pumps, then per-client subscriber queues. Order is always **kernel → agent → client**.
+
+### Kernel: BPF ring buffer
+
+Template-generated hooks (`break` / `hook add` C template) declare a `BPF_MAP_TYPE_RINGBUF` map (typically named `events`) with **`max_entries = 256 * 1024` bytes** (see `lib/agent/hook/embed/hook.c` and `src/agent/bpf/core/events.c`). This holds raw samples until user space reads them. **`hook attach`** and other custom objects must supply their own ringbuf map; its size is whatever the program defines. If this map is overrun under extreme load, the kernel may drop or fail individual `bpf_ringbuf_output` calls according to kernel/BPF rules — the agent does not resize this map at runtime.
+
+### Agent: ringbuf readers (pumps)
+
+After attach, the session runs **one goroutine per event source**: the legacy main kprobe runtime (if loaded) **plus one pump per hook**, each blocking on `ringbuf.Reader.Read()`. Decoded records become `runtime.Event` values and enter `ProcessProbeEvent` (last-event, `trace` / `watch` derivatives, then broadcast). Pumps do not queue unbounded batches in Go memory beyond what the cilium/ebpf reader holds internally.
+
+### Agent to clients: subscriber channels (gRPC `StreamEvents`, etc.)
+
+Each stream subscribes with a **Go channel of capacity 64** (`eventChanCap` in `lib/agent/server/debugger_server.go`). **`BroadcastEvent` uses non-blocking sends**: if a subscriber’s channel is full, **that event is dropped for that subscriber** so pumps never block on a slow or stalled client. Under burst load, **clients can miss events** even when the kernel ringbuf and agent pump kept up. For reliability under overload, consume the stream promptly or reduce probe rate / use kernel-side `--sec` filters.
+
+Synthetic events (`TRACE_SAMPLE`, `STATE_CHANGE`) are broadcast the same way as raw probe hits and are subject to the same per-subscriber drop policy.
 
 ## Errors
 

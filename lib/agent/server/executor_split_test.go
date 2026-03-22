@@ -24,6 +24,7 @@ func TestSplitCommandLine(t *testing.T) {
 		{``, []string{}},
 		{`   `, []string{}},
 		{`break do_filp_open`, []string{"break", "do_filp_open"}},
+		{`break tcp_sendmsg --sec "sport==22"`, []string{"break", "tcp_sendmsg", "--sec", "sport==22"}},
 	}
 	for _, tc := range cases {
 		got := splitCommandLine(tc.in)

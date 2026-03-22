@@ -23,13 +23,14 @@ import (
 
 	"github.com/cilium/ebpf/btf"
 	"github.com/tomatopunk/phantom/lib/agent/expression"
+	"github.com/tomatopunk/phantom/lib/agent/hook"
 	"github.com/tomatopunk/phantom/lib/agent/probe"
 	"github.com/tomatopunk/phantom/lib/agent/session"
 	"github.com/tomatopunk/phantom/lib/proto"
 )
 
-// breakTemplateSec is the kernel-side filter for break/tbreak template hooks (always true for real PIDs).
-const breakTemplateSec = "pid>=0"
+// breakDefaultKernelSec is the kernel-side filter when break/tbreak omits --sec (passes normal task pids).
+const breakDefaultKernelSec = "pid>=0"
 
 // commandExecutor parses command lines and drives session runtime + state.
 type commandExecutor struct {
@@ -61,18 +62,49 @@ func (e *commandExecutor) executeTbreak(ctx context.Context, sess *session.Sessi
 }
 
 // executeBreakOrTbreak is shared logic for break and tbreak (dupl).
+func parseBreakArgs(cmdPrefix string, args []string) (sym, kernelSec string, errMsg string) {
+	if len(args) < 1 {
+		return "", "", cmdPrefix + ": missing symbol"
+	}
+	sym = strings.TrimSpace(args[0])
+	if err := probe.ValidateBreakSymbol(sym); err != nil {
+		return "", "", cmdPrefix + ": " + err.Error()
+	}
+	kernelSec = breakDefaultKernelSec
+	for i := 1; i < len(args); i++ {
+		switch args[i] {
+		case "--sec", "-s":
+			if i+1 >= len(args) {
+				return "", "", cmdPrefix + ": " + args[i] + " needs a value"
+			}
+			kernelSec = strings.TrimSpace(args[i+1])
+			if kernelSec == "" {
+				return "", "", cmdPrefix + ": " + args[i] + " value is empty"
+			}
+			i++
+		default:
+			return "", "", cmdPrefix + ": unexpected argument " + args[i] + " (usage: " + cmdPrefix + " <symbol> [--sec <expr>])"
+		}
+	}
+	return sym, kernelSec, ""
+}
+
 func (e *commandExecutor) executeBreakOrTbreak(
 	ctx context.Context, sess *session.Session, args []string, cmdPrefix string, isTemp bool,
 ) (*proto.ExecuteResponse, error) {
-	if len(args) < 1 {
-		return errResponse(cmdPrefix + ": missing symbol"), nil
+	sym, kernelSec, errMsg := parseBreakArgs(cmdPrefix, args)
+	if errMsg != "" {
+		return errResponse(errMsg), nil
 	}
-	sym := strings.TrimSpace(args[0])
+	attach := "kprobe:" + sym
+	if _, err := hook.SecToSnippet(kernelSec, attach); err != nil {
+		return errResponse(cmdPrefix + ": kernel filter: " + err.Error()), nil
+	}
 	limit := 0
 	if isTemp {
 		limit = 1
 	}
-	plan, err := e.planner.PlanHook("kprobe:"+sym, "", breakTemplateSec, limit)
+	plan, err := e.planner.PlanHook(attach, "", kernelSec, limit)
 	if err != nil {
 		return errResponse(cmdPrefix + ": " + err.Error()), nil
 	}
@@ -80,12 +112,12 @@ func (e *commandExecutor) executeBreakOrTbreak(
 	if isTemp {
 		note = "tbreak"
 	}
-	opt := &session.HookOpts{FilterExpr: breakTemplateSec, Note: note}
+	opt := &session.HookOpts{FilterExpr: kernelSec, Note: note}
 	hookID, aerr := e.attachCompiledHook(ctx, sess, plan, opt)
 	if aerr != nil {
 		return errResponse(cmdPrefix + ": " + aerr.Error()), nil
 	}
-	id := sess.AddBreakpoint(sym, nil, isTemp, hookID)
+	id := sess.AddBreakpoint(sym, nil, isTemp, hookID, kernelSec)
 	msg := "breakpoint set at "
 	if isTemp {
 		msg = "temporary breakpoint set at "
@@ -108,11 +140,16 @@ func (e *commandExecutor) reattachKprobeBreak(ctx context.Context, sess *session
 	if bp.Symbol == "" {
 		return errResponse("enable: breakpoint has no symbol"), nil
 	}
-	plan, err := e.planner.PlanHook("kprobe:"+bp.Symbol, "", breakTemplateSec, 0)
+	kernelSec := strings.TrimSpace(bp.KernelFilterExpr)
+	if kernelSec == "" {
+		kernelSec = breakDefaultKernelSec
+	}
+	attach := "kprobe:" + bp.Symbol
+	plan, err := e.planner.PlanHook(attach, "", kernelSec, 0)
 	if err != nil {
 		return errResponse("enable: " + err.Error()), nil
 	}
-	opt := &session.HookOpts{FilterExpr: breakTemplateSec, Note: "break"}
+	opt := &session.HookOpts{FilterExpr: kernelSec, Note: "break"}
 	hookID, aerr := e.attachCompiledHook(ctx, sess, plan, opt)
 	if aerr != nil {
 		return errResponse("enable: " + aerr.Error()), nil

@@ -410,6 +410,8 @@ export default function App() {
             t={t}
             filtered={filtered}
             eventCount={eventCount}
+            maxBuffer={MAX_EVENTS}
+            onClearBuffer={clearEvents}
             parentRef={parentRef}
             rowVirtualizer={rowVirtualizer}
             firstTs={firstTs}

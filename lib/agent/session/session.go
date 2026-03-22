@@ -122,14 +122,15 @@ func (s *Session) Runtime() *runtime.Runtime {
 
 // AddBreakpoint stores a breakpoint and returns its id.
 // hookID is non-empty when this breakpoint is backed by a template hook (break/tbreak); detach is nil in that case.
-func (s *Session) AddBreakpoint(symbol string, detach func(), isTemp bool, hookID string) string {
+// kernelFilterExpr is the break/tbreak kernel --sec DSL when KprobeHook; otherwise may be empty.
+func (s *Session) AddBreakpoint(symbol string, detach func(), isTemp bool, hookID, kernelFilterExpr string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := s.nextBreakpointIDLocked()
 	kh := hookID != ""
 	s.breakpoints[id] = &BreakpointState{
 		ID: id, Symbol: symbol, Detach: detach, Enabled: true, IsTemp: isTemp,
-		HookID: hookID, KprobeHook: kh,
+		HookID: hookID, KprobeHook: kh, KernelFilterExpr: kernelFilterExpr,
 	}
 	return id
 }

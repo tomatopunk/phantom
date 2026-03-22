@@ -28,6 +28,8 @@ type BreakpointState struct {
 	HookID string
 	// KprobeHook is true when the breakpoint was created via break/tbreak (template hook); used to re-enable after disable.
 	KprobeHook bool
+	// KernelFilterExpr is the kernel-side filter DSL (same family as hook add --sec) compiled into the break template; empty means agent default.
+	KernelFilterExpr string
 }
 
 // TraceState holds one trace's expressions and optional detach.

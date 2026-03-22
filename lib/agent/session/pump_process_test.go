@@ -55,7 +55,7 @@ func TestProcessProbeEventMainPumpSuppressesBreakHitWhenAllConditionsFail(t *tes
 	ch := make(chan *runtime.Event, 8)
 	s.SubscribeEvents(ch)
 
-	id := s.AddBreakpoint("sym", func() {}, false, "")
+	id := s.AddBreakpoint("sym", func() {}, false, "", "")
 	if !s.SetBreakpointCondition(id, "pid==1") {
 		t.Fatal("SetBreakpointCondition")
 	}
